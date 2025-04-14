@@ -11,8 +11,8 @@ namespace Fragile.Encryption
     /// </summary>
     internal class AesEncryptionProvider : EncryptionProvider
     {
-        private readonly string _password;
         private readonly int _keySize;
+        private readonly string _password;
         private const int IVSize = 16;   // 128 bits
         private const int SaltSize = 16; // 128 bits
 
