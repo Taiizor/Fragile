@@ -27,7 +27,7 @@ namespace Fragile.Samples.Encryption
                 Directory.CreateDirectory(tempDir);
 
                 // Test dosya boyutları
-                var fileSizes = new Dictionary<string, int>
+                Dictionary<string, int> fileSizes = new()
                 {
                     { "Küçük", 200 },        // 200 byte civarı
                     { "Orta", 100 * 1024 },  // 100 KB
@@ -66,10 +66,10 @@ namespace Fragile.Samples.Encryption
 
                 // Farklı boyutlardaki dosyalar için performans testi
                 Console.WriteLine("\n\n=== PERFORMANS TESTİ ===");
-                foreach (var size in fileSizes)
+                foreach (KeyValuePair<string, int> size in fileSizes)
                 {
                     Console.WriteLine($"\n>> {size.Key} Boyutlu Dosya Testi ({size.Value:N0} bayt)");
-                    
+
                     if (size.Key != "Küçük") // Küçük dosyayı zaten oluşturduk
                     {
                         // Test dosyası oluştur
@@ -84,7 +84,7 @@ namespace Fragile.Samples.Encryption
                     }
 
                     string sizeTestPath = size.Key == "Küçük" ? testFilePath : Path.Combine(tempDir, $"test_{size.Key.ToLowerInvariant()}.txt");
-                    
+
                     // Tüm şifreleme yöntemleri için performans testi
                     foreach (EncryptionMethod method in Enum.GetValues<EncryptionMethod>())
                     {
@@ -114,43 +114,45 @@ namespace Fragile.Samples.Encryption
         private static void DisplaySummary()
         {
             if (_testResults.Count == 0)
+            {
                 return;
+            }
 
             Console.WriteLine("\n\n=== SONUÇLARIN ÖZETİ ===");
 
             // Başarılı testler
-            var successfulTests = _testResults.Where(r => r.IsSuccessful).ToList();
+            List<EncryptionTestResult> successfulTests = _testResults.Where(r => r.IsSuccessful).ToList();
             Console.WriteLine($"\nBaşarılı Testler: {successfulTests.Count}");
 
             if (successfulTests.Any())
             {
                 // Her boyut için en hızlı şifreleme işlemi
-                var bySize = successfulTests.GroupBy(t => t.FileSize);
-                
-                foreach (var sizeGroup in bySize)
+                IEnumerable<IGrouping<string, EncryptionTestResult>> bySize = successfulTests.GroupBy(t => t.FileSize);
+
+                foreach (IGrouping<string, EncryptionTestResult> sizeGroup in bySize)
                 {
                     Console.WriteLine($"\n>> {sizeGroup.Key} boyutlu dosya için sonuçlar:");
-                    
+
                     // En hızlı şifreleme
-                    var fastestEncryption = sizeGroup.OrderBy(r => r.EncryptionTime).First();
+                    EncryptionTestResult fastestEncryption = sizeGroup.OrderBy(r => r.EncryptionTime).First();
                     Console.WriteLine($"En Hızlı Şifreleme: {fastestEncryption.Method} - {fastestEncryption.EncryptionTime} ms");
-                    
+
                     // En hızlı şifre çözme
-                    var fastestDecryption = sizeGroup.OrderBy(r => r.DecryptionTime).First();
+                    EncryptionTestResult fastestDecryption = sizeGroup.OrderBy(r => r.DecryptionTime).First();
                     Console.WriteLine($"En Hızlı Şifre Çözme: {fastestDecryption.Method} - {fastestDecryption.DecryptionTime} ms");
-                    
+
                     // En az ek yük
-                    var leastOverhead = sizeGroup.OrderBy(r => r.Overhead).First();
+                    EncryptionTestResult leastOverhead = sizeGroup.OrderBy(r => r.Overhead).First();
                     Console.WriteLine($"En Az Ek Yük: {leastOverhead.Method} - {leastOverhead.Overhead:N0} bayt");
                 }
             }
 
             // Başarısız testler
-            var failedTests = _testResults.Where(r => !r.IsSuccessful && !r.IsExpectedFailure).ToList();
+            List<EncryptionTestResult> failedTests = _testResults.Where(r => !r.IsSuccessful && !r.IsExpectedFailure).ToList();
             Console.WriteLine($"\nBaşarısız Testler: {failedTests.Count}");
 
             // Desteklenmeyen algoritmalar
-            var unsupportedAlgorithms = failedTests
+            List<EncryptionMethod> unsupportedAlgorithms = failedTests
                 .Where(r => r.ErrorMessage?.Contains("not supported") == true)
                 .Select(r => r.Method)
                 .Distinct()
@@ -212,11 +214,11 @@ namespace Fragile.Samples.Encryption
                 // Şifreli dosya bilgilerini göster
                 FileInfo inputInfo = new(inputFilePath);
                 FileInfo encryptedInfo = new(encryptedFilePath);
-                
+
                 long originalSize = inputInfo.Length;
                 long encryptedSize = encryptedInfo.Length;
                 long overhead = encryptedSize - originalSize;
-                
+
                 result.OriginalSize = originalSize;
                 result.EncryptedSize = encryptedSize;
                 result.Overhead = overhead;
@@ -263,34 +265,34 @@ namespace Fragile.Samples.Encryption
                 bool isValid = File.ReadAllText(inputFilePath) == decryptedContent;
                 result.IsSuccessful = isValid;
                 Console.WriteLine($"Doğrulama: {(isValid ? "Başarılı ✓" : "Başarısız ✗")}");
-                
+
                 // Test sonucunu listeye ekle
                 _testResults.Add(result);
             }
             catch (NotSupportedException nse)
             {
-                _testResults.Add(new EncryptionTestResult 
-                { 
-                    Method = method, 
-                    FileSize = "Küçük", 
-                    IsSuccessful = false, 
-                    ErrorMessage = nse.Message 
+                _testResults.Add(new EncryptionTestResult
+                {
+                    Method = method,
+                    FileSize = "Küçük",
+                    IsSuccessful = false,
+                    ErrorMessage = nse.Message
                 });
                 Console.WriteLine($"Desteklenmiyor: {nse.Message}");
             }
             catch (Exception ex)
             {
-                _testResults.Add(new EncryptionTestResult 
-                { 
-                    Method = method, 
-                    FileSize = "Küçük", 
-                    IsSuccessful = false, 
-                    ErrorMessage = ex.Message 
+                _testResults.Add(new EncryptionTestResult
+                {
+                    Method = method,
+                    FileSize = "Küçük",
+                    IsSuccessful = false,
+                    ErrorMessage = ex.Message
                 });
                 Console.WriteLine($"Hata: {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// Belirtilen şifreleme metodu ile performans testi yapar
         /// </summary>
@@ -339,7 +341,7 @@ namespace Fragile.Samples.Encryption
                 FileInfo encryptedInfo = new(encryptedFilePath);
                 long encryptedSize = encryptedInfo.Length;
                 long overhead = encryptedSize - originalSize;
-                
+
                 result.EncryptedSize = encryptedSize;
                 result.Overhead = overhead;
 
@@ -367,29 +369,29 @@ namespace Fragile.Samples.Encryption
                 Console.WriteLine($"Şifreleme süresi: {encryptionTime} ms");
                 Console.WriteLine($"Şifre çözme süresi: {decryptionTime} ms");
                 Console.WriteLine($"Doğrulama: {(isValid ? "Başarılı ✓" : "Başarısız ✗")}");
-                
+
                 // Test sonucunu listeye ekle
                 _testResults.Add(result);
             }
             catch (NotSupportedException nse)
             {
-                _testResults.Add(new EncryptionTestResult 
-                { 
-                    Method = method, 
-                    FileSize = sizeCategory, 
-                    IsSuccessful = false, 
-                    ErrorMessage = nse.Message 
+                _testResults.Add(new EncryptionTestResult
+                {
+                    Method = method,
+                    FileSize = sizeCategory,
+                    IsSuccessful = false,
+                    ErrorMessage = nse.Message
                 });
                 Console.WriteLine($"Desteklenmiyor: {nse.Message}");
             }
             catch (Exception ex)
             {
-                _testResults.Add(new EncryptionTestResult 
-                { 
-                    Method = method, 
-                    FileSize = sizeCategory, 
-                    IsSuccessful = false, 
-                    ErrorMessage = ex.Message 
+                _testResults.Add(new EncryptionTestResult
+                {
+                    Method = method,
+                    FileSize = sizeCategory,
+                    IsSuccessful = false,
+                    ErrorMessage = ex.Message
                 });
                 Console.WriteLine($"Hata: {ex.Message}");
             }
@@ -466,7 +468,7 @@ namespace Fragile.Samples.Encryption
                     Console.WriteLine($"\nŞifre çözme hatası (beklenen): {ex.Message}");
                     Console.WriteLine("Bu, yanlış şifre kullanıldığında beklenen davranıştır.");
                 }
-                
+
                 // Test sonucunu listeye ekle
                 _testResults.Add(result);
             }
@@ -483,7 +485,7 @@ namespace Fragile.Samples.Encryption
         {
             using FileStream originalStream = new(originalFilePath, FileMode.Open, FileAccess.Read);
             using FileStream decryptedStream = new(decryptedFilePath, FileMode.Open, FileAccess.Read);
-            
+
             if (originalStream.Length != decryptedStream.Length)
             {
                 return false;
