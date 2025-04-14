@@ -29,9 +29,9 @@ namespace Fragile.Sample.Beginner.Compression
             Console.WriteLine($"Original file size: {originalSize:N0} bytes");
 
             // Create archives with different compression levels
-            await CreateCompressedArchive(sampleDir, largeFilePath, CompressionLevel.Fastest, "fastest.frgl");
-            await CreateCompressedArchive(sampleDir, largeFilePath, CompressionLevel.Normal, "normal.frgl");
-            await CreateCompressedArchive(sampleDir, largeFilePath, CompressionLevel.Ultra, "ultra.frgl");
+            await CreateCompressedArchive(sampleDir, largeFilePath, originalSize, CompressionLevel.Fastest, "fastest.frgl");
+            await CreateCompressedArchive(sampleDir, largeFilePath, originalSize, CompressionLevel.Normal, "normal.frgl");
+            await CreateCompressedArchive(sampleDir, largeFilePath, originalSize, CompressionLevel.Ultra, "ultra.frgl");
 
             // Compare file sizes
             await CompareArchivedFileSizes(sampleDir);
@@ -57,7 +57,7 @@ namespace Fragile.Sample.Beginner.Compression
             }
         }
 
-        static async Task CreateCompressedArchive(string outputDir, string filePath, CompressionLevel level, string archiveName)
+        static async Task CreateCompressedArchive(string outputDir, string filePath, long originalSize, CompressionLevel level, string archiveName)
         {
             Console.WriteLine($"\nCreating archive with {level} compression level...");
             string archivePath = Path.Combine(outputDir, archiveName);
