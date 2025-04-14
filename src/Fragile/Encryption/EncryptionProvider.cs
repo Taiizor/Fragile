@@ -35,9 +35,8 @@ namespace Fragile.Encryption
                 EncryptionMethod.None => new NoneEncryptionProvider(),
                 EncryptionMethod.AES128 => new AesEncryptionProvider(password, 128),
                 EncryptionMethod.AES256 => new AesEncryptionProvider(password, 256),
-                // These would be implemented with additional libraries
-                // EncryptionMethod.ChaCha20 => new ChaCha20EncryptionProvider(password),
-                // EncryptionMethod.Twofish => new TwofishEncryptionProvider(password),
+                EncryptionMethod.ChaCha20 => new ChaCha20EncryptionProvider(password),
+                EncryptionMethod.Twofish => new TwofishEncryptionProvider(password),
                 _ => throw new NotSupportedException($"Encryption method {method} is not supported")
             };
         }
@@ -71,9 +70,8 @@ namespace Fragile.Encryption
                 EncryptionMethod.None => new NoneEncryptionProvider(),
                 EncryptionMethod.AES128 => new AesEncryptionProvider(options.Password, 128),
                 EncryptionMethod.AES256 => new AesEncryptionProvider(options.Password, 256),
-                // These would be implemented with additional libraries
-                // EncryptionMethod.ChaCha20 => new ChaCha20EncryptionProvider(options.Password),
-                // EncryptionMethod.Twofish => new TwofishEncryptionProvider(options.Password),
+                EncryptionMethod.ChaCha20 => new ChaCha20EncryptionProvider(options.Password),
+                EncryptionMethod.Twofish => new TwofishEncryptionProvider(options.Password),
                 _ => throw new NotSupportedException($"Encryption method {options.EncryptionMethod} is not supported")
             };
         }
