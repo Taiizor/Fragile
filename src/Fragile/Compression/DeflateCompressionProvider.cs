@@ -101,22 +101,137 @@ namespace Fragile.Compression
         public override async Task<long> DecompressAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             long initialPosition = output.Position;
+            long initialInputPosition = input.Position;
 
-            using (DeflateStream deflateStream = new(input, CompressionMode.Decompress, true))
+            try
             {
-                byte[] buffer = new byte[81920]; // 80 KB buffer
-
-                int bytesRead;
-                while ((bytesRead = await deflateStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+                // First, try to detect if this is a parallel compressed file by reading the first few bytes
+                if (input.CanSeek && input.Length > 4)
                 {
-                    await output.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+                    using (BinaryReader reader = new(input, System.Text.Encoding.UTF8, true))
+                    {
+                        try
+                        {
+                            // Read the number of chunks as an indicator that this is a parallel compressed file
+                            int chunkCount = reader.ReadInt32();
 
-                    // We can't easily report progress for decompression without knowing the final size
-                    // Progress will be reported based on the number of compressed bytes read if applicable
+                            // If the chunk count seems reasonable, assume this is a parallel compressed file
+                            if (chunkCount is > 0 and < 1000) // Sanity check
+                            {
+                                // Read chunk information
+                                List<(long Start, long Length, int CompressedLength)> chunks = new();
+                                for (int i = 0; i < chunkCount; i++)
+                                {
+                                    long start = reader.ReadInt64();
+                                    long length = reader.ReadInt64();
+                                    int compressedLength = reader.ReadInt32();
+                                    chunks.Add((start, length, compressedLength));
+                                }
 
-                    // Check for cancellation
-                    cancellationToken.ThrowIfCancellationRequested();
+                                // Calculate total uncompressed size for progress reporting
+                                long totalUncompressedSize = chunks.Sum(c => c.Length);
+                                long totalProcessed = 0;
+
+                                // Create a buffer large enough to hold all uncompressed data
+                                using MemoryStream fullDecompressedData = new((int)totalUncompressedSize);
+
+                                // Process each chunk
+                                foreach ((long start, long length, int compressedLength) in chunks)
+                                {
+                                    // Read compressed data for this chunk
+                                    byte[] compressedData = reader.ReadBytes(compressedLength);
+
+                                    // Decompress chunk
+                                    using (MemoryStream compressedStream = new(compressedData))
+                                    using (DeflateStream deflateStream = new(compressedStream, CompressionMode.Decompress))
+                                    {
+                                        // Position in full buffer where this chunk should go
+                                        fullDecompressedData.Position = start;
+
+                                        // Use fixed size buffer for reading
+                                        byte[] buffer = new byte[81920]; // 80 KB buffer
+                                        int bytesRead;
+                                        long totalBytesRead = 0;
+
+                                        while (totalBytesRead < length &&
+                                              (bytesRead = await deflateStream.ReadAsync(buffer, 0, (int)Math.Min(buffer.Length, length - totalBytesRead), cancellationToken)) > 0)
+                                        {
+                                            await fullDecompressedData.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+                                            totalBytesRead += bytesRead;
+                                        }
+                                    }
+
+                                    // Update progress
+                                    totalProcessed += length;
+                                    progress?.Report((double)totalProcessed / totalUncompressedSize);
+
+                                    // Check for cancellation
+                                    cancellationToken.ThrowIfCancellationRequested();
+                                }
+
+                                // Write full uncompressed data to output
+                                fullDecompressedData.Position = 0;
+                                await fullDecompressedData.CopyToAsync(output, 81920, cancellationToken);
+
+                                // Final progress update
+                                progress?.Report(1.0);
+
+                                // Return the number of bytes written
+                                return output.Position - initialPosition;
+                            }
+                        }
+                        catch (EndOfStreamException)
+                        {
+                            // Not in the parallel compression format, reset and try standard decompression
+                        }
+                        catch (Exception ex)
+                        {
+                            // Try standard decompression if parallel decompression fails
+                            Console.WriteLine($"Parallel decompression failed, trying standard method: {ex.Message}");
+                        }
+                    }
+
+                    // Reset input stream position to try standard decompression
+                    input.Position = initialInputPosition;
                 }
+
+                // If not a parallel compressed file or the detection failed, try standard decompression
+                using MemoryStream tempBuffer = new();
+                // First, decompress to a memory buffer
+                using (DeflateStream deflateStream = new(input, CompressionMode.Decompress, true))
+                {
+                    byte[] buffer = new byte[81920]; // 80 KB buffer
+                    int bytesRead;
+                    long totalBytes = 0;
+
+                    while ((bytesRead = await deflateStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+                    {
+                        await tempBuffer.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+                        totalBytes += bytesRead;
+
+                        // Report approximate progress if possible
+                        if (input.CanSeek && progress != null)
+                        {
+                            double progressValue = Math.Min(0.95, (double)input.Position / input.Length);
+                            progress.Report(progressValue);
+                        }
+
+                        // Check for cancellation
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                }
+
+                // Then write the complete buffer to the output
+                tempBuffer.Position = 0;
+                await tempBuffer.CopyToAsync(output, 81920, cancellationToken);
+
+                // Final progress update
+                progress?.Report(1.0);
+            }
+            catch (Exception ex)
+            {
+                // Add more context to the exception
+                throw new InvalidDataException($"Failed to decompress using Deflate algorithm: {ex.Message}", ex);
             }
 
             // Return the number of bytes written
