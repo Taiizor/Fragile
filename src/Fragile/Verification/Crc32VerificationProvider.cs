@@ -138,11 +138,11 @@ namespace Fragile.Verification
 
             // Initialize progress tracking
             double[] chunkProgress = new double[chunkCount];
-            object progressLock = new object();
+            object progressLock = new();
 
             // Use semaphore to limit concurrent tasks
-            using SemaphoreSlim semaphore = new SemaphoreSlim(threadCount);
-            List<Task<uint>> tasks = new List<Task<uint>>(chunkCount);
+            using SemaphoreSlim semaphore = new(threadCount);
+            List<Task<uint>> tasks = new(chunkCount);
 
             // Process each chunk
             for (int i = 0; i < chunkCount; i++)
@@ -158,7 +158,7 @@ namespace Fragile.Verification
                 {
                     try
                     {
-                        using MemoryStream chunkStream = new MemoryStream();
+                        using MemoryStream chunkStream = new();
                         byte[] buffer = new byte[81920]; // 80 KB buffer
 
                         // Create a copy of the chunk

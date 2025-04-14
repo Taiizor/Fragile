@@ -130,7 +130,7 @@ namespace Fragile.Verification
             }
 
             // Create chunks
-            List<(long Start, long End)> chunks = new List<(long Start, long End)>();
+            List<(long Start, long End)> chunks = new();
             for (int i = 0; i < threadCount; i++)
             {
                 long start = i * chunkSize;
@@ -139,9 +139,9 @@ namespace Fragile.Verification
             }
 
             // Limit concurrent tasks using semaphore
-            using SemaphoreSlim semaphore = new SemaphoreSlim(threadCount);
-            List<Task<byte[]>> tasks = new List<Task<byte[]>>();
-            ParallelProgress progressTracker = new ParallelProgress(chunks.Count, progress);
+            using SemaphoreSlim semaphore = new(threadCount);
+            List<Task<byte[]>> tasks = new();
+            ParallelProgress progressTracker = new(chunks.Count, progress);
 
             foreach ((long start, long end) in chunks)
             {
@@ -152,7 +152,7 @@ namespace Fragile.Verification
                     try
                     {
                         // Create a new stream for this chunk
-                        using ChunkStream chunkStream = new ChunkStream(input, start, end - start);
+                        using ChunkStream chunkStream = new(input, start, end - start);
                         using HashAlgorithm hashAlgorithm = CreateHashAlgorithm();
 
                         byte[] buffer = new byte[81920]; // 80 KB buffer
