@@ -2,6 +2,7 @@ using Fragile.Compression;
 using Fragile.Core;
 using Fragile.Models;
 using System.Diagnostics;
+using System.Text;
 
 namespace Fragile.Sample.Advanced.ParallelProcessing
 {
@@ -9,6 +10,9 @@ namespace Fragile.Sample.Advanced.ParallelProcessing
     {
         static async Task Main(string[] args)
         {
+            Console.InputEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
+
             Console.WriteLine("Fragile Advanced Parallel Processing Sample");
             Console.WriteLine("===========================================");
 
@@ -24,6 +28,9 @@ namespace Fragile.Sample.Advanced.ParallelProcessing
 
             Console.WriteLine("\nParallel processing sample completed!");
             Console.WriteLine("Check the 'Sample' directory for the created files and benchmark results.");
+
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
         }
 
         static async Task GenerateTestFiles(string directory)

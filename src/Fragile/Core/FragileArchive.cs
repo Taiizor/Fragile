@@ -393,12 +393,25 @@ namespace Fragile.Core
                 throw new InvalidOperationException("Cannot extract in create mode");
             }
 
+            // Hedef yol boş veya null ise hata fırlat
+            if (string.IsNullOrWhiteSpace(destinationPath))
+            {
+                throw new ArgumentException("Destination path cannot be null or empty", nameof(destinationPath));
+            }
+
             // Create the target directory if it doesn't exist
             Directory.CreateDirectory(destinationPath);
 
             // Extract all entries
             foreach (FragileArchiveEntry entry in _entries.Values)
             {
+                // Geçersiz yolları atla
+                if (string.IsNullOrWhiteSpace(entry.Path) || entry.Path.Contains("\0"))
+                {
+                    Console.WriteLine($"Skipping entry with invalid path: '{entry.Path}'");
+                    continue;
+                }
+
                 string targetPath = Path.Combine(destinationPath, entry.Path);
 
                 if (entry.IsDirectory)
@@ -407,11 +420,22 @@ namespace Fragile.Core
                 }
                 else
                 {
-                    // Ensure the directory exists
-                    Directory.CreateDirectory(Path.GetDirectoryName(targetPath));
+                    try
+                    {
+                        // Ensure the directory exists
+                        string? directory = Path.GetDirectoryName(targetPath);
+                        if (!string.IsNullOrEmpty(directory))
+                        {
+                            Directory.CreateDirectory(directory);
+                        }
 
-                    // Extract the file
-                    await ExtractFileAsync(entry, targetPath);
+                        // Extract the file
+                        await ExtractFileAsync(entry, targetPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new Exception($"Failed to extract file {entry.Path}", ex);
+                    }
                 }
             }
         }
@@ -882,7 +906,7 @@ namespace Fragile.Core
                     Path = reader.ReadString(),
                     Size = reader.ReadInt64(),
                     CompressedSize = reader.ReadInt64(),
-                    LastModified = DateTime.FromBinary(reader.ReadInt64()),
+                    LastModified = TryParseDateTime(reader.ReadInt64()),
                     IsDirectory = reader.ReadBoolean(),
                     Position = reader.ReadInt64(),
                     // Only set the initial encryption state based on archive options
@@ -1019,6 +1043,12 @@ namespace Fragile.Core
 
             try
             {
+                // Hedef yol geçersiz ise hata fırlat
+                if (string.IsNullOrWhiteSpace(destinationPath) || destinationPath.Contains("\0"))
+                {
+                    throw new ArgumentException($"Invalid destination path: '{destinationPath}'", nameof(destinationPath));
+                }
+
                 // Create directory if it doesn't exist
                 string? directory = Path.GetDirectoryName(destinationPath);
                 if (!string.IsNullOrEmpty(directory))
@@ -1192,6 +1222,16 @@ namespace Fragile.Core
             if (string.IsNullOrEmpty(path))
             {
                 return string.Empty;
+            }
+
+            // Null karakterleri temizle
+            path = path.Replace("\0", string.Empty);
+
+            // Geçersiz karakterleri temizle
+            char[] invalidChars = Path.GetInvalidPathChars();
+            foreach (char c in invalidChars)
+            {
+                path = path.Replace(c.ToString(), string.Empty);
             }
 
             // Replace Windows path separators with forward slashes
@@ -1550,6 +1590,23 @@ namespace Fragile.Core
                 extendedEntry.HasErrorCorrection = _options.EnableErrorCorrection;
 
                 yield return extendedEntry;
+            }
+        }
+
+        /// <summary>
+        /// Safely creates a DateTime from binary data.
+        /// Returns the current time in case of invalid values.
+        /// </summary>
+        private DateTime TryParseDateTime(long ticks)
+        {
+            try
+            {
+                return DateTime.FromBinary(ticks);
+            }
+            catch (ArgumentException)
+            {
+                // Return current time for invalid DateTime value
+                return DateTime.UtcNow;
             }
         }
     }

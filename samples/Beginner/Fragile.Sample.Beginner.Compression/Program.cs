@@ -1,6 +1,7 @@
 using Fragile.Compression;
 using Fragile.Core;
 using Fragile.Models;
+using System.Text;
 
 namespace Fragile.Sample.Beginner.Compression
 {
@@ -8,6 +9,9 @@ namespace Fragile.Sample.Beginner.Compression
     {
         static async Task Main(string[] args)
         {
+            Console.InputEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
+
             Console.WriteLine("Fragile Compression Sample");
             Console.WriteLine("=========================");
 
@@ -33,6 +37,9 @@ namespace Fragile.Sample.Beginner.Compression
 
             Console.WriteLine("\nCompression sample completed successfully!");
             Console.WriteLine("Check the 'Sample' directory for the created files.");
+
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
         }
 
         static void CreateLargeTextFile(string filePath, int lineCount)

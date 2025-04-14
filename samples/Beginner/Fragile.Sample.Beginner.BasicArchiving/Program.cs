@@ -1,6 +1,7 @@
 using Fragile.Core;
 using Fragile.Models;
 using Fragile.Utils;
+using System.Text;
 
 namespace Fragile.Sample.Beginner.BasicArchiving
 {
@@ -8,6 +9,9 @@ namespace Fragile.Sample.Beginner.BasicArchiving
     {
         static async Task Main(string[] args)
         {
+            Console.InputEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
+
             Console.WriteLine("Fragile Basic Archiving Sample");
             Console.WriteLine("==============================");
 
@@ -22,8 +26,8 @@ namespace Fragile.Sample.Beginner.BasicArchiving
             string archivePath = Path.Combine(sampleDir, "MyFirstArchive.frgl");
             Console.WriteLine($"Creating archive: {archivePath}");
 
-            // Using the utility methods (easiest approach)
-            int fileCount = FragileUtility.CreateArchive(
+            // Using the utility methods (easiest approach) - using async version to avoid file access conflicts
+            int fileCount = await FragileUtility.CreateArchiveAsync(
                 sampleDir,
                 archivePath,
                 recursive: true);
@@ -34,7 +38,8 @@ namespace Fragile.Sample.Beginner.BasicArchiving
             string extractDir = Path.Combine(sampleDir, "Extracted");
             Console.WriteLine($"Extracting archive to: {extractDir}");
 
-            FragileUtility.ExtractArchive(archivePath, extractDir);
+            // Using async version for extraction too
+            await FragileUtility.ExtractArchiveAsync(archivePath, extractDir);
             Console.WriteLine("Archive extracted successfully!");
 
             // List files in the archive
@@ -43,6 +48,9 @@ namespace Fragile.Sample.Beginner.BasicArchiving
 
             Console.WriteLine("\nBasic archiving operations completed successfully!");
             Console.WriteLine("Check the 'Sample' directory for the created files.");
+
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
         }
 
         static void CreateSampleFiles(string directory)

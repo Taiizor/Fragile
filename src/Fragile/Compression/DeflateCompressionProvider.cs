@@ -187,7 +187,7 @@ namespace Fragile.Compression
                         catch (Exception ex)
                         {
                             // Try standard decompression if parallel decompression fails
-                            Console.WriteLine($"Parallel decompression failed, trying standard method: {ex.Message}");
+                            throw new Exception($"Parallel decompression failed, trying standard method: {ex.Message}", ex);
                         }
                     }
 

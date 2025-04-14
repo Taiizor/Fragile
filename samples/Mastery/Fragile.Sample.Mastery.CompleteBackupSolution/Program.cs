@@ -28,6 +28,9 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
 
         static async Task Main(string[] args)
         {
+            Console.InputEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
+
             Console.WriteLine("Fragile Complete Backup Solution - Mastery Sample");
             Console.WriteLine("================================================");
 
@@ -91,6 +94,9 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
 
             Console.WriteLine("\nBackup process completed!");
             Console.WriteLine("Check the 'Sample' directory for the created files, backups, and restore results.");
+
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
         }
 
         static async Task CreateSampleDataForBackup()

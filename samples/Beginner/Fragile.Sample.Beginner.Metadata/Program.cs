@@ -1,6 +1,7 @@
 using Fragile.Core;
 using Fragile.Metadata;
 using Fragile.Models;
+using System.Text;
 
 namespace Fragile.Sample.Beginner.Metadata
 {
@@ -8,6 +9,9 @@ namespace Fragile.Sample.Beginner.Metadata
     {
         static async Task Main(string[] args)
         {
+            Console.InputEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
+
             Console.WriteLine("Fragile Metadata Sample");
             Console.WriteLine("======================");
 
@@ -27,6 +31,9 @@ namespace Fragile.Sample.Beginner.Metadata
 
             Console.WriteLine("\nMetadata sample completed!");
             Console.WriteLine("Check the 'Sample' directory for the created files.");
+
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
         }
 
         static void CreateSampleFiles(string directory)

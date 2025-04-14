@@ -1,6 +1,7 @@
 using Fragile.Core;
 using Fragile.Encryption;
 using Fragile.Models;
+using System.Text;
 
 namespace Fragile.Sample.Beginner.Encryption
 {
@@ -8,6 +9,9 @@ namespace Fragile.Sample.Beginner.Encryption
     {
         static async Task Main(string[] args)
         {
+            Console.InputEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
+
             Console.WriteLine("Fragile Encryption Sample");
             Console.WriteLine("========================");
 
@@ -45,6 +49,9 @@ namespace Fragile.Sample.Beginner.Encryption
 
             Console.WriteLine("\nEncryption sample completed!");
             Console.WriteLine("Check the 'Sample' directory for the created files.");
+
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
         }
 
         static void CreateSampleFiles(string directory)

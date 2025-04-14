@@ -8,6 +8,9 @@ namespace Fragile.Sample.Advanced.ErrorCorrection
     {
         static async Task Main(string[] args)
         {
+            Console.InputEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
+
             Console.WriteLine("Fragile Advanced Error Correction Sample");
             Console.WriteLine("=======================================");
 
@@ -32,6 +35,9 @@ namespace Fragile.Sample.Advanced.ErrorCorrection
 
             Console.WriteLine("\nError correction sample completed!");
             Console.WriteLine("Check the 'Sample' directory for the created files and extraction results.");
+
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
         }
 
         static void CreateImportantDataFile(string filePath)

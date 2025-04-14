@@ -9,6 +9,9 @@ namespace Fragile.Sample.Advanced.ArchiveSplitting
     {
         static async Task Main(string[] args)
         {
+            Console.InputEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
+
             Console.WriteLine("Fragile Advanced Archive Splitting Sample");
             Console.WriteLine("=========================================");
 
@@ -37,6 +40,9 @@ namespace Fragile.Sample.Advanced.ArchiveSplitting
 
             Console.WriteLine("\nArchive splitting sample completed!");
             Console.WriteLine("Check the 'Sample' directory for the created files and parts.");
+
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
         }
 
         static async Task CreateLargeSampleFiles(string directory)

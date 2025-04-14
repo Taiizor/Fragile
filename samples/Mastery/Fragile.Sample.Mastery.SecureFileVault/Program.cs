@@ -4,6 +4,7 @@ using Fragile.Encryption;
 using Fragile.Models;
 using Fragile.Verification;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace Fragile.Sample.Mastery.SecureFileVault
@@ -32,6 +33,9 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
         static async Task Main(string[] args)
         {
+            Console.InputEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
+
             Console.WriteLine("Fragile Güvenli Dosya Kasası - Ustalık Örneği");
             Console.WriteLine("=============================================");
 
@@ -132,6 +136,9 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
             Console.WriteLine("\nGüvenli Dosya Kasası örneği tamamlandı!");
             Console.WriteLine("'Sample' dizininde oluşturulan dosyaları ve kasa içeriğini kontrol edebilirsiniz.");
+
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
         }
 
         static async Task CreateSampleFiles(string directory)
