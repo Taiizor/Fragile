@@ -109,13 +109,14 @@ namespace Fragile.Samples.ErrorCorrection
                     })
                 };
 
-                // Arşivi oluştur
-                using FragileArchive archive = new(archivePath, FragileArchiveMode.Create);
+                // Asenkron arşiv oluştur
+                using var archive = await FragileArchive.CreateAsync(archivePath, options);
+                
                 // Dosyaları ekle
-                int fileCount = archive.AddDirectory(sourceDir, "", true);
+                int fileCount = await archive.AddDirectoryAsync(sourceDir, "", true);
 
                 // Arşivi kaydet
-                archive.Save();
+                await archive.SaveAsync();
 
                 stopwatch.Stop();
 
@@ -123,11 +124,11 @@ namespace Fragile.Samples.ErrorCorrection
                 Console.WriteLine($"\r✅ Arşiv oluşturuldu: {fileCount} dosya, {fileInfo.Length:N0} bayt ({stopwatch.ElapsedMilliseconds:N0} ms)");
 
                 // Hata düzeltme verilerinin boyutu
-                long overheadSize = 0;
                 if (errorCorrectionLevel > 0)
                 {
-                    // Gerçek uygulamada burada arşivden hata düzeltme verilerinin boyutunu hesaplardık
-                    overheadSize = (long)(fileInfo.Length * (errorCorrectionLevel / 100.0));
+                    // Gerçek arşiv boyutuna göre hata düzeltme verisinin tahmini boyutu
+                    long baseSize = (long)(fileInfo.Length / (1 + errorCorrectionLevel / 100.0));
+                    long overheadSize = fileInfo.Length - baseSize;
                     Console.WriteLine($"📊 Hata düzeltme verileri: ~{overheadSize:N0} bayt (toplam boyutun ~%{errorCorrectionLevel})");
                 }
             }
@@ -198,107 +199,87 @@ namespace Fragile.Samples.ErrorCorrection
                 }
                 Directory.CreateDirectory(extractDir);
 
-                // Arşivi aç
-                using FragileArchive archive = new(archivePath, FragileArchiveMode.Read);
+                // Hata düzeltme seviyesini belirle
+                int errorCorrectionLevel = 0;
+                if (archivePath.Contains("_ec5."))
+                {
+                    errorCorrectionLevel = 5;
+                }
+                else if (archivePath.Contains("_ec10."))
+                {
+                    errorCorrectionLevel = 10;
+                }
+                else if (archivePath.Contains("_ec20."))
+                {
+                    errorCorrectionLevel = 20;
+                }
+
+                // Arşiv ayarlarını hazırla
+                FragileOptions options = new()
+                {
+                    EnableErrorCorrection = errorCorrectionLevel > 0,
+                    ErrorCorrectionLevel = errorCorrectionLevel,
+                    Progress = new Progress<double>(value =>
+                    {
+                        // İlerleme bildirimi
+                    })
+                };
+
                 int repairAttempts = 0;
                 int repairedFiles = 0;
 
-                // Tüm dosyaları çıkarmayı dene
-                foreach (FragileArchiveEntry entry in archive.Entries)
+                // Callback işlevi - onarım sayısını takip eder
+                void RepairCallback(long position, int repairCount)
                 {
-                    if (entry.IsDirectory)
+                    if (repairCount > 0)
                     {
-                        // Dizin ise, oluştur ve devam et
-                        Directory.CreateDirectory(Path.Combine(extractDir, entry.Path));
-                        continue;
-                    }
-
-                    try
-                    {
-                        // Normal çıkarma
-                        archive.Extract(entry.Path, Path.Combine(extractDir, entry.Path));
-                        Console.WriteLine($"✅ Çıkarıldı: {entry.Path}");
-                    }
-                    catch (Exception ex)
-                    {
-                        // Çıkarma başarısız - hata düzeltme dene
-                        Console.WriteLine($"⚠️ Hata: {entry.Path} çıkarılamadı: {ex.Message}");
-
-                        try
-                        {
-                            repairAttempts++;
-
-                            // Burada arşivden dosya düzeltme fonksiyonu çağrılacak
-                            // (Gerçek uygulamada kütüphaneniz bu fonksiyonaliteyi sağlamalı)
-                            bool repaired = await SimulateFileRepair(archive, entry, Path.Combine(extractDir, entry.Path));
-
-                            if (repaired)
-                            {
-                                repairedFiles++;
-                                Console.WriteLine($"🛠️ Onarıldı: {entry.Path}");
-                            }
-                            else
-                            {
-                                Console.WriteLine($"❌ Onarılamadı: {entry.Path}");
-                            }
-                        }
-                        catch (Exception repairEx)
-                        {
-                            Console.WriteLine($"❌ Onarım başarısız: {repairEx.Message}");
-                        }
+                        repairAttempts++;
+                        repairedFiles++;
                     }
                 }
 
-                Console.WriteLine($"\n📊 Özet: {archive.Entries.Count} dosya, {repairAttempts} onarım denemesi, {repairedFiles} başarılı onarım");
+                try
+                {
+                    // Arşivi aç ve çıkar
+                    using var archive = await FragileArchive.OpenAsync(archivePath, options);
+                    await archive.ExtractAllAsync(extractDir);
+
+                    Console.WriteLine($"\n📊 Özet: {archive.Entries.Count} dosya, {repairAttempts} onarım denemesi, {repairedFiles} başarılı onarım");
+                }
+                catch (Exception ex)
+                {
+                    // Her dosyayı ayrı ayrı çıkarmayı dene
+                    using var archive = await FragileArchive.OpenAsync(archivePath, options);
+                    
+                    foreach (var entry in archive.Entries)
+                    {
+                        if (entry.IsDirectory)
+                        {
+                            Directory.CreateDirectory(Path.Combine(extractDir, entry.Path));
+                            continue;
+                        }
+
+                        try
+                        {
+                            string outputPath = Path.Combine(extractDir, entry.Path);
+                            await archive.ExtractAsync(entry.Path, outputPath);
+                            Console.WriteLine($"✅ Çıkarıldı: {entry.Path}");
+                        }
+                        catch (Exception extractEx)
+                        {
+                            repairAttempts++;
+                            Console.WriteLine($"⚠️ Hata: {entry.Path} çıkarılamadı: {extractEx.Message}");
+                        }
+                    }
+
+                    Console.WriteLine($"\n📊 Özet: {archive.Entries.Count} dosya, {repairAttempts} onarım denemesi, {repairedFiles} başarılı onarım");
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Arşiv çıkarma işlemi başarısız: {ex.Message}");
                 throw;
             }
-        }
-
-        /// <summary>
-        /// Dosya onarımını simüle eder (gerçek uygulamada kütüphaneniz bu işlevi sağlamalı)
-        /// </summary>
-        private static async Task<bool> SimulateFileRepair(FragileArchive archive, FragileArchiveEntry entry, string outputPath)
-        {
-            // Gerçek onarım işlevi için burada kütüphanenin hata düzeltme
-            // işlevi çağrılacak. Bu örnekte, basit bir simülasyon yapıyoruz.
-
-            // Arşivin hata düzeltme seviyesine göre başarı şansını belirle
-            int errorCorrectionLevel = 0;
-            if (archive.ArchivePath.Contains("_ec5."))
-            {
-                errorCorrectionLevel = 5;
-            }
-            else if (archive.ArchivePath.Contains("_ec10."))
-            {
-                errorCorrectionLevel = 10;
-            }
-            else if (archive.ArchivePath.Contains("_ec20."))
-            {
-                errorCorrectionLevel = 20;
-            }
-
-            // Dosya boyutuna göre onarım şansını hesapla
-            // Gerçekte bu, hata düzeltme algoritmasının yeteneklerine bağlı olacak
-            double repairChance = Math.Min(0.2 + (errorCorrectionLevel / 100.0 * 2), 0.95);
-
-            // Simülasyon: Hata düzeltme düzeyine bağlı olarak dosyayı başarılı bir şekilde onarmayı dene
-            Random random = new();
-            bool success = random.NextDouble() < repairChance;
-
-            if (success)
-            {
-                // Onarım başarılı - boş bir dosya oluştur (simülasyon için)
-                // Gerçek uygulamada, onarılmış içerikle doldurulacak
-                Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
-                await File.WriteAllTextAsync(outputPath, $"[Bu dosya {Path.GetFileName(archive.ArchivePath)} arşivinden başarıyla onarıldı.]\n");
-                await Task.Delay(500); // Onarımın zaman aldığını simüle et
-            }
-
-            return success;
         }
 
         /// <summary>
@@ -358,7 +339,8 @@ namespace Fragile.Samples.ErrorCorrection
                 Console.WriteLine($"  ⚠️ Değişmiş/onarılmış: {corruptedFiles}/{totalFiles}");
                 Console.WriteLine($"  ❌ Eksik: {missingFiles}/{totalFiles}");
 
-                double successRate = (verifiedFiles + corruptedFiles) * 100.0 / totalFiles;
+                // Kurtarma oranını hesapla - eksik dosyaları hesaba katma
+                double successRate = totalFiles > 0 ? (verifiedFiles + corruptedFiles) * 100.0 / totalFiles : 0;
                 Console.WriteLine($"  📈 Kurtarma oranı: %{successRate:F1}");
             }
             catch (Exception ex)
@@ -377,58 +359,153 @@ namespace Fragile.Samples.ErrorCorrection
 
             try
             {
-                // Alt dizinler oluştur
-                string textDir = Path.Combine(directory, "Documents");
-                string imageDir = Path.Combine(directory, "Images");
-                string dataDir = Path.Combine(directory, "Data");
-
-                Directory.CreateDirectory(textDir);
-                Directory.CreateDirectory(imageDir);
-                Directory.CreateDirectory(dataDir);
-
-                // Metin dosyaları oluştur
+                // Metin dosyaları oluştur (sıkıştırma için iyi)
+                Directory.CreateDirectory(Path.Combine(directory, "Documents"));
                 for (int i = 1; i <= 5; i++)
                 {
-                    string content = $"Bu, hata düzeltme testleri için örnek metin dosyası #{i}.\n" +
-                                    $"İçerdiği bilgiler çok önemlidir ve arşiv bozulsa bile kurtarılabilmelidir.\n" +
-                                    $"Dosya kimliği: {Guid.NewGuid()}\n";
-
-                    // İçeriği biraz daha büyüt
-                    for (int j = 0; j < 20; j++)
-                    {
-                        content += $"Örnek satır {j}: {DateTime.Now.AddDays(-j)}\n";
-                    }
-
-                    await File.WriteAllTextAsync(
-                        Path.Combine(textDir, $"document_{i}.txt"), content);
+                    string filePath = Path.Combine(directory, "Documents", $"document_{i}.txt");
+                    await File.WriteAllTextAsync(filePath, await GenerateTextContentAsync(20 * 1024)); // 20 KB
                 }
 
-                // Resim dosyalarını simüle et (binary veri)
-                Random random = new();
+                // Resim dosyaları oluştur (zaten sıkıştırılmış veri gibi - düşük sıkıştırma)
+                Directory.CreateDirectory(Path.Combine(directory, "Images"));
                 for (int i = 1; i <= 3; i++)
                 {
-                    byte[] imageData = new byte[50 * 1024]; // 50 KB
-                    random.NextBytes(imageData);
-                    await File.WriteAllBytesAsync(
-                        Path.Combine(imageDir, $"image_{i}.dat"), imageData);
+                    string filePath = Path.Combine(directory, "Images", $"image_{i}.dat");
+                    await CreateRandomBinaryFileAsync(filePath, 30 * 1024); // 30 KB
                 }
 
-                // Büyük veri dosyası
-                byte[] largeData = new byte[500 * 1024]; // 500 KB
-                random.NextBytes(largeData);
-                await File.WriteAllBytesAsync(
-                    Path.Combine(dataDir, "large_data.bin"), largeData);
+                // Büyük veri dosyası oluştur
+                Directory.CreateDirectory(Path.Combine(directory, "Data"));
+                string dataFilePath = Path.Combine(directory, "Data", "large_data.bin");
+                await CreateCompressibleDataFileAsync(dataFilePath, 100 * 1024); // 100 KB
 
                 Console.WriteLine("✅ Test dosyaları oluşturuldu:");
                 Console.WriteLine($"  📄 Metin dosyaları: 5");
                 Console.WriteLine($"  🖼️ Resim dosyaları: 3");
                 Console.WriteLine($"  📊 Veri dosyaları: 1");
+                Console.WriteLine();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Test dosyaları oluşturulamadı: {ex.Message}");
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Rastgele ikili dosya oluşturur
+        /// </summary>
+        private static async Task CreateRandomBinaryFileAsync(string filePath, int sizeInBytes)
+        {
+            using FileStream fs = new(filePath, FileMode.Create);
+            Random random = new();
+            byte[] buffer = new byte[4096];
+
+            int remainingBytes = sizeInBytes;
+            while (remainingBytes > 0)
+            {
+                int bytesToWrite = Math.Min(buffer.Length, remainingBytes);
+                random.NextBytes(buffer);
+                await fs.WriteAsync(buffer, 0, bytesToWrite);
+                remainingBytes -= bytesToWrite;
+            }
+        }
+
+        /// <summary>
+        /// Sıkıştırılabilir veri dosyası oluşturur
+        /// </summary>
+        private static async Task CreateCompressibleDataFileAsync(string filePath, int sizeInBytes)
+        {
+            using FileStream fs = new(filePath, FileMode.Create);
+            Random random = new();
+            byte[] patterns = new byte[256];
+            random.NextBytes(patterns);
+
+            int remainingBytes = sizeInBytes;
+            while (remainingBytes > 0)
+            {
+                // Tekrarlanan desenleri kullan - sıkıştırma için daha iyi
+                int patternIndex = random.Next(0, patterns.Length);
+                byte patternValue = patterns[patternIndex];
+                
+                // Desen uzunluğu: 16-128 bayt arası
+                int patternLength = random.Next(16, 129);
+                patternLength = Math.Min(patternLength, remainingBytes);
+                
+                byte[] pattern = new byte[patternLength];
+                Array.Fill(pattern, patternValue);
+                
+                await fs.WriteAsync(pattern, 0, pattern.Length);
+                remainingBytes -= patternLength;
+            }
+        }
+
+        /// <summary>
+        /// Metin içeriği oluşturur
+        /// </summary>
+        private static async Task<string> GenerateTextContentAsync(int length)
+        {
+            StringBuilder sb = new(length);
+            Random random = new();
+            
+            // Lorem ipsum benzeri metin oluştur
+            string[] words = {
+                "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit",
+                "sed", "do", "eiusmod", "tempor", "incididunt", "ut", "labore", "et", "dolore",
+                "magna", "aliqua", "enim", "ad", "minim", "veniam", "quis", "nostrud", "exercitation",
+                "ullamco", "laboris", "nisi", "aliquip", "ex", "ea", "commodo", "consequat"
+            };
+            
+            // Paragraflar oluştur
+            int chars = 0;
+            while (chars < length)
+            {
+                // Paragraf (200-800 karakter arası)
+                int paragraphLength = random.Next(200, 801);
+                
+                // Cümleler oluştur
+                int sentenceCount = random.Next(3, 8);
+                for (int s = 0; s < sentenceCount && chars < length; s++)
+                {
+                    // Cümle başlangıcı büyük harf
+                    string firstWord = words[random.Next(words.Length)];
+                    sb.Append(char.ToUpper(firstWord[0]) + firstWord.Substring(1));
+                    chars += firstWord.Length;
+                    
+                    // Kelimeleri ekle (3-15 kelime)
+                    int wordCount = random.Next(3, 16);
+                    for (int w = 0; w < wordCount && chars < length; w++)
+                    {
+                        sb.Append(' ');
+                        chars++;
+                        string word = words[random.Next(words.Length)];
+                        sb.Append(word);
+                        chars += word.Length;
+                    }
+                    
+                    // Cümle noktalama işareti
+                    string[] punctuation = { ".", ".", ".", "!", "?", ";" };
+                    sb.Append(punctuation[random.Next(punctuation.Length)]);
+                    chars++;
+                    
+                    // Boşluk ekle (cümle sonunda)
+                    if (s < sentenceCount - 1 && chars < length)
+                    {
+                        sb.Append(' ');
+                        chars++;
+                    }
+                }
+                
+                // Paragraf sonu
+                if (chars < length)
+                {
+                    sb.Append("\r\n\r\n");
+                    chars += 4;
+                }
+            }
+            
+            return sb.ToString(0, Math.Min(length, sb.Length));
         }
     }
 }

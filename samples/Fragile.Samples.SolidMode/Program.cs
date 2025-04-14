@@ -8,6 +8,8 @@ using System.Diagnostics;
 using Fragile;
 using Fragile.Compression;
 using Fragile.Formats;
+using Fragile.Models;
+using Fragile.Core;
 
 namespace Fragile.Samples.SolidMode
 {
@@ -139,11 +141,11 @@ namespace Fragile.Samples.SolidMode
             string solidArchivePath = Path.Combine(OutputFolder, "solid_mode.fragile");
             
             // Normal mod arşivi oluştur
-            var normalSettings = new FragileSettings
+            var normalSettings = new FragileOptions
             {
                 CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                CompressionLevel = CompressionLevel.Maximum,
-                SolidMode = false // Normal mod (her dosya ayrı sıkıştırılır)
+                CompressionLevel = CompressionLevel.Ultra,
+                UseSolidCompression = false // Normal mod (her dosya ayrı sıkıştırılır)
             };
             
             Console.WriteLine("Normal mod arşivi oluşturuluyor...");
@@ -156,16 +158,16 @@ namespace Fragile.Samples.SolidMode
             Console.WriteLine($"Normal mod arşivleme süresi: {normalStopwatch.ElapsedMilliseconds} ms");
             
             // Solid mod arşivi oluştur
-            var solidSettings = new FragileSettings
+            var solidOptions = new FragileOptions
             {
                 CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                CompressionLevel = CompressionLevel.Maximum,
-                SolidMode = true // Solid mod (tüm dosyalar birlikte sıkıştırılır)
+                CompressionLevel = CompressionLevel.Ultra,
+                UseSolidCompression = true // Solid mod (tüm dosyalar birlikte sıkıştırılır)
             };
             
             Console.WriteLine("Solid mod arşivi oluşturuluyor...");
             Stopwatch solidStopwatch = Stopwatch.StartNew();
-            await CreateArchive(solidArchivePath, TestFiles, solidSettings);
+            await CreateArchive(solidArchivePath, TestFiles, solidOptions);
             solidStopwatch.Stop();
             
             FileInfo solidFileInfo = new FileInfo(solidArchivePath);
@@ -232,11 +234,11 @@ namespace Fragile.Samples.SolidMode
             
             // Normal mod ile arşivle
             string largeNormalArchivePath = Path.Combine(OutputFolder, "large_normal.fragile");
-            var normalSettings = new FragileSettings
+            var normalSettings = new FragileOptions
             {
                 CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                CompressionLevel = CompressionLevel.Maximum,
-                SolidMode = false
+                CompressionLevel = CompressionLevel.Ultra,
+                UseSolidCompression = false
             };
             
             Console.WriteLine("Büyük dosyaları normal modda arşivleme...");
@@ -246,16 +248,16 @@ namespace Fragile.Samples.SolidMode
             
             // Solid mod ile arşivle
             string largeSolidArchivePath = Path.Combine(OutputFolder, "large_solid.fragile");
-            var solidSettings = new FragileSettings
+            var solidOptions = new FragileOptions
             {
                 CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                CompressionLevel = CompressionLevel.Maximum,
-                SolidMode = true
+                CompressionLevel = CompressionLevel.Ultra,
+                UseSolidCompression = true
             };
             
             Console.WriteLine("Büyük dosyaları solid modda arşivleme...");
             Stopwatch solidStopwatch = Stopwatch.StartNew();
-            await CreateArchive(largeSolidArchivePath, largeFiles, solidSettings);
+            await CreateArchive(largeSolidArchivePath, largeFiles, solidOptions);
             solidStopwatch.Stop();
             
             // Sonuçları karşılaştır
@@ -367,22 +369,22 @@ namespace Fragile.Samples.SolidMode
             Console.WriteLine($"{fileTypeLabel} için test yapılıyor...");
             
             // Normal mod arşivi oluştur
-            var normalSettings = new FragileSettings
+            var normalSettings = new FragileOptions
             {
                 CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                CompressionLevel = CompressionLevel.Maximum,
-                SolidMode = false
+                CompressionLevel = CompressionLevel.Ultra,
+                UseSolidCompression = false
             };
             
             await CreateArchive(normalArchivePath, files, normalSettings);
             FileInfo normalFileInfo = new FileInfo(normalArchivePath);
             
             // Solid mod arşivi oluştur
-            var solidSettings = new FragileSettings
+            var solidSettings = new FragileOptions
             {
                 CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                CompressionLevel = CompressionLevel.Maximum,
-                SolidMode = true
+                CompressionLevel = CompressionLevel.Ultra,
+                UseSolidCompression = true
             };
             
             await CreateArchive(solidArchivePath, files, solidSettings);
@@ -441,7 +443,7 @@ namespace Fragile.Samples.SolidMode
         /// <summary>
         /// Fragile arşivi oluşturur
         /// </summary>
-        private static async Task CreateArchive(string archivePath, List<string> filesToAdd, FragileSettings settings)
+        private static async Task CreateArchive(string archivePath, List<string> filesToAdd, FragileOptions settings)
         {
             try
             {
