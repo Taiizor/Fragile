@@ -20,9 +20,9 @@ namespace Fragile.Core
         private readonly FragileArchiveMode _mode;
         private const ushort VersionMajor = 1;
         private const ushort VersionMinor = 0;
-        private bool _disposed = false;
         private FileStream? _fileStream;
         private FragileOptions _options;
+        private bool _disposed = false;
 
         /// <summary>
         /// List of all files in the archive
