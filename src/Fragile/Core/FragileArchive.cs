@@ -8,6 +8,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace Fragile.Core
 {
@@ -883,6 +884,219 @@ namespace Fragile.Core
             }
 
             return path;
+        }
+
+        /// <summary>
+        /// Splits archive into multiple parts based on the SplitSize option
+        /// </summary>
+        /// <param name="outputDirectory">Directory to save the split parts (if null, the same directory as the archive is used)</param>
+        /// <returns>Collection of archive parts</returns>
+        public async Task<FragileArchivePartCollection> SplitAsync(string? outputDirectory = null)
+        {
+            if (_options.SplitSize <= 0)
+            {
+                throw new InvalidOperationException("SplitSize must be greater than zero to split an archive");
+            }
+
+            EnsureFileStream();
+
+            // Make sure we have a valid output directory
+            outputDirectory ??= Path.GetDirectoryName(ArchivePath) ?? ".";
+            Directory.CreateDirectory(outputDirectory);
+
+            // Create part collection
+            FragileArchivePartCollection partCollection = new(_options);
+
+            // Create a temporary copy of the archive with the current state if in create/update mode
+            string tempArchivePath = ArchivePath;
+            bool useTemporaryFile = _mode != FragileArchiveMode.Read;
+
+            if (useTemporaryFile)
+            {
+                tempArchivePath = Path.Combine(Path.GetTempPath(), $"fragile_temp_{Guid.NewGuid()}.frgl");
+                await SaveAsync(); // Make sure the current state is saved
+                File.Copy(ArchivePath, tempArchivePath);
+            }
+
+            try
+            {
+                // Open the source archive (or its copy)
+                using FileStream sourceStream = new(tempArchivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                long fileSize = sourceStream.Length;
+                
+                // Calculate how many parts we need
+                int totalParts = (int)Math.Ceiling((double)fileSize / _options.SplitSize);
+                if (totalParts <= 1)
+                {
+                    throw new InvalidOperationException($"Archive size ({fileSize} bytes) is smaller than the split size ({_options.SplitSize} bytes)");
+                }
+
+                _options.Progress?.Report(0);
+
+                // Check if we should use parallel processing
+                if (_options.UseParallelProcessing && totalParts > 1 && fileSize > 50 * 1024 * 1024) // Only for files > 50MB
+                {
+                    await SplitParallelAsync(sourceStream, outputDirectory, totalParts, partCollection);
+                }
+                else
+                {
+                    // Split into parts sequentially
+                    await SplitSequentialAsync(sourceStream, outputDirectory, totalParts, partCollection);
+                }
+
+                _options.Progress?.Report(1.0);
+                return partCollection;
+            }
+            finally
+            {
+                // Clean up temporary file if created
+                if (useTemporaryFile && File.Exists(tempArchivePath))
+                {
+                    File.Delete(tempArchivePath);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Splits archive into multiple parts sequentially
+        /// </summary>
+        private async Task SplitSequentialAsync(FileStream sourceStream, string outputDirectory, int totalParts, FragileArchivePartCollection partCollection)
+        {
+            long fileSize = sourceStream.Length;
+            long partSize = _options.SplitSize;
+            byte[] buffer = new byte[81920]; // 80 KB buffer
+            long totalProcessed = 0;
+
+            for (int partIndex = 1; partIndex <= totalParts; partIndex++)
+            {
+                // Calculate part size (last part may be smaller)
+                long currentPartSize = Math.Min(partSize, fileSize - (partIndex - 1) * partSize);
+                
+                // Create part file
+                string partPath = Path.Combine(outputDirectory, 
+                    FragileArchivePart.GetPartFileName(ArchivePath, partIndex, totalParts));
+                
+                // Create part object
+                FragileArchivePart part = new()
+                {
+                    PartIndex = partIndex,
+                    TotalParts = totalParts,
+                    Path = partPath,
+                    Size = currentPartSize,
+                    Offset = (partIndex - 1) * partSize
+                };
+                
+                // Add to collection
+                partCollection.Add(part);
+                
+                // Write part data
+                using FileStream partStream = new(partPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                
+                // Position source stream
+                sourceStream.Position = part.Offset;
+                
+                // Copy data
+                long bytesRemaining = currentPartSize;
+                while (bytesRemaining > 0)
+                {
+                    int bytesToRead = (int)Math.Min(buffer.Length, bytesRemaining);
+                    int bytesRead = await sourceStream.ReadAsync(buffer, 0, bytesToRead, _options.CancellationToken);
+                    
+                    if (bytesRead == 0)
+                        break; // End of stream
+                        
+                    await partStream.WriteAsync(buffer, 0, bytesRead, _options.CancellationToken);
+                    bytesRemaining -= bytesRead;
+                    totalProcessed += bytesRead;
+                    
+                    // Report progress
+                    _options.Progress?.Report((double)totalProcessed / fileSize);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Splits archive into multiple parts using parallel processing
+        /// </summary>
+        private async Task SplitParallelAsync(FileStream sourceStream, string outputDirectory, int totalParts, FragileArchivePartCollection partCollection)
+        {
+            long fileSize = sourceStream.Length;
+            long partSize = _options.SplitSize;
+            int maxThreads = Math.Min(_options.MaxThreads, Environment.ProcessorCount);
+            
+            // Create SemaphoreSlim to limit concurrent operations
+            using SemaphoreSlim semaphore = new(maxThreads);
+            List<Task> partTasks = new();
+            long totalProcessed = 0;
+            object lockObj = new();
+            
+            // Create part objects
+            for (int partIndex = 1; partIndex <= totalParts; partIndex++)
+            {
+                // Calculate part size (last part may be smaller)
+                long currentPartSize = Math.Min(partSize, fileSize - (partIndex - 1) * partSize);
+                
+                // Create part file path
+                string partPath = Path.Combine(outputDirectory, 
+                    FragileArchivePart.GetPartFileName(ArchivePath, partIndex, totalParts));
+                
+                // Create part object
+                FragileArchivePart part = new()
+                {
+                    PartIndex = partIndex,
+                    TotalParts = totalParts,
+                    Path = partPath,
+                    Size = currentPartSize,
+                    Offset = (partIndex - 1) * partSize
+                };
+                
+                // Add to collection
+                partCollection.Add(part);
+                
+                // Capture variables for use in task
+                int currentPartIndex = partIndex;
+                long offset = part.Offset;
+                long size = currentPartSize;
+                
+                // Wait for a thread to be available
+                await semaphore.WaitAsync(_options.CancellationToken);
+                
+                // Process part in parallel
+                partTasks.Add(Task.Run(async () => 
+                {
+                    try
+                    {
+                        // Read part data from source
+                        byte[] partData = new byte[size];
+                        
+                        // Lock source stream for reading
+                        lock (sourceStream)
+                        {
+                            sourceStream.Position = offset;
+                            sourceStream.Read(partData, 0, (int)size);
+                        }
+                        
+                        // Write to part file
+                        using FileStream partStream = new(partPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                        await partStream.WriteAsync(partData, 0, partData.Length, _options.CancellationToken);
+                        
+                        // Update progress
+                        lock (lockObj)
+                        {
+                            totalProcessed += size;
+                            _options.Progress?.Report((double)totalProcessed / fileSize);
+                        }
+                    }
+                    finally
+                    {
+                        // Release the semaphore
+                        semaphore.Release();
+                    }
+                }, _options.CancellationToken));
+            }
+            
+            // Wait for all part tasks to complete
+            await Task.WhenAll(partTasks);
         }
     }
 }
