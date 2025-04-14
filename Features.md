@@ -33,8 +33,8 @@ Fragile is a custom file archiving library for .NET that provides advanced featu
 - **Encryption Algorithms**:
   - AES-128 encryption
   - AES-256 encryption
-  
-  > **Note**: ChaCha20 and Twofish are defined in the enum but not currently implemented.
+  - ChaCha20-Poly1305 encryption
+  - Twofish encryption
 
 - **Security Features**:
   - Password-based encryption

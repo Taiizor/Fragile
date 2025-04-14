@@ -60,7 +60,7 @@ namespace Fragile.Encryption
             byte[] key = DeriveKeyFromPassword(_password, salt, KeySize);
 
             // Use a custom implementation of Twofish since it's not provided in .NET's built-in cryptography
-            using (var twofish = new TwofishManaged())
+            using (TwofishManaged twofish = new())
             {
                 twofish.Key = key;
                 twofish.IV = iv;
@@ -115,7 +115,7 @@ namespace Fragile.Encryption
             byte[] key = DeriveKeyFromPassword(_password, salt, KeySize);
 
             // Use a custom implementation of Twofish
-            using (var twofish = new TwofishManaged())
+            using (TwofishManaged twofish = new())
             {
                 twofish.Key = key;
                 twofish.IV = iv;
@@ -188,27 +188,37 @@ namespace Fragile.Encryption
         public override ICryptoTransform CreateDecryptor(byte[] rgbKey, byte[] rgbIV)
         {
             if (rgbKey == null)
+            {
                 throw new ArgumentNullException(nameof(rgbKey));
+            }
+
             if (rgbIV == null)
+            {
                 throw new ArgumentNullException(nameof(rgbIV));
-            
+            }
+
             return new TwofishTransform(rgbKey, rgbIV, false);
         }
 
         public override ICryptoTransform CreateEncryptor(byte[] rgbKey, byte[] rgbIV)
         {
             if (rgbKey == null)
+            {
                 throw new ArgumentNullException(nameof(rgbKey));
+            }
+
             if (rgbIV == null)
+            {
                 throw new ArgumentNullException(nameof(rgbIV));
-            
+            }
+
             return new TwofishTransform(rgbKey, rgbIV, true);
         }
 
         public override void GenerateIV()
         {
             byte[] iv = new byte[BlockSize / 8];
-            using (var rng = RandomNumberGenerator.Create())
+            using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
             {
                 rng.GetBytes(iv);
             }
@@ -218,7 +228,7 @@ namespace Fragile.Encryption
         public override void GenerateKey()
         {
             byte[] key = new byte[KeySize / 8];
-            using (var rng = RandomNumberGenerator.Create())
+            using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
             {
                 rng.GetBytes(key);
             }
@@ -239,27 +249,28 @@ namespace Fragile.Encryption
         private readonly byte[] _key;
         private readonly byte[] _iv;
         private readonly bool _encrypting;
-        
+
         public TwofishTransform(byte[] key, byte[] iv, bool encrypting)
         {
             _key = key;
             _iv = iv;
             _encrypting = encrypting;
         }
-        
+
         public bool CanReuseTransform => true;
-        
+
         public bool CanTransformMultipleBlocks => true;
-        
+
         public int InputBlockSize => 16; // 128 bits
-        
+
         public int OutputBlockSize => 16; // 128 bits
-        
+
         public void Dispose()
         {
             // Clean up resources
+            GC.SuppressFinalize(this);
         }
-        
+
         public int TransformBlock(byte[] inputBuffer, int inputOffset, int inputCount, byte[] outputBuffer, int outputOffset)
         {
             // Implementation would contain the actual Twofish block cipher operations
@@ -267,7 +278,7 @@ namespace Fragile.Encryption
             Buffer.BlockCopy(inputBuffer, inputOffset, outputBuffer, outputOffset, inputCount);
             return inputCount;
         }
-        
+
         public byte[] TransformFinalBlock(byte[] inputBuffer, int inputOffset, int inputCount)
         {
             // Implementation would handle padding and final block processing
@@ -277,4 +288,4 @@ namespace Fragile.Encryption
             return output;
         }
     }
-} 
+}
