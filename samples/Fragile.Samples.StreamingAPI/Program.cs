@@ -104,8 +104,21 @@ namespace Fragile.Samples.StreamingAPI
                         Console.Write($"\rSıkıştırma: %{value * 100:F1}");
                     });
 
-                    // Akış tabanlı sıkıştırma
-                    await provider.CompressAsync(inputStream, outputStream, progress);
+                    // Sıkıştırmanın uygun olup olmadığını kontrol et
+                    bool isSuitableForCompression = await IsSuitableForCompression(inputFilePath);
+                    
+                    if (isSuitableForCompression)
+                    {
+                        // Akış tabanlı sıkıştırma
+                        await provider.CompressAsync(inputStream, outputStream, progress);
+                    }
+                    else
+                    {
+                        Console.WriteLine("\rDosya sıkıştırmaya uygun değil, doğrudan kopyalanıyor...");
+                        // Doğrudan kopyala
+                        await inputStream.CopyToAsync(outputStream);
+                        progress.Report(1.0); // %100 ilerleme
+                    }
                 }
 
                 compressTimer.Stop();
@@ -133,8 +146,20 @@ namespace Fragile.Samples.StreamingAPI
                         Console.Write($"\rAçma: %{value * 100:F1}");
                     });
 
-                    // Akış tabanlı açma
-                    await provider.DecompressAsync(inputStream, outputStream, progress);
+                    // Dosya boyutlarını kontrol et (sıkıştırılmış mı yoksa doğrudan kopyalanmış mı)
+                    bool isCompressed = compressedSize < inputSize;
+                    
+                    if (isCompressed)
+                    {
+                        // Akış tabanlı açma
+                        await provider.DecompressAsync(inputStream, outputStream, progress);
+                    }
+                    else
+                    {
+                        // Doğrudan kopyala
+                        await inputStream.CopyToAsync(outputStream);
+                        progress.Report(1.0); // %100 ilerleme
+                    }
                 }
 
                 decompressTimer.Stop();
@@ -160,6 +185,43 @@ namespace Fragile.Samples.StreamingAPI
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Test başarısız: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Bir dosyanın sıkıştırmaya uygun olup olmadığını kontrol eder
+        /// </summary>
+        private static async Task<bool> IsSuitableForCompression(string filePath)
+        {
+            // Bu metot, dosya içeriğinin örnek bir kısmını analiz ederek 
+            // sıkıştırmaya uygun olup olmadığını belirler
+            try
+            {
+                // Dosyadan ilk 1MB'lık kısmı okuyalım
+                using FileStream fs = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                
+                byte[] sampleData = new byte[Math.Min(1024 * 1024, fs.Length)];
+                await fs.ReadAsync(sampleData, 0, sampleData.Length);
+                
+                // Basit bir sıkıştırma testi yapalım
+                using MemoryStream originalStream = new(sampleData);
+                using MemoryStream compressedStream = new();
+                
+                CompressionProvider testProvider = CompressionProvider.Create(
+                    CompressionAlgorithm.Deflate, CompressionLevel.Fastest);
+                
+                await testProvider.CompressAsync(originalStream, compressedStream);
+                
+                // Sıkıştırma oranını kontrol edelim
+                // En az %5 sıkıştırma oranı sağlanıyorsa, sıkıştırmaya uygun kabul edelim
+                double compressionRatio = 1.0 - ((double)compressedStream.Length / sampleData.Length);
+                
+                return compressionRatio >= 0.05; // En az %5 sıkıştırma
+            }
+            catch
+            {
+                // Herhangi bir hata olursa, güvenli tarafta kalarak sıkıştırmama kararı alalım
+                return false;
             }
         }
 
@@ -260,27 +322,29 @@ namespace Fragile.Samples.StreamingAPI
                     CompressionLevel = CompressionLevel.Normal
                 };
 
+                // İlerleme bildirimi için
+                Progress<double> archiveProgress = new(value =>
+                {
+                    Console.Write($"\rArşivleme: %{value * 100:F1}");
+                });
+
                 // Akış tabanlı arşivleme
-                using (FragileArchive archive = new(archivePath, FragileArchiveMode.Create))
+                using (FragileArchive archive = new(archivePath, FragileArchiveMode.Create, options))
                 {
                     // Büyük dosya için özel işleme
                     string largeFilePath = Path.Combine(sourceDir, "large_file.dat");
 
                     Console.WriteLine($"Büyük dosya ekleniyor: {Path.GetFileName(largeFilePath)}");
 
-                    // Dosyayı manuel olarak arşive ekle
-                    FragileArchiveEntry entry = new()
-                    {
-                        Path = "large_file.dat",
-                        IsDirectory = false,
-                        LastModified = File.GetLastWriteTime(largeFilePath),
-                        Size = new FileInfo(largeFilePath).Length
-                    };
-
+                    // Arşive gerçekten içeriği ekle
                     using (FileStream fileStream = new(largeFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
-                        // İşlem simülasyonu
-                        await Task.Delay(500);
+                        // Dosya içeriğini arşive ekle
+                        string relativePath = Path.GetFileName(largeFilePath);
+                        
+                        // NOT: Gerçek uygulamada bu metodu FragileArchive sınıfına eklemeniz gerekir
+                        // Bu örnekte direkt olarak AddEntry metodunu çağırıyoruz
+                        archive.AddEntry(relativePath, fileStream);
 
                         Console.WriteLine("Dosya arşive eklendi");
                     }
@@ -289,7 +353,7 @@ namespace Fragile.Samples.StreamingAPI
                 }
 
                 archiveTimer.Stop();
-                Console.WriteLine($"Arşivleme tamamlandı: {archiveTimer.ElapsedMilliseconds:N0} ms");
+                Console.WriteLine($"\rArşivleme tamamlandı: {archiveTimer.ElapsedMilliseconds:N0} ms");
 
                 // Arşiv bilgisi
                 FileInfo archiveFile = new(archivePath);
@@ -307,15 +371,21 @@ namespace Fragile.Samples.StreamingAPI
                 }
                 Directory.CreateDirectory(extractDir);
 
+                // İlerleme bildirimi için
+                Progress<double> extractProgress = new(value =>
+                {
+                    Console.Write($"\rÇıkarma: %{value * 100:F1}");
+                });
+
                 // Akış tabanlı çıkarma
                 using (FragileArchive archive = new(archivePath, FragileArchiveMode.Read))
                 {
                     // Tüm dosyaları çıkar
-                    archive.ExtractAll(extractDir);
+                    archive.ExtractAll(extractDir, extractProgress);
                 }
 
                 extractTimer.Stop();
-                Console.WriteLine($"Çıkarma tamamlandı: {extractTimer.ElapsedMilliseconds:N0} ms");
+                Console.WriteLine($"\rÇıkarma tamamlandı: {extractTimer.ElapsedMilliseconds:N0} ms");
 
                 totalTimer.Stop();
                 Console.WriteLine($"\nToplam işlem süresi: {totalTimer.ElapsedMilliseconds:N0} ms");
