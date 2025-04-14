@@ -9,11 +9,11 @@ namespace Fragile.Samples.SolidMode
     public class Program
     {
         // Proje klasörü yolu
-        private static readonly string ProjectFolder = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../"));
+        private static readonly string ProjectFolder = Path.Combine(Path.GetTempPath(), "FragileSolidModeSample");
         // Örnek için kullanılacak test verisi klasörü
-        private static readonly string TestDataFolder = Path.Combine(ProjectFolder, "TestData", "SolidMode");
+        private static readonly string TestDataFolder = Path.Combine(ProjectFolder, "TestData");
         // Örnek için çıktı klasörü
-        private static readonly string OutputFolder = Path.Combine(ProjectFolder, "Output", "SolidMode");
+        private static readonly string OutputFolder = Path.Combine(ProjectFolder, "Output");
         // Çeşitli boyutlarda örnek dosyaların depolanacağı liste
         private static readonly List<string> TestFiles = new();
 
@@ -488,12 +488,12 @@ namespace Fragile.Samples.SolidMode
             try
             {
                 using FragileArchive archive = await FragileArchive.OpenAsync(archivePath);
-                var entry = archive.Entries.FirstOrDefault(e =>
-                    Path.GetFileName(e.Name).Equals(fileName, StringComparison.OrdinalIgnoreCase));
+                FragileArchiveEntry? entry = archive.Entries.FirstOrDefault(e =>
+                    Path.GetFileName(e.Path).Equals(fileName, StringComparison.OrdinalIgnoreCase));
 
                 if (entry != null)
                 {
-                    await entry.ExtractToAsync(Path.Combine(extractFolder, fileName));
+                    await archive.ExtractAsync(entry.Path, Path.Combine(extractFolder, fileName));
                 }
                 else
                 {
