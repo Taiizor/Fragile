@@ -333,11 +333,17 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
         public void ComputePasswordHash()
         {
+            // Şifre boş olmamalı
+            if (string.IsNullOrEmpty(Password))
+            {
+                throw new ArgumentNullException(nameof(Password), "Şifre boş olamaz");
+            }
+
             // Güvenli şifre hashleme
             Salt = GenerateRandomSalt();
             PasswordHash = HashPassword(Password, Salt);
-            // Güvenlik için şifreyi bellekten temizle
-            Password = null;
+            // Artık şifreyi silmiyoruz, çünkü giriş işleminde kullanılacak
+            // Password = null;
         }
 
         private string GenerateRandomSalt()
@@ -352,6 +358,11 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
         private string HashPassword(string password, string salt)
         {
+            if (string.IsNullOrEmpty(password))
+            {
+                throw new ArgumentNullException(nameof(password), "Şifre boş olamaz");
+            }
+
             using Rfc2898DeriveBytes deriveBytes = new(password, Convert.FromBase64String(salt), 10000);
             byte[] hash = deriveBytes.GetBytes(32);
             return Convert.ToBase64String(hash);
@@ -359,8 +370,10 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
         public bool VerifyPassword(string password)
         {
-            string hashedPassword = HashPassword(password, Salt);
-            return hashedPassword == PasswordHash;
+            // Kullanıcının girdiği şifreyi, kaydedilmiş salt değeri kullanarak hash'le
+            string hashedInputPassword = HashPassword(password, Salt);
+            // Hash'leri karşılaştır
+            return hashedInputPassword == PasswordHash;
         }
     }
 
@@ -426,10 +439,16 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             {
                 // Yeni indeks oluştur
                 Console.WriteLine("Yeni kasa indeksi oluşturuluyor...");
+                // Şifre hash'leme öncesinde orijinal şifreyi yedekle
+                string originalPassword = adminUser.Password;
+
                 adminUser.ComputePasswordHash();
                 manager._index.Users.Add(adminUser);
                 manager._index.LastModified = DateTime.Now;
                 manager._index.LastModifiedByUser = adminUser.Username;
+
+                // Şifreyi geri yükle (giriş işlemi için)
+                adminUser.Password = originalPassword;
 
                 // İndeksi kaydet
                 await manager.SaveIndexAsync();
@@ -594,7 +613,10 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                     }
 
                     // Şifre hash'i hesapla ve kullanıcıyı ekle
+                    string originalPassword = newUser.Password;
                     newUser.ComputePasswordHash();
+                    // Şifreyi tekrar ayarla, normal kullanıcı için de gerekebilir
+                    newUser.Password = originalPassword;
                     _index.Users.Add(newUser);
 
                     // İndeksi güncelle
@@ -617,7 +639,10 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                 }
 
                 // Şifre hash'i hesapla ve kullanıcıyı ekle
+                string originalPassword = newUser.Password;
                 newUser.ComputePasswordHash();
+                // Şifreyi tekrar ayarla
+                newUser.Password = originalPassword;
                 _index.Users.Add(newUser);
 
                 // İndeksi güncelle
@@ -634,7 +659,10 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                 }
 
                 // Şifre hash'i hesapla ve kullanıcıyı ekle
+                string originalPassword = newUser.Password;
                 newUser.ComputePasswordHash();
+                // Şifreyi tekrar ayarla
+                newUser.Password = originalPassword;
                 _index.Users.Add(newUser);
 
                 // İndeksi güncelle
@@ -791,8 +819,12 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             {
                 EnableErrorCorrection = _settings.EnableErrorCorrection,
                 EnableEncryption = true,
+                EncryptionMethod = _settings.EncryptionMethod,
                 Password = _currentUser.PasswordHash, // Kullanıcının password hash'ini şifre olarak kullan
-                EnableChecksumVerification = true
+                EnableChecksumVerification = true,
+                ChecksumAlgorithm = _settings.ChecksumAlgorithm,
+                CompressionAlgorithm = CompressionAlgorithm.Deflate,
+                CompressionLevel = _settings.CompressionLevel
             };
 
             try
@@ -809,7 +841,7 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                 FragileArchiveEntry? entry = archive.Entries.FirstOrDefault(e => !e.IsDirectory);
                 if (entry != null)
                 {
-                    await archive.ExtractAsync(entry.Path, Path.Combine(targetDirectory, targetFilePath));
+                    await archive.ExtractAsync(entry.Path, targetFilePath);
                     Console.WriteLine($"Dosya çıkarıldı: {targetFilePath}");
                     return targetFilePath;
                 }
@@ -857,13 +889,46 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                 // İndeksi güncelle
                 await SaveIndexAsync();
 
-                // Dosya sisteminden sil
+                // Belleği temizleyerek dosyaya olan referansları serbest bırakalım
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
+                // Dosya sisteminden sil (retry mekanizması ile)
                 if (File.Exists(storagePath))
                 {
-                    File.Delete(storagePath);
-                }
+                    int retryCount = 0;
+                    bool deleted = false;
+                    while (!deleted && retryCount < 3)
+                    {
+                        try
+                        {
+                            File.Delete(storagePath);
+                            deleted = true;
+                        }
+                        catch (IOException)
+                        {
+                            retryCount++;
+                            // Biraz bekleyelim
+                            await Task.Delay(500);
+                            // Tekrar temizleyelim
+                            GC.Collect();
+                            GC.WaitForPendingFinalizers();
+                        }
+                    }
 
-                Console.WriteLine($"Dosya kasadan silindi: {fileName}");
+                    if (!deleted)
+                    {
+                        Console.WriteLine($"Uyarı: Dosya indeksten kaldırıldı ancak fiziksel olarak silinemedi: {storagePath}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Dosya kasadan silindi: {fileName}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Dosya kasadan silindi: {fileName} (Fiziksel dosya zaten mevcut değil)");
+                }
             }
             catch (Exception ex)
             {
