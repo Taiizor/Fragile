@@ -47,8 +47,14 @@ namespace Fragile.Models
         /// </summary>
         public byte[]? Data { get; set; }
 
-        // Internal use: Header offsets
+        /// <summary>
+        /// Internal use: Header offsets
+        /// </summary>
         internal long HeaderOffset { get; set; }
+
+        /// <summary>
+        /// Internal use: Data offsets
+        /// </summary>
         internal long PositionOffset { get; set; }
 
         /// <summary>
