@@ -50,6 +50,17 @@ namespace Fragile.Samples.Formats
         /// </summary>
         private static async Task TestFormatCompatibility(string sourceDir, string outputDir)
         {
+            Console.WriteLine();
+            Console.WriteLine("Format Uyumluluğu Testi Başlatılıyor...");
+            Console.WriteLine("----------------------------------------");
+            Console.WriteLine("Format Uyumluluk Bilgileri:");
+            Console.WriteLine("- Native: Tam desteklenen Fragile özel formatı. Tüm özellikler kullanılabilir.");
+            Console.WriteLine("- Zip: ZIP uyumlu format, sınırlı meta veri desteği sağlar.");
+            Console.WriteLine("- Tar: Temel TAR formatı, sıkıştırma içermez, basit meta veri desteği.");
+            Console.WriteLine("- SevenZip: 7z formatı, yüksek sıkıştırma oranı ama sınırlı ek özellik desteği.");
+            Console.WriteLine("- CustomFormat: Özel format desteği, henüz geliştirme aşamasında.");
+            Console.WriteLine();
+
             // Tüm format uyumluluğu türleri için test
             foreach (FormatCompatibility format in Enum.GetValues<FormatCompatibility>())
             {
@@ -115,11 +126,28 @@ namespace Fragile.Samples.Formats
                 // Format sağlayıcısını oluştur
                 FormatProvider formatProvider = FormatProvider.Create(format);
 
+                Console.WriteLine($"Format bilgisi: {GetFormatDescription(format)}");
+
                 // Arşiv oluşturma işlemi
-                using (FragileArchive archive = new(archivePath, FragileArchiveMode.Create))
+                using (FragileArchive archive = new(archivePath, FragileArchiveMode.Create, options))
                 {
                     // Dosyaları arşive ekle
                     int count = archive.AddDirectory(sourceDir, "", true);
+
+                    // Arşiv meta verilerini ayarla (arşiv seviyesinde meta veri desteği sunuyorsa)
+                    try
+                    {
+                        // Not: Bazı formatlar arşiv seviyesinde meta veri desteği sunmayabilir
+                        if (format == FormatCompatibility.Native)
+                        {
+                            // Native format, arşiv meta verisi için özel alan desteği sağlıyor olabilir
+                            Console.WriteLine("Arşiv oluşturma zamanı: " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"));
+                        }
+                    }
+                    catch
+                    {
+                        // Meta veri ayarlaması başarısız olursa sessizce devam et
+                    }
 
                     // Arşivi kaydet
                     archive.Save();
@@ -131,6 +159,14 @@ namespace Fragile.Samples.Formats
                 // Arşiv bilgilerini göster
                 FileInfo fileInfo = new(archivePath);
                 Console.WriteLine($"Arşiv boyutu: {fileInfo.Length:N0} bayt");
+            }
+            catch (Exception ex) when (ex.Message.Contains("DateTime"))
+            {
+                Console.WriteLine($"HATA: Format dönüşüm hatası oluştu! Format: {format}");
+                Console.WriteLine($"Detay: {ex.Message}");
+                Console.WriteLine("Not: Bazı formatlar tarih veya meta veri dönüşümlerinde uyumluluk sorunları yaşayabilir.");
+                Console.WriteLine("     - Native format dışındaki formatlarda bazı meta veri alanları sınırlı olabilir");
+                Console.WriteLine("     - Farklı format sürümleri arasında dönüşüm yaparken dikkatli olunmalıdır");
             }
             catch (Exception ex)
             {
@@ -292,6 +328,21 @@ namespace Fragile.Samples.Formats
                 FormatCompatibility.Tar => CompressionAlgorithm.Store,   // Temel TAR sıkıştırma kullanmaz
                 FormatCompatibility.SevenZip => CompressionAlgorithm.LZMA, // 7z genellikle LZMA kullanır
                 _ => CompressionAlgorithm.Store
+            };
+        }
+
+        /// <summary>
+        /// Format hakkında detaylı açıklama döndürür
+        /// </summary>
+        private static string GetFormatDescription(FormatCompatibility format)
+        {
+            return format switch
+            {
+                FormatCompatibility.Native => "Fragile özel formatı, tüm özellikleri destekler (şifreleme, sıkıştırma, meta veriler, vs.)",
+                FormatCompatibility.Zip => "Standard ZIP formatı, yaygın kullanım için uygundur. Sınırlı şifreleme ve meta veri desteği vardır.",
+                FormatCompatibility.Tar => "Unix/Linux sistemlerde yaygın olan TAR formatı. Temel dosya saklama özelliği sağlar, sıkıştırma içermez.",
+                FormatCompatibility.SevenZip => "Yüksek sıkıştırma oranı sağlayan 7z formatı. Gelişmiş şifreleme ve LZMA sıkıştırma destekler.",
+                _ => "Desteklenmeyen veya geliştirme aşamasında olan format"
             };
         }
     }
