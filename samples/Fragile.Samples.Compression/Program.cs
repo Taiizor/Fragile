@@ -105,28 +105,37 @@ namespace Fragile.Samples.Compression
                 Console.WriteLine($"Sıkıştırılmış boyut: {compressedSize:N0} bayt");
                 Console.WriteLine($"Sıkıştırma oranı: %{ratio:F2}");
 
-                // Sıkıştırmayı aç
-                stopwatch.Restart();
-
-                using (FileStream inputStream = new(compressedFilePath, FileMode.Open, FileAccess.Read))
-                using (FileStream outputStream = new(decompressedFilePath, FileMode.Create, FileAccess.Write))
+                try
                 {
-                    Progress<double> progress = new(value =>
+                    // Sıkıştırmayı aç
+                    stopwatch.Restart();
+
+                    using (FileStream inputStream = new(compressedFilePath, FileMode.Open, FileAccess.Read))
+                    using (FileStream outputStream = new(decompressedFilePath, FileMode.Create, FileAccess.Write))
                     {
-                        Console.Write($"\rAçma: %{value * 100:F1}");
-                    });
+                        Progress<double> progress = new(value =>
+                        {
+                            Console.Write($"\rAçma: %{value * 100:F1}");
+                        });
 
-                    await provider.DecompressAsync(inputStream, outputStream, progress);
+                        await provider.DecompressAsync(inputStream, outputStream, progress);
+                    }
+
+                    stopwatch.Stop();
+                    long decompressTime = stopwatch.ElapsedMilliseconds;
+
+                    Console.WriteLine($"\rAçma: %100 - Tamamlandı ({decompressTime} ms)");
+
+                    // Doğrulama
+                    bool isValid = await VerifyDecompression(inputFilePath, decompressedFilePath);
+                    Console.WriteLine($"Doğrulama: {(isValid ? "Başarılı" : "Başarısız")}");
                 }
-
-                stopwatch.Stop();
-                long decompressTime = stopwatch.ElapsedMilliseconds;
-
-                Console.WriteLine($"\rAçma: %100 - Tamamlandı ({decompressTime} ms)");
-
-                // Doğrulama
-                bool isValid = await VerifyDecompression(inputFilePath, decompressedFilePath);
-                Console.WriteLine($"Doğrulama: {(isValid ? "Başarılı" : "Başarısız")}");
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"\rAçma hatası: {ex.Message}");
+                    // Burada algoritmanın sıkıştırma işlemi başarılı fakat açma işlemi başarısız olduğu kaydediliyor
+                    Console.WriteLine($"Geliştirme notu: Bu algoritma için açma (DecompressAsync) metodunun düzeltilmesi gerekiyor");
+                }
             }
             catch (NotSupportedException nse)
             {
