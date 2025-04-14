@@ -165,50 +165,23 @@ public class ArchiveManager : IArchiveManager
 
                             // --- 6.d Process and Copy Stream Data --- 
                             // Pipeline: Source -> Compression? -> Encryption? -> Archive
-                            Stream finalOutputStream = archiveStream; // Target stream to write to
-                            List<IDisposable> processingStreams = new List<IDisposable>(); // Track wrappers for disposal
+                            Stream currentOutputStream = archiveStream;
+                            List<Stream> processingStreams = new List<Stream>();
 
                             try
                             {
-                                Stream currentInputForWrapper = streamToProcess; // Start with the source file stream
-                                
-                                // 1. Compression Layer (if enabled)
-                                if (compressionProvider != null)
-                                {
-                                    // Create a temporary stream to hold compressed data before potential encryption
-                                    // Alternatively, chain directly if CryptoStream accepts another stream efficiently.
-                                    // Chaining directly is generally preferred.
-                                    
-                                    // We need a stream that compressionProvider writes to, and the next layer reads from.
-                                    // DeflateStream *writes* compressed data to the stream passed to its constructor.
-                                    // So, the stream passed here must eventually lead to the archiveStream.
-
-                                    // Let's refine the conceptual pipeline: 
-                                    // Copy from: sourceStream
-                                    // Copy to: innermostWrapperStream (which eventually writes to archiveStream)
-                                    
-                                    // Create the compression stream that writes to the *next* layer (or archiveStream)
-                                    var compressionStream = new DeflateStream(finalOutputStream, MapCompressionLevel(options.Compression.Level), leaveOpen: true);
-                                    processingStreams.Add(compressionStream);
-                                    finalOutputStream = compressionStream; // Subsequent layer writes to this compression stream
-                                }
-
-                                // 2. Encryption Layer (if enabled)
+                                // 1. Encryption Layer (applied first to the output stream)
+                                byte[]? salt = null; // Store salt/iv if generated
+                                byte[]? iv = null;
                                 if (encryptionProvider != null)
                                 {
-                                     // AesEncryptionProviderBase writes salt and IV *directly* to the stream passed to EncryptAsync.
-                                     // This means we need to write salt/IV *before* creating the CryptoStream wrapper.
-                                     // Let's assume the provider handles this detail, or we extract that logic.
-                                     // For now, assume provider writes salt/IV *then* encrypts the rest. 
-                                     // This is complex with standard CryptoStream. Needs custom provider logic or careful stream management.
-                                     
-                                     // Let's simulate the base provider logic here for clarity (Write salt/IV first):
-                                    byte[] salt = RandomNumberGenerator.GetBytes(AesEncryptionProviderBase.DefaultSaltSizeBytes); // Need access to const
-                                    byte[] iv = RandomNumberGenerator.GetBytes(AesEncryptionProviderBase.DefaultIvSizeBytes); // Need access to const
-                                    byte[] key = DeriveKeyFromPassword(options.Encryption.Password!, salt, encryptionProvider is Aes256EncryptionProvider ? 256 : 128); // Simplified key derivation call
-
-                                    await finalOutputStream.WriteAsync(salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
-                                    await finalOutputStream.WriteAsync(iv, 0, iv.Length, cancellationToken).ConfigureAwait(false);
+                                    salt = RandomNumberGenerator.GetBytes(AesEncryptionProviderBase.DefaultSaltSizeBytes);
+                                    iv = RandomNumberGenerator.GetBytes(AesEncryptionProviderBase.DefaultIvSizeBytes); 
+                                    byte[] key = DeriveKeyFromPassword(options.Encryption.Password!, salt, encryptionProvider is Aes256EncryptionProvider ? 256 : 128);
+                                    
+                                    // Write Salt and IV *before* encrypted data
+                                    await archiveStream.WriteAsync(salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
+                                    await archiveStream.WriteAsync(iv, 0, iv.Length, cancellationToken).ConfigureAwait(false);
                                     
                                     using (var aes = CreateAesInstance(encryptionProvider is Aes256EncryptionProvider ? 256 : 128))
                                     {
@@ -217,25 +190,31 @@ public class ArchiveManager : IArchiveManager
                                         aes.Mode = CipherMode.CBC;
                                         aes.Padding = PaddingMode.PKCS7;
 
-                                        // CryptoStream writes encrypted data to the stream passed to its constructor (finalOutputStream)
-                                        var cryptoStream = new CryptoStream(finalOutputStream, aes.CreateEncryptor(), CryptoStreamMode.Write, leaveOpen: true);
-                                        processingStreams.Add(cryptoStream);
-                                        finalOutputStream = cryptoStream; // Subsequent layer (CopyToAsync) writes to this crypto stream
+                                        // Create CryptoStream that writes *encrypted* data to the archive stream
+                                        var cryptoStream = new CryptoStream(archiveStream, aes.CreateEncryptor(), CryptoStreamMode.Write, leaveOpen: true);
+                                        processingStreams.Add(cryptoStream); 
+                                        currentOutputStream = cryptoStream; // Compression (if any) will write to CryptoStream
                                     }
                                 }
+                                
+                                // 2. Compression Layer (writes to the encryption layer or directly to archive)
+                                if (compressionProvider != null)
+                                {
+                                    var compressionStream = new DeflateStream(currentOutputStream, MapCompressionLevel(options.Compression.Level), leaveOpen: true);
+                                    processingStreams.Add(compressionStream);
+                                    currentOutputStream = compressionStream; // Copy source data *to* this compression stream
+                                }
 
-                                // 3. Copy Data through the Pipeline
-                                // Source stream is copied TO the innermost wrapper stream (finalOutputStream)
-                                await streamToProcess.CopyToAsync(finalOutputStream, bufferSize, cancellationToken).ConfigureAwait(false);
-
+                                // 3. Copy Data: Source -> Innermost Wrapper (or Archive Directly)
+                                await streamToProcess.CopyToAsync(currentOutputStream, bufferSize, cancellationToken).ConfigureAwait(false);
                             }
                             finally
-                            {
-                                // Dispose wrapper streams in reverse order. This ensures flushing through the chain.
+                            { 
+                               // Dispose wrapper streams in reverse order (Compression -> Encryption)
                                 processingStreams.Reverse();
                                 foreach (var stream in processingStreams)
                                 {
-                                    // DisposeAsync if available, otherwise Dispose
+                                    // Important: Dispose flushes the streams (CryptoStream, DeflateStream)
                                     if (stream is IAsyncDisposable asyncDisposable) 
                                         await asyncDisposable.DisposeAsync().ConfigureAwait(false);
                                     else 
@@ -261,14 +240,17 @@ public class ArchiveManager : IArchiveManager
                     // TODO: Write File Metadata (if options.StoreFileMetadata)
                     // TODO: Write ECC data (if options.ErrorCorrection.Level != None)
 
-                    // TODO: If possible, seek back and update compressed size in entry header
-                    // if (archiveStream.CanSeek)
-                    // {
-                    //    long currentPos = archiveStream.Position;
-                    //    archiveStream.Position = compressedSizePosition;
-                    //    await WriteLongAsync(archiveStream, compressedSize, cancellationToken).ConfigureAwait(false);
-                    //    archiveStream.Position = currentPos;
-                    // }
+                    // Seek back and update compressed size in header if possible
+                    long finalEntryPosition = archiveStream.Position;
+                    if (archiveStream.CanSeek)
+                    {
+                       archiveStream.Position = compressedSizePosition;
+                       await WriteLongAsync(archiveStream, compressedSize, cancellationToken).ConfigureAwait(false);
+                       archiveStream.Position = finalEntryPosition;
+                    }
+                    else {
+                        // Cannot update size - format needs a central directory or other mechanism
+                    }
                     // --- End Placeholder Entry Footer ---
 
                     bytesProcessed += fileInfo.Length; // Progress based on original file size
@@ -328,9 +310,7 @@ public class ArchiveManager : IArchiveManager
 
         try
         {
-            // Create destination directory if it doesn't exist
             Directory.CreateDirectory(destinationDirectoryPath);
-
             using (var archiveStream = new FileStream(archiveFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, useAsync: true))
             {
                 // --- 3. Read Archive Header (Placeholder) ---
@@ -487,9 +467,15 @@ public class ArchiveManager : IArchiveManager
                             // expectedChecksum = await ReadBytesAsync(archiveStream, checksumProvider.ChecksumLengthBytes, cancellationToken).ConfigureAwait(false);
                             
                             // Recalculate checksum on the extracted file
-                            // byte[] actualChecksum; 
-                            // using (var extractedFileStream = File.OpenRead(destinationPath)) {\n                            //    actualChecksum = await checksumProvider.ComputeChecksumAsync(extractedFileStream, options.Checksum, cancellationToken);\n                            // } 
-                            // if (!actualChecksum.SequenceEqual(expectedChecksum)) {\n                            //     throw new InvalidDataException($\"Checksum mismatch for entry: {relativePath}\");\n                            // }\n                        }
+                            byte[] actualChecksum; 
+                            using (var extractedFileStream = File.OpenRead(destinationPath)) {
+                                actualChecksum = await checksumProvider.ComputeChecksumAsync(extractedFileStream, options.Checksum, cancellationToken);
+                            } 
+                            if (!actualChecksum.SequenceEqual(expectedChecksum)) {
+                                try { File.Delete(destinationPath); } catch { /* Ignore delete errors */ } 
+                                throw new InvalidDataException($"Checksum mismatch for entry: {relativePath}");
+                            }
+                        }
                          // --- 4.a.viii Set File Attributes/Timestamps --- 
                          // TODO: Read metadata from archive and apply using File.SetAttributes, SetCreationTimeUtc etc.
                     }
@@ -921,11 +907,11 @@ public class ArchiveManager : IArchiveManager
     {
         return level switch
         {
-            Core.Enums.CompressionLevel.Fastest => System.IO.Compression.CompressionLevel.Fastest,
-            Core.Enums.CompressionLevel.Fast => System.IO.Compression.CompressionLevel.Fastest, 
-            Core.Enums.CompressionLevel.Normal => System.IO.Compression.CompressionLevel.Optimal,
-            Core.Enums.CompressionLevel.High => System.IO.Compression.CompressionLevel.Optimal,
-            Core.Enums.CompressionLevel.Ultra => System.IO.Compression.CompressionLevel.SmallestSize,
+            Core.Enums.CompressionLevel.Fastest => System.IO.Compression.CompressionLevel.NoCompression,
+            Core.Enums.CompressionLevel.Fast => System.IO.Compression.CompressionLevel.NoCompression, 
+            Core.Enums.CompressionLevel.Normal => System.IO.Compression.CompressionLevel.Fastest,
+            Core.Enums.CompressionLevel.High => System.IO.Compression.CompressionLevel.Fastest,
+            Core.Enums.CompressionLevel.Ultra => System.IO.Compression.CompressionLevel.Optimal,
             _ => System.IO.Compression.CompressionLevel.Optimal,
         };
     }

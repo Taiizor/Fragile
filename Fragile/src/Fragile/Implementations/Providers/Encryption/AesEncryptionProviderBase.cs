@@ -17,8 +17,8 @@ internal abstract class AesEncryptionProviderBase : IEncryptionProvider
     // Default values recommended by OWASP (as of late 2023/early 2024)
     internal const int DefaultSaltSizeBytes = 16; // 128 bits
     internal const int DefaultIvSizeBytes = 16;   // 128 bits for AES block size
-    protected const int DefaultPbkdf2Iterations = 600000;
-    protected static readonly HashAlgorithmName DefaultPbkdf2HashAlgorithm = HashAlgorithmName.SHA256;
+    internal const int DefaultPbkdf2Iterations = 600000;
+    internal static readonly HashAlgorithmName DefaultPbkdf2HashAlgorithm = HashAlgorithmName.SHA256;
 
     private readonly int _bufferSize;
 
