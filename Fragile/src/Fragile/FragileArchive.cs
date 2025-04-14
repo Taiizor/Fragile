@@ -206,6 +206,7 @@ public static class FragileArchive
     /// separate IArchiveManager instances or using the IProgress parameter on individual methods.
     /// </remarks>
     public static event EventHandler<ProgressEventArgs>? GlobalProgressChanged
-    { add => Manager.ProgressChanged += value; remove => Manager.ProgressChanged -= value;
+    {
+        add => Manager.ProgressChanged += value; remove => Manager.ProgressChanged -= value;
     }
 }

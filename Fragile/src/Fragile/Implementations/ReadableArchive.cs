@@ -207,7 +207,7 @@ internal class ReadableArchive : IReadableArchive
             }
 
             // --- Checksum Verification --- 
-            if ((effectiveOptions.Checksum?.VerifyOnExtract ?? true) && 
+            if ((effectiveOptions.Checksum?.VerifyOnExtract ?? true) &&
                 (fileEntry.Flags & FormatConstants.EntryHeaderFlags.HasChecksum) != 0 &&
                 effectiveOptions.Checksum?.Algorithm != ChecksumAlgorithm.None)
             {
@@ -215,7 +215,10 @@ internal class ReadableArchive : IReadableArchive
                 try
                 {
                     checksumProvider = ProviderFactory.GetChecksumProvider(effectiveOptions.Checksum.Algorithm, bufferSize);
-                    if (checksumProvider is IDisposable disposableChecksum) disposableProviders.Add(disposableChecksum);
+                    if (checksumProvider is IDisposable disposableChecksum)
+                    {
+                        disposableProviders.Add(disposableChecksum);
+                    }
 
                     // Position the archive stream right after the entry data to read the stored checksum
                     _archiveStream.Position = fileEntry.DataOffset + fileEntry.CompressedSize;
@@ -226,28 +229,28 @@ internal class ReadableArchive : IReadableArchive
                     {
                         // Cannot verify checksum if destination stream is not readable/seekable.
                         // Log a warning or throw an exception based on desired behavior.
-                         System.Diagnostics.Debug.WriteLine($"Warning: Cannot verify checksum for entry '{entry.FullPath}' because the destination stream is not readable or seekable.");
+                        System.Diagnostics.Debug.WriteLine($"Warning: Cannot verify checksum for entry '{entry.FullPath}' because the destination stream is not readable or seekable.");
                     }
                     else
                     {
-                         long originalDestPosition = destination.Position;
-                         destination.Position = 0; // Rewind destination stream to calculate checksum
-                         byte[] actualChecksum = await checksumProvider.ComputeChecksumAsync(destination, effectiveOptions.Checksum, cancellationToken).ConfigureAwait(false);
-                         destination.Position = originalDestPosition; // Restore original position
+                        long originalDestPosition = destination.Position;
+                        destination.Position = 0; // Rewind destination stream to calculate checksum
+                        byte[] actualChecksum = await checksumProvider.ComputeChecksumAsync(destination, effectiveOptions.Checksum, cancellationToken).ConfigureAwait(false);
+                        destination.Position = originalDestPosition; // Restore original position
 
-                         if (!actualChecksum.SequenceEqual(expectedChecksum))
-                         { 
-                             // Consider more robust error handling, maybe deleting the corrupted output?
-                             throw new InvalidDataException($"Checksum mismatch for extracted entry: {entry.FullPath}");
-                         }
+                        if (!actualChecksum.SequenceEqual(expectedChecksum))
+                        {
+                            // Consider more robust error handling, maybe deleting the corrupted output?
+                            throw new InvalidDataException($"Checksum mismatch for extracted entry: {entry.FullPath}");
+                        }
                     }
                 }
-                catch (Exception ex) when (ex is NotSupportedException || ex is IOException || ex is EndOfStreamException)
+                catch (Exception ex) when (ex is NotSupportedException or IOException or EndOfStreamException)
                 {
                     // Log or handle errors during checksum provider creation or reading
-                     System.Diagnostics.Debug.WriteLine($"Error during checksum verification for entry '{entry.FullPath}': {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Error during checksum verification for entry '{entry.FullPath}': {ex.Message}");
                     // Potentially re-throw or handle as a verification failure
-                    throw new InvalidOperationException("Checksum verification failed.", ex); 
+                    throw new InvalidOperationException("Checksum verification failed.", ex);
                 }
                 // Provider disposal is handled in the outer finally block
             }

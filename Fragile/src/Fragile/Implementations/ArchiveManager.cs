@@ -20,6 +20,16 @@ namespace Fragile.Implementations;
 /// </summary>
 public class ArchiveManager : IArchiveManager
 {
+    /// <summary>
+    /// Represents an entry within the manifest of a solid archive block.
+    /// </summary>
+    private struct SolidManifestEntry
+    {
+        public string RelativePath { get; set; }
+        public long UncompressedSize { get; set; }
+        public long Offset { get; set; } // Offset within the combined *uncompressed* data stream
+    }
+
     // Placeholder for the actual archive format handling logic (e.g., reading/writing headers, entries)
     // This would likely be another interface/class specific to the .frgl format.
     // private readonly IFragileFormatHandler _formatHandler;
@@ -98,229 +108,424 @@ public class ArchiveManager : IArchiveManager
             await WriteUShortAsync(archiveStream, FormatConstants.FormatVersionMajor, cancellationToken).ConfigureAwait(false);
             await WriteUShortAsync(archiveStream, FormatConstants.FormatVersionMinor, cancellationToken).ConfigureAwait(false);
             // TODO: Determine and write actual ArchiveHeaderFlags
-            await WriteULongAsync(archiveStream, (ulong)FormatConstants.ArchiveHeaderFlags.None, cancellationToken).ConfigureAwait(false);
-            // TODO: Write Archive Metadata (potentially serialized/encrypted)
-            // For now, write 0 metadata length
-            await WriteLongAsync(archiveStream, 0, cancellationToken).ConfigureAwait(false);
-            // --- End Placeholder Header ---
+            FormatConstants.ArchiveHeaderFlags archiveFlags = FormatConstants.ArchiveHeaderFlags.None; // Start with None
+
+            // Set SolidArchive flag if solid compression is used
+            if (options.Compression?.UseSolidCompression ?? false)
+            {
+                archiveFlags |= FormatConstants.ArchiveHeaderFlags.SolidArchive;
+            }
+
+            // Serialize Archive Metadata (if provided)
+            byte[]? serializedMetadata = null;
+            long metadataLength = 0;
+            if (options.ArchiveMetadata != null)
+            {
+                try
+                {
+                    // Ensure UTC times are consistent if necessary (optional)
+                    options.ArchiveMetadata.CreationTimeUtc = options.ArchiveMetadata.CreationTimeUtc.ToUniversalTime();
+                    if (options.ArchiveMetadata.LastModificationTimeUtc.HasValue)
+                    {
+                        options.ArchiveMetadata.LastModificationTimeUtc = options.ArchiveMetadata.LastModificationTimeUtc.Value.ToUniversalTime();
+                    }
+                    // TODO: Implement metadata encryption if needed based on flags/options
+                    // if ((archiveFlags & FormatConstants.ArchiveHeaderFlags.ArchiveMetadataEncrypted) != 0) { ... encrypt serializedMetadata ... }
+                    serializedMetadata = JsonSerializer.SerializeToUtf8Bytes(options.ArchiveMetadata);
+                    metadataLength = serializedMetadata.Length;
+                }
+                catch (JsonException jsonEx)
+                {
+                    // Log or handle serialization error - potentially continue without metadata?
+                    Console.WriteLine($"Warning: Could not serialize ArchiveMetadata. Error: {jsonEx.Message}");
+                    metadataLength = 0;
+                    serializedMetadata = null;
+                }
+            }
+
+            // Write archive flags
+            await WriteULongAsync(archiveStream, (ulong)archiveFlags, cancellationToken).ConfigureAwait(false);
+            // Write the actual metadata length
+            long metadataLengthPosition = archiveStream.Position;
+            await WriteLongAsync(archiveStream, metadataLength, cancellationToken).ConfigureAwait(false);
+
+            // Write the serialized metadata itself (if any)
+            if (serializedMetadata != null && metadataLength > 0)
+            {
+                await archiveStream.WriteAsync(serializedMetadata, 0, serializedMetadata.Length, cancellationToken).ConfigureAwait(false);
+            }
+            // --- End Archive Header ---
 
             OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytesToProcess, statusMessage: "Starting archival..."));
 
-            // 5. Iterate through source directory
-            foreach (string filePath in filePaths)
+            if (!(options.Compression?.UseSolidCompression ?? false))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                string relativePath = Path.GetRelativePath(sourceDirectoryPath, filePath).Replace('\\', '/');
-                FileInfo fileInfo = new(filePath);
-                string currentFileNameForProgress = Path.GetFileName(filePath);
-
-                OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytesToProcess, currentFile: currentFileNameForProgress, statusMessage: $"Processing: {relativePath}"));
-
-                // --- 6. Process Each File ---                    
-                long entryStartPosition = archiveStream.Position;
-                byte[]? checksum = null;
-                long compressedSize = -1; // Will be set after processing
-                byte[]? metadataBytes = null;
-
-                // --- 6.c Write Entry Header (Placeholder) ---
-                FormatConstants.EntryHeaderFlags entryFlags = FormatConstants.EntryHeaderFlags.None;
-                if (options.Encryption.Algorithm != EncryptionAlgorithm.None)
+                // --- Standard Archival (Non-Solid) ---
+                // 5. Iterate through source directory
+                foreach (string filePath in filePaths)
                 {
-                    entryFlags |= FormatConstants.EntryHeaderFlags.IsEncrypted;
-                }
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                if (options.Checksum.Algorithm != ChecksumAlgorithm.None)
-                {
-                    entryFlags |= FormatConstants.EntryHeaderFlags.HasChecksum;
-                }
+                    string relativePath = Path.GetRelativePath(sourceDirectoryPath, filePath).Replace('\\', '/');
+                    FileInfo fileInfo = new(filePath);
+                    string currentFileNameForProgress = Path.GetFileName(filePath);
 
-                // --- Prepare FileMetadata (if storing) ---
-                FileMetadata? fileMetadata = null;
-                if (options.StoreFileMetadata)
-                {
-                    try
+                    OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytesToProcess, currentFile: currentFileNameForProgress, statusMessage: $"Processing: {relativePath}"));
+
+                    // --- 6. Process Each File ---                    
+                    long entryStartPosition = archiveStream.Position;
+                    byte[]? checksum = null;
+                    long compressedSize = -1; // Will be set after processing
+                    byte[]? metadataBytes = null;
+
+                    // --- 6.c Write Entry Header (Placeholder) ---
+                    FormatConstants.EntryHeaderFlags entryFlags = FormatConstants.EntryHeaderFlags.None;
+                    if (options.Encryption.Algorithm != EncryptionAlgorithm.None)
                     {
-                        fileMetadata = new FileMetadata
-                        {
-                            CreationTimeUtc = fileInfo.CreationTimeUtc,
-                            LastWriteTimeUtc = fileInfo.LastWriteTimeUtc,
-                            LastAccessTimeUtc = fileInfo.LastAccessTimeUtc,
-                            Attributes = fileInfo.Attributes,
-                            // Owner/Group/MimeType might require platform-specific calls or external libraries
-                            // CustomProperties could be populated based on specific application needs
-                        };
-                        metadataBytes = JsonSerializer.SerializeToUtf8Bytes(fileMetadata);
-                        entryFlags |= FormatConstants.EntryHeaderFlags.HasMetadata;
+                        entryFlags |= FormatConstants.EntryHeaderFlags.IsEncrypted;
                     }
-                    catch (Exception ex)
+
+                    if (options.Checksum.Algorithm != ChecksumAlgorithm.None)
                     {
-                        // Log metadata gathering/serialization error, but maybe continue?
-                        // Consider adding an option to control this behavior.
-                        Console.WriteLine($"Warning: Could not process metadata for {relativePath}. Error: {ex.Message}");
-                        metadataBytes = null;
-                        fileMetadata = null; // Ensure it's null if serialization failed
+                        entryFlags |= FormatConstants.EntryHeaderFlags.HasChecksum;
                     }
-                }
-                // --- End Prepare FileMetadata ---
 
-                await WriteUIntAsync(archiveStream, (uint)entryFlags, cancellationToken).ConfigureAwait(false);
-                byte[] pathBytes = Encoding.UTF8.GetBytes(relativePath);
-                await WriteUShortAsync(archiveStream, (ushort)pathBytes.Length, cancellationToken).ConfigureAwait(false);
-                await archiveStream.WriteAsync(pathBytes, 0, pathBytes.Length, cancellationToken).ConfigureAwait(false);
-                // Write LastWriteTimeUtc.Ticks directly into the header for quick access
-                await WriteLongAsync(archiveStream, fileMetadata?.LastWriteTimeUtc?.Ticks ?? 0L, cancellationToken).ConfigureAwait(false);
-                await WriteLongAsync(archiveStream, fileInfo.Length, cancellationToken).ConfigureAwait(false); // Uncompressed size
-                                                                                                               // Need placeholder for compressed size, will update later if possible, or store in central directory
-                long compressedSizePosition = archiveStream.Position;
-                await WriteLongAsync(archiveStream, -1, cancellationToken).ConfigureAwait(false); // Placeholder
-                long metadataLengthPosition = archiveStream.Position;
-                await WriteLongAsync(archiveStream, metadataBytes?.Length ?? 0, cancellationToken).ConfigureAwait(false); // Write metadata length (0 if none)
-                                                                                                                          // --- End Placeholder Entry Header ---
-
-                long entryDataStartPosition = archiveStream.Position;
-
-                using (FileStream sourceStream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, useAsync: true))
-                {
-                    Stream streamToProcess = sourceStream;
-                    IChecksumProvider? checksumProvider = null;
-                    IEncryptionProvider? encryptionProvider = null;
-                    ICompressionProvider? compressionProvider = null;
-
-                    // --- 6.b Prepare Providers and Calculate Checksum (if applicable) ---
-                    try
+                    // --- Prepare FileMetadata (if storing) ---
+                    FileMetadata? fileMetadata = null;
+                    if (options.StoreFileMetadata)
                     {
-                        if (options.Checksum.Algorithm != ChecksumAlgorithm.None)
-                        {
-                            checksumProvider = ProviderFactory.GetChecksumProvider(options.Checksum.Algorithm, bufferSize);
-                            if (checksumProvider is IDisposable disposableChecksum)
-                            {
-                                disposableProviders.Add(disposableChecksum);
-                            }
-
-                            checksum = await checksumProvider.ComputeChecksumAsync(streamToProcess, options.Checksum, cancellationToken).ConfigureAwait(false);
-                            if (streamToProcess.CanSeek)
-                            {
-                                streamToProcess.Position = 0;
-                            }
-                            else
-                            {
-                                throw new InvalidOperationException("Source stream must be seekable for checksum calculation.");
-                            }
-                        }
-
-                        if (options.Encryption.Algorithm != EncryptionAlgorithm.None)
-                        {
-                            encryptionProvider = ProviderFactory.GetEncryptionProvider(options.Encryption.Algorithm, bufferSize);
-                        }
-                        if (options.Compression.Algorithm != CompressionAlgorithm.Store)
-                        {
-                            compressionProvider = ProviderFactory.GetCompressionProvider(options.Compression.Algorithm, bufferSize);
-                        }
-
-                        // --- 6.d Process and Copy Stream Data --- 
-                        // Pipeline: Source -> Compression? -> Encryption? -> Archive
-                        Stream currentOutputStream = archiveStream;
-                        List<Stream> processingStreams = new();
-
                         try
                         {
-                            // 1. Encryption Layer (applied first to the output stream)
-                            byte[]? salt = null; // Store salt/iv if generated
-                            byte[]? iv = null;
-                            if (encryptionProvider != null)
+                            fileMetadata = new FileMetadata
                             {
-                                using (RandomNumberGenerator rng = RandomNumberGenerator.Create()) // Use instance
-                                {
-                                    salt = new byte[AesEncryptionProviderBase.DefaultSaltSizeBytes];
-                                    rng.GetBytes(salt);
-                                    iv = new byte[AesEncryptionProviderBase.DefaultIvSizeBytes];
-                                    rng.GetBytes(iv);
-                                }
-                                byte[] key = DeriveKeyFromPassword(options.Encryption.Password!, salt, encryptionProvider is Aes256EncryptionProvider ? 256 : 128);
-
-                                // Write Salt and IV *before* encrypted data
-                                await archiveStream.WriteAsync(salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
-                                await archiveStream.WriteAsync(iv, 0, iv.Length, cancellationToken).ConfigureAwait(false);
-
-                                using Aes aes = CreateAesInstance(encryptionProvider is Aes256EncryptionProvider ? 256 : 128);
-                                aes.Key = key;
-                                aes.IV = iv;
-                                aes.Mode = CipherMode.CBC;
-                                aes.Padding = PaddingMode.PKCS7;
-
-                                // Create CryptoStream that writes *encrypted* data to the archive stream
-                                CryptoStream cryptoStream = new(archiveStream, aes.CreateEncryptor(), CryptoStreamMode.Write, leaveOpen: true);
-                                processingStreams.Add(cryptoStream);
-                                currentOutputStream = cryptoStream; // Compression (if any) will write to CryptoStream
-                            }
-
-                            // 2. Compression Layer (writes to the encryption layer or directly to archive)
-                            if (compressionProvider != null)
-                            {
-                                DeflateStream compressionStream = new(currentOutputStream, MapCompressionLevel(options.Compression.Level), leaveOpen: true);
-                                processingStreams.Add(compressionStream);
-                                currentOutputStream = compressionStream; // Copy source data *to* this compression stream
-                            }
-
-                            // 3. Copy Data: Source -> Innermost Wrapper (or Archive Directly)
-                            await streamToProcess.CopyToAsync(currentOutputStream, bufferSize, cancellationToken).ConfigureAwait(false);
+                                CreationTimeUtc = fileInfo.CreationTimeUtc,
+                                LastWriteTimeUtc = fileInfo.LastWriteTimeUtc,
+                                LastAccessTimeUtc = fileInfo.LastAccessTimeUtc,
+                                Attributes = fileInfo.Attributes,
+                                // Owner/Group/MimeType might require platform-specific calls or external libraries
+                                // CustomProperties could be populated based on specific application needs
+                            };
+                            metadataBytes = JsonSerializer.SerializeToUtf8Bytes(fileMetadata);
+                            entryFlags |= FormatConstants.EntryHeaderFlags.HasMetadata;
                         }
-                        finally
+                        catch (Exception ex)
                         {
-                            // Dispose wrapper streams in reverse order (Compression -> Encryption)
-                            processingStreams.Reverse();
-                            foreach (Stream stream in processingStreams)
+                            // Log metadata gathering/serialization error, but maybe continue?
+                            // Consider adding an option to control this behavior.
+                            Console.WriteLine($"Warning: Could not process metadata for {relativePath}. Error: {ex.Message}");
+                            metadataBytes = null;
+                            fileMetadata = null; // Ensure it's null if serialization failed
+                        }
+                    }
+                    // --- End Prepare FileMetadata ---
+
+                    await WriteUIntAsync(archiveStream, (uint)entryFlags, cancellationToken).ConfigureAwait(false);
+                    byte[] pathBytes = Encoding.UTF8.GetBytes(relativePath);
+                    await WriteUShortAsync(archiveStream, (ushort)pathBytes.Length, cancellationToken).ConfigureAwait(false);
+                    await archiveStream.WriteAsync(pathBytes, 0, pathBytes.Length, cancellationToken).ConfigureAwait(false);
+                    // Write LastWriteTimeUtc.Ticks directly into the header for quick access
+                    await WriteLongAsync(archiveStream, fileMetadata?.LastWriteTimeUtc?.Ticks ?? 0L, cancellationToken).ConfigureAwait(false);
+                    await WriteLongAsync(archiveStream, fileInfo.Length, cancellationToken).ConfigureAwait(false); // Uncompressed size
+                                                                                                                   // Need placeholder for compressed size, will update later if possible, or store in central directory
+                    long compressedSizePosition = archiveStream.Position;
+                    await WriteLongAsync(archiveStream, -1, cancellationToken).ConfigureAwait(false); // Placeholder
+                    long entryMetadataLengthPosition = archiveStream.Position;
+                    await WriteLongAsync(archiveStream, metadataBytes?.Length ?? 0, cancellationToken).ConfigureAwait(false); // Write metadata length (0 if none)
+                                                                                                                              // --- End Placeholder Entry Header ---
+
+                    long entryDataStartPosition = archiveStream.Position;
+
+                    using (FileStream sourceStream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, useAsync: true))
+                    {
+                        Stream streamToProcess = sourceStream;
+                        IChecksumProvider? checksumProvider = null;
+                        IEncryptionProvider? encryptionProvider = null;
+                        ICompressionProvider? compressionProvider = null;
+
+                        // --- 6.b Prepare Providers and Calculate Checksum (if applicable) ---
+                        try
+                        {
+                            if (options.Checksum.Algorithm != ChecksumAlgorithm.None)
                             {
-                                // Important: Dispose flushes the streams (CryptoStream, DeflateStream)
-                                if (stream is IAsyncDisposable asyncDisposable)
+                                checksumProvider = ProviderFactory.GetChecksumProvider(options.Checksum.Algorithm, bufferSize);
+                                if (checksumProvider is IDisposable disposableChecksum)
                                 {
-                                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                                    disposableProviders.Add(disposableChecksum);
+                                }
+
+                                checksum = await checksumProvider.ComputeChecksumAsync(streamToProcess, options.Checksum, cancellationToken).ConfigureAwait(false);
+                                if (streamToProcess.CanSeek)
+                                {
+                                    streamToProcess.Position = 0;
                                 }
                                 else
                                 {
-                                    stream.Dispose();
+                                    throw new InvalidOperationException("Source stream must be seekable for checksum calculation.");
+                                }
+                            }
+
+                            if (options.Encryption.Algorithm != EncryptionAlgorithm.None)
+                            {
+                                encryptionProvider = ProviderFactory.GetEncryptionProvider(options.Encryption.Algorithm, bufferSize);
+                            }
+                            if (options.Compression.Algorithm != CompressionAlgorithm.Store)
+                            {
+                                compressionProvider = ProviderFactory.GetCompressionProvider(options.Compression.Algorithm, bufferSize);
+                            }
+
+                            // --- 6.d Process and Copy Stream Data --- 
+                            // Pipeline: Source -> Compression? -> Encryption? -> Archive
+                            Stream currentOutputStream = archiveStream;
+                            List<Stream> processingStreams = new();
+
+                            try
+                            {
+                                // 1. Encryption Layer (applied first to the output stream)
+                                byte[]? salt = null; // Store salt/iv if generated
+                                byte[]? iv = null;
+                                if (encryptionProvider != null)
+                                {
+                                    using (RandomNumberGenerator rng = RandomNumberGenerator.Create()) // Use instance
+                                    {
+                                        salt = new byte[AesEncryptionProviderBase.DefaultSaltSizeBytes];
+                                        rng.GetBytes(salt);
+                                        iv = new byte[AesEncryptionProviderBase.DefaultIvSizeBytes];
+                                        rng.GetBytes(iv);
+                                    }
+                                    byte[] key = DeriveKeyFromPassword(options.Encryption.Password!, salt, encryptionProvider is Aes256EncryptionProvider ? 256 : 128);
+
+                                    // Write Salt and IV *before* encrypted data
+                                    await archiveStream.WriteAsync(salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
+                                    await archiveStream.WriteAsync(iv, 0, iv.Length, cancellationToken).ConfigureAwait(false);
+
+                                    using Aes aes = CreateAesInstance(encryptionProvider is Aes256EncryptionProvider ? 256 : 128);
+                                    aes.Key = key;
+                                    aes.IV = iv;
+                                    aes.Mode = CipherMode.CBC;
+                                    aes.Padding = PaddingMode.PKCS7;
+
+                                    // Create CryptoStream that writes *encrypted* data to the archive stream
+                                    CryptoStream cryptoStream = new(archiveStream, aes.CreateEncryptor(), CryptoStreamMode.Write, leaveOpen: true);
+                                    processingStreams.Add(cryptoStream);
+                                    currentOutputStream = cryptoStream; // Compression (if any) will write to CryptoStream
+                                }
+
+                                // 2. Compression Layer (writes to the encryption layer or directly to archive)
+                                if (compressionProvider != null)
+                                {
+                                    DeflateStream compressionStream = new(currentOutputStream, MapCompressionLevel(options.Compression.Level), leaveOpen: true);
+                                    processingStreams.Add(compressionStream);
+                                    currentOutputStream = compressionStream; // Copy source data *to* this compression stream
+                                }
+
+                                // 3. Copy Data: Source -> Innermost Wrapper (or Archive Directly)
+                                await streamToProcess.CopyToAsync(currentOutputStream, bufferSize, cancellationToken).ConfigureAwait(false);
+                            }
+                            finally
+                            {
+                                // Dispose wrapper streams in reverse order (Compression -> Encryption)
+                                processingStreams.Reverse();
+                                foreach (Stream stream in processingStreams)
+                                {
+                                    // Important: Dispose flushes the streams (CryptoStream, DeflateStream)
+                                    if (stream is IAsyncDisposable asyncDisposable)
+                                    {
+                                        await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                                    }
+                                    else
+                                    {
+                                        stream.Dispose();
+                                    }
                                 }
                             }
                         }
+                        finally
+                        {
+                            // Provider disposal is handled outside the loop
+                        }
+                    }
+
+                    long entryDataEndPosition = archiveStream.Position;
+                    compressedSize = entryDataEndPosition - entryDataStartPosition;
+
+                    // --- 6.e Write Entry Footer/Metadata (Placeholder) ---
+                    if (checksum != null)
+                    {
+                        await archiveStream.WriteAsync(checksum, 0, checksum.Length, cancellationToken).ConfigureAwait(false);
+                    }
+                    // Write File Metadata if available
+                    if (metadataBytes != null)
+                    {
+                        await archiveStream.WriteAsync(metadataBytes, 0, metadataBytes.Length, cancellationToken).ConfigureAwait(false);
+                    }
+                    // TODO: Write ECC data (if options.ErrorCorrection.Level != None)
+
+                    // Seek back and update compressed size in header if possible
+                    long finalEntryPosition = archiveStream.Position;
+                    if (archiveStream.CanSeek)
+                    {
+                        archiveStream.Position = compressedSizePosition;
+                        await WriteLongAsync(archiveStream, compressedSize, cancellationToken).ConfigureAwait(false);
+                        archiveStream.Position = finalEntryPosition;
+                    }
+                    else
+                    {
+                        // Cannot update size - format needs a central directory or other mechanism
+                    }
+                    // --- End Placeholder Entry Footer ---
+
+                    bytesProcessed += fileInfo.Length; // Progress based on original file size
+                    OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytesToProcess, currentFile: currentFileNameForProgress, statusMessage: $"Completed: {relativePath}"));
+                }
+            }
+            else
+            {
+                // --- Solid Archival Implementation ---
+                OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytesToProcess, statusMessage: "Starting solid archival..."));
+
+                List<SolidManifestEntry> manifest = new();
+                long currentOffset = 0;
+                long totalUncompressedSolidSize = 0;
+
+                // Use MemoryStream for combining if total size is reasonable, else temp file.
+                // For simplicity, starting with MemoryStream. Add temp file logic later if needed.
+                using MemoryStream combinedStream = new();
+
+                // 1 & 2: Combine files and build manifest
+                foreach (string filePath in filePaths)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    string relativePath = Path.GetRelativePath(sourceDirectoryPath, filePath).Replace('\\', '/');
+                    FileInfo fileInfo = new(filePath);
+                    string currentFileNameForProgress = Path.GetFileName(filePath);
+
+                    OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytesToProcess, currentFile: currentFileNameForProgress, statusMessage: $"Combining: {relativePath}"));
+
+                    long uncompressedSize = fileInfo.Length;
+                    manifest.Add(new SolidManifestEntry
+                    {
+                        RelativePath = relativePath,
+                        UncompressedSize = uncompressedSize,
+                        Offset = currentOffset
+                        // We don't store length explicitly, it's derived from the next entry's offset or total size
+                    });
+
+                    using (FileStream sourceStream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, useAsync: true))
+                    {
+                        await sourceStream.CopyToAsync(combinedStream, bufferSize, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    currentOffset += uncompressedSize;
+                    totalUncompressedSolidSize += uncompressedSize;
+                    bytesProcessed += uncompressedSize; // Progress based on combined size
+                    OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytesToProcess, currentFile: currentFileNameForProgress, statusMessage: $"Combined: {relativePath}"));
+                }
+
+                // 3. Process the combined stream
+                combinedStream.Position = 0; // Rewind before processing
+                long solidBlockStartPosition = archiveStream.Position; // Position where solid block data will start
+                Stream streamToProcess = combinedStream;
+                IEncryptionProvider? encryptionProvider = null;
+                ICompressionProvider? compressionProvider = null;
+
+                try
+                {
+                    if (options.Encryption.Algorithm != EncryptionAlgorithm.None)
+                    {
+                        encryptionProvider = ProviderFactory.GetEncryptionProvider(options.Encryption.Algorithm, bufferSize);
+                    }
+                    if (options.Compression.Algorithm != CompressionAlgorithm.Store)
+                    {
+                        compressionProvider = ProviderFactory.GetCompressionProvider(options.Compression.Algorithm, bufferSize);
+                    }
+
+                    // Pipeline: CombinedStream -> Compression? -> Encryption? -> Archive
+                    Stream currentOutputStream = archiveStream;
+                    List<Stream> processingStreams = new();
+
+                    try
+                    {
+                        // Encryption Layer
+                        byte[]? salt = null, iv = null;
+                        if (encryptionProvider != null)
+                        {
+                            using (RandomNumberGenerator rng = RandomNumberGenerator.Create()) { salt = new byte[AesEncryptionProviderBase.DefaultSaltSizeBytes]; rng.GetBytes(salt); iv = new byte[AesEncryptionProviderBase.DefaultIvSizeBytes]; rng.GetBytes(iv); }
+                            byte[] key = DeriveKeyFromPassword(options.Encryption.Password!, salt, encryptionProvider is Aes256EncryptionProvider ? 256 : 128);
+                            await archiveStream.WriteAsync(salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
+                            await archiveStream.WriteAsync(iv, 0, iv.Length, cancellationToken).ConfigureAwait(false);
+                            using Aes aes = CreateAesInstance(encryptionProvider is Aes256EncryptionProvider ? 256 : 128); aes.Key = key; aes.IV = iv; aes.Mode = CipherMode.CBC; aes.Padding = PaddingMode.PKCS7;
+                            CryptoStream cryptoStream = new(archiveStream, aes.CreateEncryptor(), CryptoStreamMode.Write, leaveOpen: true);
+                            processingStreams.Add(cryptoStream); currentOutputStream = cryptoStream;
+                        }
+
+                        // Compression Layer
+                        if (compressionProvider != null)
+                        {
+                            DeflateStream compressionStream = new(currentOutputStream, MapCompressionLevel(options.Compression.Level), leaveOpen: true);
+                            processingStreams.Add(compressionStream); currentOutputStream = compressionStream;
+                        }
+
+                        // Copy Data
+                        await streamToProcess.CopyToAsync(currentOutputStream, bufferSize, cancellationToken).ConfigureAwait(false);
                     }
                     finally
                     {
-                        // Provider disposal is handled outside the loop
+                        processingStreams.Reverse();
+                        foreach (Stream stream in processingStreams)
+                        {
+                            if (stream is IAsyncDisposable asyncDisposable)
+                            {
+                                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                stream.Dispose();
+                            }
+                        }
                     }
                 }
+                finally { /* Provider disposal handled outside */ }
 
-                long entryDataEndPosition = archiveStream.Position;
-                compressedSize = entryDataEndPosition - entryDataStartPosition;
+                long solidBlockEndPosition = archiveStream.Position;
+                long solidBlockCompressedSize = solidBlockEndPosition - solidBlockStartPosition;
 
-                // --- 6.e Write Entry Footer/Metadata (Placeholder) ---
-                if (checksum != null)
+                // 4. Write the "Solid Block" Entry Header
+                // Use specific flags to indicate this is the main solid block entry
+                FormatConstants.EntryHeaderFlags solidEntryFlags = FormatConstants.EntryHeaderFlags.IsSolidBlock;
+                if (options.Encryption.Algorithm != EncryptionAlgorithm.None)
                 {
-                    await archiveStream.WriteAsync(checksum, 0, checksum.Length, cancellationToken).ConfigureAwait(false);
+                    solidEntryFlags |= FormatConstants.EntryHeaderFlags.IsEncrypted;
                 }
-                // Write File Metadata if available
-                if (metadataBytes != null)
-                {
-                    await archiveStream.WriteAsync(metadataBytes, 0, metadataBytes.Length, cancellationToken).ConfigureAwait(false);
-                }
-                // TODO: Write ECC data (if options.ErrorCorrection.Level != None)
+                // Checksum for the solid block itself could be added here if needed
+                // if (options.Checksum.Algorithm != ChecksumAlgorithm.None) solidEntryFlags |= FormatConstants.EntryHeaderFlags.HasChecksum;
 
-                // Seek back and update compressed size in header if possible
-                long finalEntryPosition = archiveStream.Position;
-                if (archiveStream.CanSeek)
-                {
-                    archiveStream.Position = compressedSizePosition;
-                    await WriteLongAsync(archiveStream, compressedSize, cancellationToken).ConfigureAwait(false);
-                    archiveStream.Position = finalEntryPosition;
-                }
-                else
-                {
-                    // Cannot update size - format needs a central directory or other mechanism
-                }
-                // --- End Placeholder Entry Footer ---
+                await WriteUIntAsync(archiveStream, (uint)solidEntryFlags, cancellationToken).ConfigureAwait(false);
+                await WriteUShortAsync(archiveStream, 0, cancellationToken).ConfigureAwait(false); // No relative path for the block itself
+                await WriteLongAsync(archiveStream, 0, cancellationToken).ConfigureAwait(false); // No LastWriteTime for the block
+                await WriteLongAsync(archiveStream, totalUncompressedSolidSize, cancellationToken).ConfigureAwait(false); // Total uncompressed size of combined files
+                await WriteLongAsync(archiveStream, solidBlockCompressedSize, cancellationToken).ConfigureAwait(false); // Compressed size of the block
+                await WriteLongAsync(archiveStream, 0, cancellationToken).ConfigureAwait(false); // No specific file metadata for the block entry itself
 
-                bytesProcessed += fileInfo.Length; // Progress based on original file size
-                OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytesToProcess, currentFile: currentFileNameForProgress, statusMessage: $"Completed: {relativePath}"));
+                // 5. TODO: Write checksum for the solid block data if needed (calculate checksum on the compressed data before this point)
+
+                // 6. Serialize and Write the Manifest
+                byte[] manifestBytes;
+                try
+                {
+                    manifestBytes = JsonSerializer.SerializeToUtf8Bytes(manifest);
+                }
+                catch (JsonException jsonEx)
+                {
+                    throw new InvalidOperationException("Failed to serialize solid archive manifest.", jsonEx);
+                }
+
+                // Write manifest length header
+                await WriteLongAsync(archiveStream, manifestBytes.Length, cancellationToken).ConfigureAwait(false);
+                // Write manifest data
+                await archiveStream.WriteAsync(manifestBytes, 0, manifestBytes.Length, cancellationToken).ConfigureAwait(false);
+
+                // Update progress to 100% after manifest is written
+                OnProgressChanged(new ProgressEventArgs(totalBytesToProcess, totalBytesToProcess, statusMessage: "Solid archival complete."));
             }
 
             // --- 7. Write Archive Footer (Placeholder) ---
@@ -404,6 +609,7 @@ public class ArchiveManager : IArchiveManager
             // TODO: Read and potentially decrypt/deserialize Archive Metadata
             if (metadataLength > 0)
             {
+                // Read metadata bytes (but don't process yet, OpenReadAsync handles this)
                 archiveStream.Seek(metadataLength, SeekOrigin.Current); // Skip metadata for now
             }
             // --- End Placeholder Header ---
@@ -486,7 +692,7 @@ public class ArchiveManager : IArchiveManager
                 }
                 else
                 {
-                    var fileEntry = new FileArchiveEntry(relativePath)
+                    FileArchiveEntry fileEntry = new(relativePath)
                     {
                         DataOffset = entryDataOffset,
                         MetadataOffset = metadataOffset,
@@ -840,17 +1046,35 @@ public class ArchiveManager : IArchiveManager
             FormatConstants.ArchiveHeaderFlags archiveFlags = (FormatConstants.ArchiveHeaderFlags)await ReadULongAsync(archiveStream, cancellationToken).ConfigureAwait(false);
             long metadataLength = await ReadLongAsync(archiveStream, cancellationToken).ConfigureAwait(false);
 
-            // TODO: Read actual Archive Metadata
-            archiveMetadata = new ArchiveMetadata { ApplicationName = $"Fragile Archive Reader (v{versionMajor}.{versionMinor})" }; // Placeholder
+            // Read actual Archive Metadata
             if (metadataLength > 0)
             {
-                // byte[] metadataBytes = await ReadBytesAsync(archiveStream, (int)metadataLength, cancellationToken); 
+                if (metadataLength > int.MaxValue) // Protect against huge lengths
+                {
+                    throw new InvalidDataException($"Archive metadata length ({metadataLength}) is too large.");
+                }
+                byte[] metadataBytes = await ReadBytesAsync(archiveStream, (int)metadataLength, cancellationToken).ConfigureAwait(false);
                 // TODO: Decrypt if ArchiveMetadataEncrypted flag is set
-                // TODO: Deserialize metadata (e.g., using System.Text.Json)
-                // archiveMetadata = JsonSerializer.Deserialize<ArchiveMetadata>(metadataBytes);
-                archiveStream.Seek(metadataLength, SeekOrigin.Current); // Skip for now
+                // if ((archiveFlags & FormatConstants.ArchiveHeaderFlags.ArchiveMetadataEncrypted) != 0) { ... decrypt ... }
+                try
+                {
+                    using MemoryStream metaStream = new(metadataBytes);
+                    archiveMetadata = await JsonSerializer.DeserializeAsync<ArchiveMetadata>(metaStream, cancellationToken: cancellationToken).ConfigureAwait(false);
+                }
+                catch (JsonException jsonEx)
+                {
+                    // Log or handle - archive might be corrupt or from incompatible version
+                    System.Diagnostics.Debug.WriteLine($"Warning: Could not deserialize ArchiveMetadata. Error: {jsonEx.Message}");
+                    // Set to null or a default object?
+                    archiveMetadata = new ArchiveMetadata { Description = "Metadata block found but could not be parsed." }; // Example fallback
+                }
             }
-            // --- End Placeholder Header ---
+            else
+            {
+                // If no metadata block, create a default/empty one or leave null
+                archiveMetadata = new ArchiveMetadata { ApplicationName = $"Fragile Archive Reader (v{versionMajor}.{versionMinor})" }; // Basic default
+            }
+            // --- End Archive Header ---
 
             // --- Read Entries (Placeholder - assumes sequential reading) ---
             // TODO: Implement proper entry reading, potentially using a central directory if HasCentralDirectory flag is set.
@@ -928,7 +1152,7 @@ public class ArchiveManager : IArchiveManager
                 }
                 else
                 {
-                    var fileEntry = new FileArchiveEntry(relativePath)
+                    FileArchiveEntry fileEntry = new(relativePath)
                     {
                         DataOffset = entryDataOffset,
                         MetadataOffset = metadataOffset,
@@ -978,18 +1202,229 @@ public class ArchiveManager : IArchiveManager
         return OpenReadAsync(archiveStream, options, leaveOpen).GetAwaiter().GetResult();
     }
 
-    public Task<bool> VerifyArchiveAsync(string archiveFilePath, ArchiveOptions options, IProgress<ProgressEventArgs>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<bool> VerifyArchiveAsync(string archiveFilePath, ArchiveOptions options, IProgress<ProgressEventArgs>? progress = null, CancellationToken cancellationToken = default)
     {
-        // 1. Open archive
-        // 2. Verify header/signature
-        // 3. Optionally iterate through entries, verify checksums/ECC data
-        // 4. Report progress/cancellation
-        throw new NotImplementedException();
+        if (string.IsNullOrWhiteSpace(archiveFilePath))
+        {
+            throw new ArgumentNullException(nameof(archiveFilePath));
+        }
+
+        if (!File.Exists(archiveFilePath))
+        {
+            // File not found is arguably not an invalid archive, but verification fails.
+            OnProgressChanged(new ProgressEventArgs(0, 0, statusMessage: $"Verification failed: File not found: {archiveFilePath}"));
+            return false;
+        }
+
+        if (options is null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        long totalBytes = new FileInfo(archiveFilePath).Length;
+        long bytesProcessed = 0;
+
+        OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, statusMessage: "Starting verification..."));
+
+        try
+        {
+            using FileStream archiveStream = new(archiveFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, options.StreamBufferSize, useAsync: true);
+
+            // 1. Verify Magic Bytes
+            if (archiveStream.Length < FormatConstants.BaseArchiveHeaderSize)
+            {
+                OnProgressChanged(new ProgressEventArgs(totalBytes, totalBytes, statusMessage: "Verification failed: File too small."));
+                return false; // Too small to be a valid archive
+            }
+
+            byte[] magic = await ReadBytesAsync(archiveStream, FormatConstants.MagicBytes.Length, cancellationToken).ConfigureAwait(false);
+            bytesProcessed += magic.Length;
+            if (!magic.SequenceEqual(FormatConstants.MagicBytes))
+            {
+                OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, statusMessage: "Verification failed: Invalid magic bytes."));
+                return false;
+            }
+            OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, statusMessage: "Magic bytes verified."));
+
+            // 2. Verify Format Version
+            ushort versionMajor = await ReadUShortAsync(archiveStream, cancellationToken).ConfigureAwait(false);
+            bytesProcessed += sizeof(ushort);
+            ushort versionMinor = await ReadUShortAsync(archiveStream, cancellationToken).ConfigureAwait(false);
+            bytesProcessed += sizeof(ushort);
+
+            // Allow future minor versions if major matches?
+            // For now, require exact match or use options to control flexibility.
+            bool versionSupported = versionMajor == FormatConstants.FormatVersionMajor && versionMinor <= FormatConstants.FormatVersionMinor;
+            if (!versionSupported && options.VerifyArchiveSignature) // Only fail if verification is enabled
+            {
+                OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, statusMessage: $"Verification failed: Unsupported format version {versionMajor}.{versionMinor}."));
+                return false;
+            }
+            OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, statusMessage: $"Format version {versionMajor}.{versionMinor} checked."));
+
+            // --- Further Checks (Checksums, etc.) ---
+            bool checksumCheckRequested = options.Checksum?.VerifyOnExtract ?? true;
+            ChecksumAlgorithm checksumAlgorithm = options.Checksum?.Algorithm ?? ChecksumAlgorithm.None;
+
+            if (checksumCheckRequested && checksumAlgorithm != ChecksumAlgorithm.None)
+            {
+                OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, statusMessage: "Starting entry checksum verification..."));
+                long currentEntryPosition = archiveStream.Position; // Start reading entries after header
+                IChecksumProvider? checksumProvider = null;
+                List<IDisposable> disposableProviders = new();
+                try
+                {
+                    checksumProvider = ProviderFactory.GetChecksumProvider(checksumAlgorithm, options.StreamBufferSize);
+                    if (checksumProvider is IDisposable disp)
+                    {
+                        disposableProviders.Add(disp);
+                    }
+
+                    while (currentEntryPosition < archiveStream.Length)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        archiveStream.Position = currentEntryPosition;
+
+                        // Read Entry Header (Simplified - mirrors OpenReadAsync)
+                        FormatConstants.EntryHeaderFlags entryFlags = (FormatConstants.EntryHeaderFlags)await ReadUIntAsync(archiveStream, cancellationToken).ConfigureAwait(false);
+                        ushort pathLength = await ReadUShortAsync(archiveStream, cancellationToken).ConfigureAwait(false);
+                        byte[] pathBytes = await ReadBytesAsync(archiveStream, pathLength, cancellationToken).ConfigureAwait(false);
+                        string relativePath = Encoding.UTF8.GetString(pathBytes);
+                        await ReadLongAsync(archiveStream, cancellationToken).ConfigureAwait(false); // Skip LastWriteTimeTicks
+                        await ReadLongAsync(archiveStream, cancellationToken).ConfigureAwait(false); // Skip UncompressedSize
+                        long compressedSize = await ReadLongAsync(archiveStream, cancellationToken).ConfigureAwait(false);
+                        long headerMetadataLength = await ReadLongAsync(archiveStream, cancellationToken).ConfigureAwait(false);
+                        long entryHeaderEndPosition = archiveStream.Position;
+                        long entryDataOffset = entryHeaderEndPosition;
+
+                        // Calculate lengths needed to skip to the next entry
+                        int storedChecksumLength = 0;
+                        bool hasChecksum = (entryFlags & FormatConstants.EntryHeaderFlags.HasChecksum) != 0;
+                        if (hasChecksum)
+                        {
+                            storedChecksumLength = checksumProvider.ChecksumLengthBytes; // Assumes checksum algorithm matches options
+                        }
+
+                        // Verify checksum only for files that have one stored
+                        if (!((entryFlags & FormatConstants.EntryHeaderFlags.IsDirectory) != 0) && hasChecksum)
+                        {
+                            OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, currentFile: relativePath, statusMessage: "Verifying checksum..."));
+
+                            // Get expected checksum (read from after the data block)
+                            long checksumPosition = entryDataOffset + compressedSize;
+                            archiveStream.Position = checksumPosition;
+                            byte[] expectedChecksum = await ReadBytesAsync(archiveStream, storedChecksumLength, cancellationToken).ConfigureAwait(false);
+
+                            // Calculate actual checksum (requires decompression/decryption)
+                            byte[] actualChecksum;
+                            using (MemoryStream uncompressedDataStream = new())
+                            {
+                                // Set up pipeline: Archive -> SubStream -> Decrypt? -> Decompress? -> MemoryStream
+                                archiveStream.Position = entryDataOffset; // Go back to start of data
+                                Stream streamToReadFrom = new SubStream(archiveStream, entryDataOffset, compressedSize, true);
+                                List<IDisposable> processingStreams = new() { streamToReadFrom };
+                                try
+                                {
+                                    // Decryption Layer
+                                    bool isEncrypted = (entryFlags & FormatConstants.EntryHeaderFlags.IsEncrypted) != 0;
+                                    if (isEncrypted)
+                                    {
+                                        if (options.Encryption?.Algorithm == EncryptionAlgorithm.None || string.IsNullOrEmpty(options.Encryption.Password))
+                                        {
+                                            throw new InvalidOperationException($"Password required to verify encrypted entry: {relativePath}");
+                                        }
+
+                                        IEncryptionProvider decryptionProvider = ProviderFactory.GetEncryptionProvider(options.Encryption.Algorithm, options.StreamBufferSize);
+                                        byte[] salt = await ReadBytesAsync(streamToReadFrom, AesEncryptionProviderBase.DefaultSaltSizeBytes, cancellationToken).ConfigureAwait(false);
+                                        byte[] iv = await ReadBytesAsync(streamToReadFrom, AesEncryptionProviderBase.DefaultIvSizeBytes, cancellationToken).ConfigureAwait(false);
+                                        byte[] key = DeriveKeyFromPassword(options.Encryption.Password!, salt, decryptionProvider is Aes256EncryptionProvider ? 256 : 128);
+                                        using Aes aes = CreateAesInstance(decryptionProvider is Aes256EncryptionProvider ? 256 : 128);
+                                        aes.Key = key; aes.IV = iv; aes.Mode = CipherMode.CBC; aes.Padding = PaddingMode.PKCS7;
+                                        CryptoStream cryptoStream = new(streamToReadFrom, aes.CreateDecryptor(), CryptoStreamMode.Read, true);
+                                        processingStreams.Add(cryptoStream);
+                                        streamToReadFrom = cryptoStream;
+                                    }
+
+                                    // Decompression Layer
+                                    // TODO: Determine compression from entry flags/header, not just options
+                                    bool isCompressed = options.Compression?.Algorithm != CompressionAlgorithm.Store;
+                                    if (isCompressed)
+                                    {
+                                        ICompressionProvider decompressionProvider = ProviderFactory.GetCompressionProvider(options.Compression.Algorithm, options.StreamBufferSize);
+                                        DeflateStream decompressionStream = new(streamToReadFrom, CompressionMode.Decompress, true);
+                                        processingStreams.Add(decompressionStream);
+                                        streamToReadFrom = decompressionStream;
+                                    }
+
+                                    // Copy to memory stream
+                                    await streamToReadFrom.CopyToAsync(uncompressedDataStream, options.StreamBufferSize, cancellationToken).ConfigureAwait(false);
+                                }
+                                finally
+                                {
+                                    processingStreams.Reverse();
+                                    foreach (IDisposable stream in processingStreams)
+                                    {
+                                        if (stream is IAsyncDisposable asyncDisposable)
+                                        {
+                                            await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                                        }
+                                        else
+                                        {
+                                            stream.Dispose();
+                                        }
+                                    }
+                                }
+
+                                // Calculate checksum on uncompressed data
+                                uncompressedDataStream.Position = 0;
+                                actualChecksum = await checksumProvider.ComputeChecksumAsync(uncompressedDataStream, options.Checksum!, cancellationToken).ConfigureAwait(false);
+                            }
+
+                            if (!actualChecksum.SequenceEqual(expectedChecksum))
+                            {
+                                OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, currentFile: relativePath, statusMessage: "Verification failed: Checksum mismatch."));
+                                return false;
+                            }
+                            OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, currentFile: relativePath, statusMessage: "Checksum verified."));
+                        }
+
+                        // Advance to the next entry header position
+                        long totalEntryBlockLength = compressedSize + storedChecksumLength + headerMetadataLength;
+                        currentEntryPosition = entryHeaderEndPosition + totalEntryBlockLength;
+                        bytesProcessed = currentEntryPosition; // Update progress based on position
+                    }
+                }
+                finally
+                {
+                    foreach (IDisposable provider in disposableProviders)
+                    {
+                        provider.Dispose();
+                    }
+                }
+                OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, statusMessage: "Entry checksum verification complete."));
+            }
+
+            OnProgressChanged(new ProgressEventArgs(totalBytes, totalBytes, statusMessage: "Basic verification successful."));
+            return true; // Basic verification passed
+        }
+        catch (IOException ioEx)
+        {
+            OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, statusMessage: $"Verification failed: IO error - {ioEx.Message}"));
+            // Log the exception
+            return false;
+        }
+        catch (Exception ex) // Catch other potential errors during reading
+        {
+            OnProgressChanged(new ProgressEventArgs(bytesProcessed, totalBytes, statusMessage: $"Verification failed: Unexpected error - {ex.Message}"));
+            // Log the exception
+            return false;
+        }
     }
 
     public bool VerifyArchive(string archiveFilePath, ArchiveOptions options, IProgress<ProgressEventArgs>? progress = null, CancellationToken cancellationToken = default)
     {
         // Synchronous version of VerifyArchiveAsync
+        // Using basic sync-over-async. Beware of potential deadlocks in specific contexts.
         return VerifyArchiveAsync(archiveFilePath, options, progress, cancellationToken).GetAwaiter().GetResult();
     }
 

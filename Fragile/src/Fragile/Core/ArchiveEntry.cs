@@ -1,6 +1,5 @@
-using Fragile.Core.Metadata;
-using System.IO;
 using Fragile.Core.Format;
+using Fragile.Core.Metadata;
 
 namespace Fragile.Core;
 

@@ -48,6 +48,7 @@ internal static class FormatConstants
         HasMetadata = 1 << 2, // Indicates FileMetadata block follows header
         HasChecksum = 1 << 3, // Indicates checksum follows compressed data
         HasErrorCorrection = 1 << 4, // Indicates ECC data follows checksum/compressed data
+        IsSolidBlock = 1 << 5, // Indicates this entry represents the main solid block data
         // ... other entry-specific flags
     }
 
