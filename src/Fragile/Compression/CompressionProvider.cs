@@ -16,6 +16,27 @@ namespace Fragile.Compression
         public abstract CompressionAlgorithm Algorithm { get; }
 
         /// <summary>
+        /// Whether to use parallel processing for compression/decompression
+        /// </summary>
+        public bool UseParallelProcessing { get; }
+
+        /// <summary>
+        /// Maximum number of threads to use for parallel operations
+        /// </summary>
+        public int MaxThreads { get; }
+
+        /// <summary>
+        /// Constructor for compression provider with parallel processing options
+        /// </summary>
+        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+        /// <param name="maxThreads">Maximum number of threads to use</param>
+        protected CompressionProvider(bool useParallelProcessing = true, int maxThreads = 4)
+        {
+            UseParallelProcessing = useParallelProcessing;
+            MaxThreads = maxThreads;
+        }
+
+        /// <summary>
         /// Creates a compression provider for the specified algorithm and level
         /// </summary>
         /// <param name="algorithm">The compression algorithm to use</param>
@@ -23,15 +44,28 @@ namespace Fragile.Compression
         /// <returns>A suitable compression provider</returns>
         public static CompressionProvider Create(CompressionAlgorithm algorithm, CompressionLevel level)
         {
+            return Create(algorithm, level, true, Environment.ProcessorCount);
+        }
+
+        /// <summary>
+        /// Creates a compression provider for the specified algorithm, level, and parallel processing options
+        /// </summary>
+        /// <param name="algorithm">The compression algorithm to use</param>
+        /// <param name="level">The compression level</param>
+        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+        /// <param name="maxThreads">Maximum number of threads to use for parallel operations</param>
+        /// <returns>A suitable compression provider</returns>
+        public static CompressionProvider Create(CompressionAlgorithm algorithm, CompressionLevel level, bool useParallelProcessing, int maxThreads)
+        {
             return algorithm switch
             {
-                CompressionAlgorithm.Store => new StoreCompressionProvider(),
-                CompressionAlgorithm.Deflate => new DeflateCompressionProvider(level),
+                CompressionAlgorithm.Store => new StoreCompressionProvider(useParallelProcessing, maxThreads),
+                CompressionAlgorithm.Deflate => new DeflateCompressionProvider(level, useParallelProcessing, maxThreads),
                 // These would be implemented with additional libraries
-                // CompressionAlgorithm.LZMA => new LZMACompressionProvider(level),
-                // CompressionAlgorithm.BZip2 => new BZip2CompressionProvider(level),
-                // CompressionAlgorithm.ZStd => new ZStdCompressionProvider(level),
-                // CompressionAlgorithm.LZ4 => new LZ4CompressionProvider(level),
+                // CompressionAlgorithm.LZMA => new LZMACompressionProvider(level, useParallelProcessing, maxThreads),
+                // CompressionAlgorithm.BZip2 => new BZip2CompressionProvider(level, useParallelProcessing, maxThreads),
+                // CompressionAlgorithm.ZStd => new ZStdCompressionProvider(level, useParallelProcessing, maxThreads),
+                // CompressionAlgorithm.LZ4 => new LZ4CompressionProvider(level, useParallelProcessing, maxThreads),
                 _ => throw new NotSupportedException($"Compression algorithm {algorithm} is not supported")
             };
         }

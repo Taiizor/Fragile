@@ -1,3 +1,4 @@
+using Fragile.Compression;
 using Fragile.ErrorCorrection;
 using Fragile.Models;
 using System;
@@ -453,127 +454,155 @@ namespace Fragile.Core
                     writer.Write(VersionMajor);
                     writer.Write(VersionMinor);
 
-                    // Entry count
+                    // Options
+                    byte optionFlags = 0;
+                    
+                    // Set option flags based on enabled features
+                    if (_options.EnableEncryption)
+                        optionFlags |= 0x01;
+                    
+                    if (_options.EnableChecksumVerification)
+                        optionFlags |= 0x02;
+                    
+                    if (_options.EnableErrorCorrection)
+                        optionFlags |= 0x04;
+                    
+                    if (_options.IncludeMetadata)
+                        optionFlags |= 0x08;
+                    
+                    if (_options.UseSolidCompression)
+                        optionFlags |= 0x10;
+                    
+                    writer.Write(optionFlags);
+
+                    // Compression algorithm
+                    writer.Write((byte)_options.CompressionAlgorithm);
+
+                    // Number of entries
                     writer.Write(_entries.Count);
 
-                    // Header end - data start position (we'll update this later)
-                    long dataPositionOffset = outputStream.Position;
-                    writer.Write((long)0); // Placeholder
+                    // Reserve space for central directory offset
+                    long centralDirOffsetPosition = outputStream.Position;
+                    writer.Write((long)0);
 
-                    // Write file entries information
-                    foreach (FragileArchiveEntry entry in _entries.Values)
+                    // Process each entry
+                    foreach (var entry in _entries.Values)
                     {
-                        // File path
-                        writer.Write(entry.Path);
+                        // Skip if already compressed or special handling is needed
+                        if (entry.IsDirectory || entry.Data != null)
+                            continue;
 
-                        // Size and compressed size
+                        // Record position for this entry
+                        entry.HeaderOffset = outputStream.Position;
+
+                        // Entry path
+                        byte[] pathBytes = Encoding.UTF8.GetBytes(entry.Path);
+                        writer.Write(pathBytes.Length);
+                        writer.Write(pathBytes);
+
+                        // Entry metadata
                         writer.Write(entry.Size);
-
-                        // Compressed size field (we'll update this later)
-                        long compressedSizeOffset = outputStream.Position;
-                        writer.Write((long)0); // Placeholder
-
-                        // File time
                         writer.Write(entry.LastModified.ToBinary());
-
-                        // Is directory?
                         writer.Write(entry.IsDirectory);
 
-                        // Position (we'll update this later)
-                        long positionOffset = outputStream.Position;
-                        writer.Write((long)0); // Placeholder
+                        // Reserve space for compressed size
+                        long sizePosition = outputStream.Position;
+                        writer.Write((long)0);
 
-                        // Save writing position
-                        entry.HeaderOffset = compressedSizeOffset;
-                        entry.PositionOffset = positionOffset;
-                    }
-
-                    // Update data start position
-                    long dataPosition = outputStream.Position;
-                    outputStream.Position = dataPositionOffset;
-                    writer.Write(dataPosition);
-                    outputStream.Position = dataPosition;
-
-                    // Write compressed file contents
-                    foreach (FragileArchiveEntry entry in _entries.Values)
-                    {
                         if (entry.IsDirectory)
                         {
-                            continue; // No content for directories
-                        }
-
-                        // Update file position
-                        long filePosition = outputStream.Position;
-                        outputStream.Position = entry.PositionOffset;
-                        writer.Write(filePosition);
-                        outputStream.Position = filePosition;
-
-                        if (!string.IsNullOrEmpty(entry.SourcePath) && File.Exists(entry.SourcePath))
-                        {
-                            // Compress and write the file
-                            using FileStream fileStream = new(entry.SourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                            using MemoryStream compressStream = new();
-
-                            // Use the appropriate compression level
-                            System.IO.Compression.CompressionLevel compressionLevel = _options.CompressionLevel switch
-                            {
-                                Compression.CompressionLevel.Fastest => System.IO.Compression.CompressionLevel.Fastest,
-                                Compression.CompressionLevel.Fast => System.IO.Compression.CompressionLevel.Fastest,
-                                Compression.CompressionLevel.Normal => System.IO.Compression.CompressionLevel.Optimal,
-                                Compression.CompressionLevel.High => System.IO.Compression.CompressionLevel.Optimal,
-                                Compression.CompressionLevel.Ultra => System.IO.Compression.CompressionLevel.Optimal,
-                                _ => System.IO.Compression.CompressionLevel.Optimal
-                            };
-
-                            using (DeflateStream deflateStream = new(compressStream, compressionLevel, true))
-                            {
-                                await fileStream.CopyToAsync(deflateStream);
-                            }
-
-                            byte[] compressedData = compressStream.ToArray();
-                            entry.CompressedSize = compressedData.Length;
-
-                            // Update compressed size
-                            outputStream.Position = entry.HeaderOffset;
-                            writer.Write(entry.CompressedSize);
-                            outputStream.Position = filePosition;
-
-                            // Write compressed data
-                            await outputStream.WriteAsync(compressedData, 0, compressedData.Length);
+                            // No data for directories
+                            entry.CompressedSize = 0;
                         }
                         else if (entry.Data != null)
                         {
-                            // Compress and write in-memory data
-                            using MemoryStream dataStream = new(entry.Data);
-                            using MemoryStream compressStream = new();
-
-                            // Use the appropriate compression level
-                            System.IO.Compression.CompressionLevel compressionLevel = _options.CompressionLevel switch
-                            {
-                                Compression.CompressionLevel.Fastest => System.IO.Compression.CompressionLevel.Fastest,
-                                Compression.CompressionLevel.Fast => System.IO.Compression.CompressionLevel.Fastest,
-                                Compression.CompressionLevel.Normal => System.IO.Compression.CompressionLevel.Optimal,
-                                Compression.CompressionLevel.High => System.IO.Compression.CompressionLevel.Optimal,
-                                Compression.CompressionLevel.Ultra => System.IO.Compression.CompressionLevel.Optimal,
-                                _ => System.IO.Compression.CompressionLevel.Optimal
-                            };
-
-                            using (DeflateStream deflateStream = new(compressStream, compressionLevel, true))
-                            {
-                                await dataStream.CopyToAsync(deflateStream);
-                            }
-
-                            byte[] compressedData = compressStream.ToArray();
-                            entry.CompressedSize = compressedData.Length;
-
+                            // Entry data is already in memory
+                            entry.PositionOffset = outputStream.Position;
+                            entry.CompressedSize = entry.Data.Length;
+                            
                             // Update compressed size
-                            outputStream.Position = entry.HeaderOffset;
+                            long temp = outputStream.Position;
+                            outputStream.Position = sizePosition;
                             writer.Write(entry.CompressedSize);
-                            outputStream.Position = filePosition;
+                            outputStream.Position = temp;
 
-                            // Write compressed data
-                            await outputStream.WriteAsync(compressedData, 0, compressedData.Length);
+                            // Write data directly
+                            await outputStream.WriteAsync(entry.Data, 0, entry.Data.Length);
                         }
+                        else if (!string.IsNullOrEmpty(entry.SourcePath) && File.Exists(entry.SourcePath))
+                        {
+                            // Compress from file
+                            entry.PositionOffset = outputStream.Position;
+                            long filePosition = outputStream.Position;
+
+                            try
+                            {
+                                using FileStream fileStream = new(entry.SourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                                
+                                // Create compression provider with options
+                                CompressionProvider compressionProvider = CompressionProvider.Create(
+                                    _options.CompressionAlgorithm, 
+                                    _options.CompressionLevel,
+                                    _options.UseParallelProcessing,
+                                    _options.MaxThreads);
+                                
+                                // Report progress for this file if needed
+                                IProgress<double>? fileProgress = null;
+                                if (_options.Progress != null)
+                                {
+                                    double startPercentage = (double)outputStream.Position / (outputStream.Length + fileStream.Length);
+                                    double endPercentage = (double)(outputStream.Position + fileStream.Length) / (outputStream.Length + fileStream.Length);
+                                    double range = endPercentage - startPercentage;
+
+                                    fileProgress = new Progress<double>(p => 
+                                        _options.Progress.Report(startPercentage + p * range));
+                                }
+
+                                // Compress the file
+                                entry.CompressedSize = await compressionProvider.CompressAsync(
+                                    fileStream, 
+                                    outputStream, 
+                                    fileProgress, 
+                                    _options.CancellationToken);
+                                
+                                // Update compressed size
+                                outputStream.Position = sizePosition;
+                                writer.Write(entry.CompressedSize);
+                                outputStream.Position = filePosition + entry.CompressedSize;
+                            }
+                            catch (Exception ex)
+                            {
+                                throw new IOException($"Failed to compress file {entry.SourcePath}: {ex.Message}", ex);
+                            }
+                        }
+                        else
+                        {
+                            throw new FileNotFoundException($"Source file not found: {entry.SourcePath}");
+                        }
+                    }
+
+                    // Write central directory
+                    long centralDirOffset = outputStream.Position;
+
+                    // Update central directory offset
+                    outputStream.Position = centralDirOffsetPosition;
+                    writer.Write(centralDirOffset);
+                    outputStream.Position = centralDirOffset;
+
+                    // Write each entry's info in the central directory
+                    foreach (var entry in _entries.Values)
+                    {
+                        // Entry path
+                        byte[] pathBytes = Encoding.UTF8.GetBytes(entry.Path);
+                        writer.Write(pathBytes.Length);
+                        writer.Write(pathBytes);
+
+                        // Position and sizes
+                        writer.Write(entry.HeaderOffset);
+                        writer.Write(entry.PositionOffset);
+                        writer.Write(entry.Size);
+                        writer.Write(entry.CompressedSize);
+                        writer.Write(entry.IsDirectory);
                     }
                 }
 
@@ -591,7 +620,7 @@ namespace Fragile.Core
                     _fileStream.Position = 0;
 
                     // Add error correction data
-                    await errorCorrection.AddErrorCorrectionAsync(outputStream, _fileStream, _options.Progress);
+                    await errorCorrection.AddErrorCorrectionAsync(outputStream, _fileStream, _options.Progress, _options.CancellationToken);
 
                     // Cleanup
                     outputStream.Close();
@@ -599,7 +628,7 @@ namespace Fragile.Core
                 }
 
                 // Flush to disk
-                await _fileStream!.FlushAsync();
+                await _fileStream!.FlushAsync(_options.CancellationToken);
             }
             catch
             {
@@ -738,12 +767,54 @@ namespace Fragile.Core
                 byte[] compressedData = new byte[entry.CompressedSize];
                 await _fileStream.ReadAsync(compressedData, 0, (int)entry.CompressedSize);
 
-                // Decompress and write to the destination file
-                using FileStream outputFile = new(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                // Create a memory stream with the compressed data
                 using MemoryStream compressedStream = new(compressedData);
-                using DeflateStream deflateStream = new(compressedStream, CompressionMode.Decompress);
+                
+                // Check if checksum verification is enabled
+                if (_options.EnableChecksumVerification)
+                {
+                    // Verify the integrity of the compressed data
+                    var verificationProvider = Verification.VerificationProvider.Create(_options.ChecksumAlgorithm);
+                    
+                    // Read the stored checksum (assuming it's stored right after the compressed data)
+                    byte[] storedChecksum = new byte[verificationProvider.GetChecksumSize()];
+                    await _fileStream.ReadAsync(storedChecksum, 0, storedChecksum.Length);
+                    
+                    // Verify the checksum
+                    bool isValid = await verificationProvider.VerifyChecksumAsync(
+                        compressedStream, 
+                        storedChecksum, 
+                        _options.Progress, 
+                        _options.CancellationToken);
+                    
+                    if (!isValid)
+                    {
+                        throw new InvalidDataException($"Checksum verification failed for {entry.Path}");
+                    }
+                    
+                    // Reset stream position
+                    compressedStream.Position = 0;
+                }
 
-                await deflateStream.CopyToAsync(outputFile);
+                // Create the destination file
+                using FileStream outputFile = new(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                
+                // Select the appropriate compression provider based on the stored algorithm
+                byte compressionAlgorithm = 1; // Default to Deflate if unknown
+                
+                // Create an appropriate decompressor
+                CompressionProvider compressionProvider = CompressionProvider.Create(
+                    (Compression.CompressionAlgorithm)compressionAlgorithm, 
+                    _options.CompressionLevel,
+                    _options.UseParallelProcessing,
+                    _options.MaxThreads);
+                
+                // Decompress the data
+                await compressionProvider.DecompressAsync(
+                    compressedStream, 
+                    outputFile, 
+                    _options.Progress, 
+                    _options.CancellationToken);
             }
             catch (Exception)
             {
