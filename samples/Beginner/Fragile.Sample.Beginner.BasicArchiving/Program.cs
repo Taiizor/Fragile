@@ -23,7 +23,7 @@ namespace Fragile.Sample.Beginner.BasicArchiving
             CreateSampleFiles(sampleDir);
 
             // Create a basic archive
-            string archivePath = Path.Combine(sampleDir, "MyFirstArchive.frgl");
+            string archivePath = Path.Combine("MyFirstArchive.frgl");
             Console.WriteLine($"Creating archive: {archivePath}");
 
             // Using the utility methods (easiest approach) - using async version to avoid file access conflicts
