@@ -160,52 +160,50 @@ namespace Fragile.Samples.Incremental
         {
             Console.WriteLine("\n🔍 Arşiv inceleniyor...");
 
-            using (FragileArchive archive = new(archivePath, FragileArchiveMode.Read))
+            using FragileArchive archive = new(archivePath, FragileArchiveMode.Read);
+            // Arşiv meta verilerini göster
+            Console.WriteLine("\nArşiv Meta Verileri:");
+            Console.WriteLine($"  Versiyon: {archive.Metadata.Version}");
+            Console.WriteLine($"  Açıklama: {archive.Metadata.Description}");
+            Console.WriteLine($"  Oluşturulma: {archive.Metadata.CreationTime}");
+            Console.WriteLine($"  Son değişiklik: {archive.Metadata.LastModifiedTime}");
+
+            if (archive.Metadata.HasCustomProperty("IncrementalVersion"))
             {
-                // Arşiv meta verilerini göster
-                Console.WriteLine("\nArşiv Meta Verileri:");
-                Console.WriteLine($"  Versiyon: {archive.Metadata.Version}");
-                Console.WriteLine($"  Açıklama: {archive.Metadata.Description}");
-                Console.WriteLine($"  Oluşturulma: {archive.Metadata.CreationTime}");
-                Console.WriteLine($"  Son değişiklik: {archive.Metadata.LastModifiedTime}");
-                
-                if (archive.Metadata.HasCustomProperty("IncrementalVersion"))
-                {
-                    Console.WriteLine($"  Kademeli Versiyon: {archive.Metadata.GetCustomProperty("IncrementalVersion")}");
-                }
-                
-                // Arşiv girdilerini göster
-                Console.WriteLine("\nArşiv Girdileri:");
-                int fileCount = 0;
-                int dirCount = 0;
-                long totalSize = 0;
-                long compressedSize = 0;
+                Console.WriteLine($"  Kademeli Versiyon: {archive.Metadata.GetCustomProperty("IncrementalVersion")}");
+            }
 
-                foreach (var entry in archive.Entries)
-                {
-                    if (entry.IsDirectory)
-                    {
-                        dirCount++;
-                    }
-                    else
-                    {
-                        fileCount++;
-                        totalSize += entry.Size;
-                        compressedSize += entry.CompressedSize;
-                    }
-                }
+            // Arşiv girdilerini göster
+            Console.WriteLine("\nArşiv Girdileri:");
+            int fileCount = 0;
+            int dirCount = 0;
+            long totalSize = 0;
+            long compressedSize = 0;
 
-                Console.WriteLine($"  Toplam girdiler: {archive.Entries.Count}");
-                Console.WriteLine($"  Klasörler: {dirCount}");
-                Console.WriteLine($"  Dosyalar: {fileCount}");
-                Console.WriteLine($"  Toplam boyut: {totalSize:N0} bayt");
-                Console.WriteLine($"  Sıkıştırılmış boyut: {compressedSize:N0} bayt");
-
-                if (totalSize > 0)
+            foreach (FragileArchiveEntry entry in archive.Entries)
+            {
+                if (entry.IsDirectory)
                 {
-                    double ratio = (1.0 - ((double)compressedSize / totalSize)) * 100;
-                    Console.WriteLine($"  Sıkıştırma oranı: %{ratio:F2}");
+                    dirCount++;
                 }
+                else
+                {
+                    fileCount++;
+                    totalSize += entry.Size;
+                    compressedSize += entry.CompressedSize;
+                }
+            }
+
+            Console.WriteLine($"  Toplam girdiler: {archive.Entries.Count}");
+            Console.WriteLine($"  Klasörler: {dirCount}");
+            Console.WriteLine($"  Dosyalar: {fileCount}");
+            Console.WriteLine($"  Toplam boyut: {totalSize:N0} bayt");
+            Console.WriteLine($"  Sıkıştırılmış boyut: {compressedSize:N0} bayt");
+
+            if (totalSize > 0)
+            {
+                double ratio = (1.0 - ((double)compressedSize / totalSize)) * 100;
+                Console.WriteLine($"  Sıkıştırma oranı: %{ratio:F2}");
             }
         }
 
@@ -247,7 +245,7 @@ namespace Fragile.Samples.Incremental
             {
                 // Yalnızca yeni dosyaları kontrol et ve ekle
                 Console.WriteLine("Yeni dosyalar ekleniyor...");
-                
+
                 // scripts klasörü
                 string scriptsDir = Path.Combine(sourceDir, "scripts");
                 if (Directory.Exists(scriptsDir))
@@ -259,7 +257,7 @@ namespace Fragile.Samples.Incremental
                         CompressionLevel = CompressionLevel.Normal
                     });
                 }
-                
+
                 // configs klasörü
                 string configsDir = Path.Combine(sourceDir, "configs");
                 if (Directory.Exists(configsDir))
@@ -271,7 +269,7 @@ namespace Fragile.Samples.Incremental
                         CompressionLevel = CompressionLevel.Normal
                     });
                 }
-                
+
                 // Sadece yeni veri dosyasını ekle
                 string newDataFile = Path.Combine(sourceDir, "data", "data3.dat");
                 if (File.Exists(newDataFile))
@@ -345,21 +343,21 @@ namespace Fragile.Samples.Incremental
             {
                 // Değiştirilen dosyaları güncelle
                 Console.WriteLine("Değiştirilen dosyalar güncelleniyor...");
-                
+
                 // readme.txt dosyasını güncelle
                 string readmePath = Path.Combine(sourceDir, "readme.txt");
                 if (File.Exists(readmePath))
                 {
                     archive.UpdateFile(readmePath, "readme.txt");
                 }
-                
+
                 // document1.txt dosyasını güncelle
                 string doc1Path = Path.Combine(sourceDir, "docs", "document1.txt");
                 if (File.Exists(doc1Path))
                 {
                     archive.UpdateFile(doc1Path, "docs/document1.txt");
                 }
-                
+
                 // data1.dat dosyasını güncelle
                 string data1Path = Path.Combine(sourceDir, "data", "data1.dat");
                 if (File.Exists(data1Path))
@@ -431,14 +429,14 @@ namespace Fragile.Samples.Incremental
             {
                 // Silinen dosyaları arşivden kaldır
                 Console.WriteLine("Silinen dosyalar arşivden kaldırılıyor...");
-                
+
                 // Silinen dosyaları kontrol et ve kaldır
-                var entries = archive.Entries.ToList(); // Değiştirilecek koleksiyonu kopyala
-                
-                foreach (var entry in entries)
+                List<FragileArchiveEntry> entries = archive.Entries.ToList(); // Değiştirilecek koleksiyonu kopyala
+
+                foreach (FragileArchiveEntry? entry in entries)
                 {
                     string fullPath = Path.Combine(sourceDir, entry.Path.Replace('/', Path.DirectorySeparatorChar));
-                    
+
                     if (!entry.IsDirectory && !File.Exists(fullPath))
                     {
                         Console.WriteLine($"  Arşivden kaldırılıyor: {entry.Path}");
@@ -531,9 +529,9 @@ namespace Fragile.Samples.Incremental
                 }
 
                 // Silinen dosyaları kontrol et ve kaldır
-                var entries = archive.Entries.ToList(); // Değiştirilecek koleksiyonu kopyala
-                
-                foreach (var entry in entries)
+                List<FragileArchiveEntry> entries = archive.Entries.ToList(); // Değiştirilecek koleksiyonu kopyala
+
+                foreach (FragileArchiveEntry? entry in entries)
                 {
                     if (!entry.IsDirectory)
                     {
@@ -577,38 +575,36 @@ namespace Fragile.Samples.Incremental
                 Directory.CreateDirectory(extractDir);
             }
 
-            using (FragileArchive archive = new(archivePath, FragileArchiveMode.Read))
+            using FragileArchive archive = new(archivePath, FragileArchiveMode.Read);
+            // Versiyonları kontrol et (Bu bir simülasyondur, gerçek versiyonlama daha karmaşık olacaktır)
+            string versionStr = archive.Metadata.GetCustomProperty("IncrementalVersion");
+            if (int.TryParse(versionStr, out int currentVersion))
             {
-                // Versiyonları kontrol et (Bu bir simülasyondur, gerçek versiyonlama daha karmaşık olacaktır)
-                string versionStr = archive.Metadata.GetCustomProperty("IncrementalVersion");
-                if (int.TryParse(versionStr, out int currentVersion))
+                Console.WriteLine($"Mevcut arşiv versiyonu: {currentVersion}");
+                Console.WriteLine($"Arşiv açıklaması: {archive.Metadata.Description}");
+
+                // Her versiyonda arşivi temsil edin (simülasyon)
+                for (int ver = 1; ver <= currentVersion; ver++)
                 {
-                    Console.WriteLine($"Mevcut arşiv versiyonu: {currentVersion}");
-                    Console.WriteLine($"Arşiv açıklaması: {archive.Metadata.Description}");
-                    
-                    // Her versiyonda arşivi temsil edin (simülasyon)
-                    for (int ver = 1; ver <= currentVersion; ver++)
+                    Console.WriteLine($"\nVersiyon {ver} simülasyonu:");
+                    SimulateArchiveVersion(ver);
+
+                    // Bu versiyonu çıkarmak için bir dizin oluştur
+                    string versionExtractDir = Path.Combine(extractDir, $"version_{ver}");
+                    if (Directory.Exists(versionExtractDir))
                     {
-                        Console.WriteLine($"\nVersiyon {ver} simülasyonu:");
-                        SimulateArchiveVersion(ver);
-                        
-                        // Bu versiyonu çıkarmak için bir dizin oluştur
-                        string versionExtractDir = Path.Combine(extractDir, $"version_{ver}");
-                        if (Directory.Exists(versionExtractDir))
-                        {
-                            Directory.Delete(versionExtractDir, true);
-                        }
-                        Directory.CreateDirectory(versionExtractDir);
-                        
-                        Console.WriteLine($"Versiyon {ver} çıkarıldı: {versionExtractDir}");
+                        Directory.Delete(versionExtractDir, true);
                     }
-                    
-                    Console.WriteLine("\nNot: Gerçek bir versiyonlama sisteminde, her arşiv versiyonu için delta değişiklikleri saklanır.");
+                    Directory.CreateDirectory(versionExtractDir);
+
+                    Console.WriteLine($"Versiyon {ver} çıkarıldı: {versionExtractDir}");
                 }
-                else
-                {
-                    Console.WriteLine("Arşiv versiyonu bilgisi bulunamadı!");
-                }
+
+                Console.WriteLine("\nNot: Gerçek bir versiyonlama sisteminde, her arşiv versiyonu için delta değişiklikleri saklanır.");
+            }
+            else
+            {
+                Console.WriteLine("Arşiv versiyonu bilgisi bulunamadı!");
             }
         }
 
@@ -620,7 +616,7 @@ namespace Fragile.Samples.Incremental
             string description = "";
             int fileCount = 0;
             int dirCount = 0;
-            
+
             switch (version)
             {
                 case 1:
@@ -652,7 +648,7 @@ namespace Fragile.Samples.Incremental
                     description = "Bilinmeyen versiyon";
                     break;
             }
-            
+
             Console.WriteLine($"  Açıklama: {description}");
             Console.WriteLine($"  Dosya sayısı: {fileCount}");
             Console.WriteLine($"  Klasör sayısı: {dirCount}");
@@ -665,27 +661,25 @@ namespace Fragile.Samples.Incremental
         private static async Task CreateTestFile(string filePath, int size, string pattern)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(filePath));
-            
-            using (FileStream fs = new(filePath, FileMode.Create, FileAccess.Write))
+
+            using FileStream fs = new(filePath, FileMode.Create, FileAccess.Write);
+            // İçeriği oluştur
+            byte[] buffer = new byte[4096];
+            byte[] patternBytes = Encoding.UTF8.GetBytes(pattern);
+
+            // Paterni buffer'a kopyala
+            for (int i = 0; i < buffer.Length && i < patternBytes.Length; i++)
             {
-                // İçeriği oluştur
-                byte[] buffer = new byte[4096];
-                byte[] patternBytes = Encoding.UTF8.GetBytes(pattern);
-                
-                // Paterni buffer'a kopyala
-                for (int i = 0; i < buffer.Length && i < patternBytes.Length; i++)
-                {
-                    buffer[i] = patternBytes[i % patternBytes.Length];
-                }
-                
-                // Dosyayı istenen boyuta kadar yaz
-                int bytesRemaining = size;
-                while (bytesRemaining > 0)
-                {
-                    int bytesToWrite = Math.Min(buffer.Length, bytesRemaining);
-                    await fs.WriteAsync(buffer, 0, bytesToWrite);
-                    bytesRemaining -= bytesToWrite;
-                }
+                buffer[i] = patternBytes[i % patternBytes.Length];
+            }
+
+            // Dosyayı istenen boyuta kadar yaz
+            int bytesRemaining = size;
+            while (bytesRemaining > 0)
+            {
+                int bytesToWrite = Math.Min(buffer.Length, bytesRemaining);
+                await fs.WriteAsync(buffer, 0, bytesToWrite);
+                bytesRemaining -= bytesToWrite;
             }
         }
     }
