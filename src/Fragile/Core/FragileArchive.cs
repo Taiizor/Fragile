@@ -1097,11 +1097,11 @@ namespace Fragile.Core
                 using FileStream outputFile = new(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
 
                 // Select the appropriate compression provider based on the stored algorithm
-                byte compressionAlgorithm = 1; // Default to Deflate if unknown
+                byte compressionAlgorithm = (byte)_options.CompressionAlgorithm; // Use the algorithm from options
 
                 // Create an appropriate decompressor
                 CompressionProvider compressionProvider = CompressionProvider.Create(
-                    (Compression.CompressionAlgorithm)compressionAlgorithm,
+                    (CompressionAlgorithm)compressionAlgorithm,
                     _options.CompressionLevel,
                     _options.UseParallelProcessing,
                     _options.MaxThreads);
