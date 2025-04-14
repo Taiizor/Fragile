@@ -35,11 +35,11 @@ namespace Fragile.Sample.Beginner.Compression
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.ZStd, "zstd");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.LZ4, "lz4");
 
-            // Ayrıca ZStd ile farklı sıkıştırma seviyelerini test edelim
-            Console.WriteLine("\nZStd algoritmasında farklı sıkıştırma seviyelerini test ediliyor...");
-            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.ZStd, CompressionLevel.Fastest, "zstd_fastest");
-            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.ZStd, CompressionLevel.Normal, "zstd_normal");
-            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.ZStd, CompressionLevel.Ultra, "zstd_ultra");
+            // Ayrıca Deflate ile farklı sıkıştırma seviyelerini test edelim
+            Console.WriteLine("\nDeflate algoritmasında farklı sıkıştırma seviyelerini test ediliyor...");
+            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Deflate, CompressionLevel.Fastest, "deflate_fastest");
+            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Deflate, CompressionLevel.Normal, "deflate_normal");
+            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Deflate, CompressionLevel.Ultra, "deflate_ultra");
 
             // Karşılaştırma tablosu
             await CompareAlgorithms(sampleDir, originalSize);
@@ -67,7 +67,7 @@ namespace Fragile.Sample.Beginner.Compression
             }
         }
 
-        static async Task TestCompressionAlgorithm(string outputDir, string filePath, long originalSize, 
+        static async Task TestCompressionAlgorithm(string outputDir, string filePath, long originalSize,
             CompressionAlgorithm algorithm, string filePrefix)
         {
             Console.WriteLine($"\n{algorithm} algoritması test ediliyor...");
@@ -76,7 +76,7 @@ namespace Fragile.Sample.Beginner.Compression
             // Configure compression options
             FragileOptions options = new()
             {
-                CompressionLevel = CompressionLevel.Normal,
+                CompressionLevel = CompressionLevel.Ultra,
                 CompressionAlgorithm = algorithm
             };
 
@@ -89,7 +89,7 @@ namespace Fragile.Sample.Beginner.Compression
             long compressedSize = new FileInfo(archivePath).Length;
             double compressionRatio = (double)originalSize / compressedSize;
             double savingsPercentage = 1 - ((double)compressedSize / originalSize);
-            
+
             Console.WriteLine($"Arşiv '{filePrefix}.frgl' boyutu: {compressedSize:N0} bayt");
             Console.WriteLine($"Sıkıştırma oranı: {compressionRatio:F2}x (kazanç: {savingsPercentage:P2})");
         }
@@ -116,7 +116,7 @@ namespace Fragile.Sample.Beginner.Compression
             long compressedSize = new FileInfo(archivePath).Length;
             double compressionRatio = (double)originalSize / compressedSize;
             double savingsPercentage = 1 - ((double)compressedSize / originalSize);
-            
+
             Console.WriteLine($"Arşiv '{archiveName}.frgl' boyutu: {compressedSize:N0} bayt");
             Console.WriteLine($"Sıkıştırma oranı: {compressionRatio:F2}x (kazanç: {savingsPercentage:P2})");
         }
@@ -127,7 +127,7 @@ namespace Fragile.Sample.Beginner.Compression
             Console.WriteLine("=========================");
 
             string[] algorithms = { "deflate", "lzma", "bzip2", "zstd", "lz4" };
-            
+
             Console.WriteLine("|  Algoritma   |   Dosya Boyutu   |   Oran   |   Kazanç   |");
             Console.WriteLine("|--------------|------------------|----------|------------|");
 
@@ -147,11 +147,11 @@ namespace Fragile.Sample.Beginner.Compression
 
         static async Task CompareLevels(string sampleDir, long originalSize)
         {
-            Console.WriteLine("\nZStd sıkıştırma seviyeleri karşılaştırması:");
+            Console.WriteLine("\nDeflate sıkıştırma seviyeleri karşılaştırması:");
             Console.WriteLine("=======================================");
 
-            string[] levels = { "zstd_fastest", "zstd_normal", "zstd_ultra" };
-            
+            string[] levels = { "deflate_fastest", "deflate_normal", "deflate_ultra" };
+
             Console.WriteLine("|  Seviye      |   Dosya Boyutu   |   Oran   |   Kazanç   |");
             Console.WriteLine("|--------------|------------------|----------|------------|");
 
@@ -165,7 +165,7 @@ namespace Fragile.Sample.Beginner.Compression
                     double savings = 1 - ((double)fileInfo.Length / originalSize);
 
                     // Extract level name for display
-                    string levelName = level.Replace("zstd_", "");
+                    string levelName = level.Replace("deflate_", "");
 
                     Console.WriteLine($"|  {levelName,-10}  |  {fileInfo.Length,14:N0}  |  {ratio,6:F2}x  |  {savings,8:P2}  |");
                 }

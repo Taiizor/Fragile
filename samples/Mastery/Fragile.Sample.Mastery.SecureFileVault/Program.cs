@@ -724,21 +724,21 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             // ÖNEMLİ: Basitleştirilmiş arşiv ayarları kullanıyoruz
             // Şifreleme ve sıkıştırma sorunlarını ortadan kaldırmak için
             Console.WriteLine("Basitleştirilmiş arşiv ayarları kullanılıyor (sorun giderme için)");
-            
+
             // Daha basit arşiv oluşturma seçenekleri
             FragileOptions options = new()
             {
                 // Şifreleme devre dışı bırakılıyor (test için)
                 EnableEncryption = false,
-                
+
                 // Hata düzeltme basit seviyede etkinleştiriliyor
                 EnableErrorCorrection = true,
                 ErrorCorrectionLevel = 5, // Daha düşük seviye
-                
+
                 // Basit sıkıştırma
                 CompressionAlgorithm = CompressionAlgorithm.Deflate,
                 CompressionLevel = CompressionLevel.Fast, // Hızlı sıkıştırma
-                
+
                 // Dosya bütünlüğü kontrolü
                 EnableChecksumVerification = true,
                 ChecksumAlgorithm = ChecksumAlgorithm.CRC32 // Daha basit hash algoritması
@@ -849,18 +849,18 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
                 // Basitleştirilmiş arşiv seçenekleri (şifreleme ve karmaşık sıkıştırma olmadan)
                 Console.WriteLine("Basitleştirilmiş arşiv açma ayarları kullanılıyor (sorun giderme için)");
-                
+
                 FragileOptions options = new()
                 {
                     // Şifreleme devre dışı
                     EnableEncryption = false,
-                    
+
                     // Temel doğrulama ve hata düzeltme
                     EnableErrorCorrection = true,
                     ErrorCorrectionLevel = 5,
                     EnableChecksumVerification = true,
                     ChecksumAlgorithm = ChecksumAlgorithm.CRC32,
-                    
+
                     // Basit sıkıştırma
                     CompressionAlgorithm = CompressionAlgorithm.Deflate,
                     CompressionLevel = CompressionLevel.Fast
@@ -868,14 +868,14 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
                 // Arşivi açmayı deneyelim
                 Console.WriteLine($"Arşiv açılmaya çalışılıyor (basit mod): {storagePath}");
-                
+
                 // Arşivi açmaya çalış
                 using FragileArchive archive = await FragileArchive.OpenAsync(storagePath, options);
-                
+
                 // İlk dosyayı çıkar (her arşivde sadece bir dosya var)
                 Console.WriteLine("Arşiv başarıyla açıldı, dosyalar aranıyor...");
                 FragileArchiveEntry? entry = archive.Entries.FirstOrDefault(e => !e.IsDirectory);
-                
+
                 if (entry != null)
                 {
                     Console.WriteLine($"Arşivde dosya bulundu: {entry.Path}");
@@ -892,12 +892,12 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             catch (Exception ex)
             {
                 Console.WriteLine($"Dosya çıkarma hatası (basit mod): {ex.Message}");
-                
+
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine($"İç hata: {ex.InnerException.Message}");
                 }
-                
+
                 // Eski yöntemle denemeyi kaldıralım, çünkü şimdi basit modda ekliyoruz
                 throw;
             }
