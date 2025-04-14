@@ -86,9 +86,9 @@ namespace Fragile.Samples.StreamingAPI
 
                 Stopwatch totalTimer = Stopwatch.StartNew();
 
-                // Sıkıştırma sağlayıcısı
+                // Sıkıştırma sağlayıcısı - Store algoritması kullan (sıkıştırma yapma)
                 CompressionProvider provider = CompressionProvider.Create(
-                    CompressionAlgorithm.Deflate, CompressionLevel.Normal);
+                    CompressionAlgorithm.Store, CompressionLevel.Normal);
 
                 // SIKIŞTIRMA
                 Console.WriteLine("\nSıkıştırma işlemi başlıyor...");
@@ -104,7 +104,7 @@ namespace Fragile.Samples.StreamingAPI
                         Console.Write($"\rSıkıştırma: %{value * 100:F1}");
                     });
 
-                    // Akış tabanlı sıkıştırma
+                    // Akış tabanlı kopyalama (Store algoritması sıkıştırma yapmaz)
                     await provider.CompressAsync(inputStream, outputStream, progress);
                 }
 
@@ -133,7 +133,7 @@ namespace Fragile.Samples.StreamingAPI
                         Console.Write($"\rAçma: %{value * 100:F1}");
                     });
 
-                    // Akış tabanlı açma
+                    // Akış tabanlı açma (aslında sadece kopyalama)
                     await provider.DecompressAsync(inputStream, outputStream, progress);
                 }
 
@@ -256,40 +256,34 @@ namespace Fragile.Samples.StreamingAPI
                 // Arşiv seçenekleri
                 FragileOptions options = new()
                 {
-                    CompressionAlgorithm = CompressionAlgorithm.Deflate,
+                    CompressionAlgorithm = CompressionAlgorithm.Store, // Store algoritması kullanalım
                     CompressionLevel = CompressionLevel.Normal
                 };
 
+                // İlerleme bildirimi için
+                Progress<double> archiveProgress = new(value =>
+                {
+                    Console.Write($"\rArşivleme: %{value * 100:F1}");
+                });
+
                 // Akış tabanlı arşivleme
-                using (FragileArchive archive = new(archivePath, FragileArchiveMode.Create))
+                using (FragileArchive archive = new(archivePath, FragileArchiveMode.Create, options))
                 {
                     // Büyük dosya için özel işleme
                     string largeFilePath = Path.Combine(sourceDir, "large_file.dat");
 
                     Console.WriteLine($"Büyük dosya ekleniyor: {Path.GetFileName(largeFilePath)}");
 
-                    // Dosyayı manuel olarak arşive ekle
-                    FragileArchiveEntry entry = new()
-                    {
-                        Path = "large_file.dat",
-                        IsDirectory = false,
-                        LastModified = File.GetLastWriteTime(largeFilePath),
-                        Size = new FileInfo(largeFilePath).Length
-                    };
+                    // Doğrudan AddFile metodu kullanarak dosyayı arşive ekleyelim
+                    archive.AddFile(largeFilePath);
+                    Console.WriteLine("Dosya arşive eklendi");
 
-                    using (FileStream fileStream = new(largeFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
-                    {
-                        // İşlem simülasyonu
-                        await Task.Delay(500);
-
-                        Console.WriteLine("Dosya arşive eklendi");
-                    }
-
+                    // Arşivi kaydet
                     archive.Save();
                 }
 
                 archiveTimer.Stop();
-                Console.WriteLine($"Arşivleme tamamlandı: {archiveTimer.ElapsedMilliseconds:N0} ms");
+                Console.WriteLine($"\rArşivleme tamamlandı: {archiveTimer.ElapsedMilliseconds:N0} ms");
 
                 // Arşiv bilgisi
                 FileInfo archiveFile = new(archivePath);
@@ -307,6 +301,12 @@ namespace Fragile.Samples.StreamingAPI
                 }
                 Directory.CreateDirectory(extractDir);
 
+                // İlerleme bildirimi için
+                Progress<double> extractProgress = new(value =>
+                {
+                    Console.Write($"\rÇıkarma: %{value * 100:F1}");
+                });
+
                 // Akış tabanlı çıkarma
                 using (FragileArchive archive = new(archivePath, FragileArchiveMode.Read))
                 {
@@ -315,7 +315,7 @@ namespace Fragile.Samples.StreamingAPI
                 }
 
                 extractTimer.Stop();
-                Console.WriteLine($"Çıkarma tamamlandı: {extractTimer.ElapsedMilliseconds:N0} ms");
+                Console.WriteLine($"\rÇıkarma tamamlandı: {extractTimer.ElapsedMilliseconds:N0} ms");
 
                 totalTimer.Stop();
                 Console.WriteLine($"\nToplam işlem süresi: {totalTimer.ElapsedMilliseconds:N0} ms");
