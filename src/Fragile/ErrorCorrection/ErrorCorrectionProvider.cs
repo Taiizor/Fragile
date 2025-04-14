@@ -1,5 +1,8 @@
+using Fragile.Models;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,10 +19,22 @@ namespace Fragile.ErrorCorrection
         public int CorrectionLevel { get; }
 
         /// <summary>
+        /// Whether to use parallel processing for error correction operations
+        /// </summary>
+        public bool UseParallelProcessing { get; }
+
+        /// <summary>
+        /// Maximum number of threads to use for parallel operations
+        /// </summary>
+        public int MaxThreads { get; }
+
+        /// <summary>
         /// Creates a new error correction provider
         /// </summary>
         /// <param name="correctionLevel">Error correction level (as percentage)</param>
-        protected ErrorCorrectionProvider(int correctionLevel)
+        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+        /// <param name="maxThreads">Maximum number of threads to use</param>
+        protected ErrorCorrectionProvider(int correctionLevel, bool useParallelProcessing = false, int maxThreads = 1)
         {
             if (correctionLevel is < 0 or > 50)
             {
@@ -27,6 +42,8 @@ namespace Fragile.ErrorCorrection
             }
 
             CorrectionLevel = correctionLevel;
+            UseParallelProcessing = useParallelProcessing;
+            MaxThreads = maxThreads > 0 ? maxThreads : Environment.ProcessorCount;
         }
 
         /// <summary>
@@ -36,12 +53,30 @@ namespace Fragile.ErrorCorrection
         /// <returns>Error correction provider</returns>
         public static ErrorCorrectionProvider Create(int correctionLevel)
         {
-            if (correctionLevel <= 0)
+            return Create(new FragileOptions { ErrorCorrectionLevel = correctionLevel });
+        }
+
+        /// <summary>
+        /// Creates an error correction provider with the specified options
+        /// </summary>
+        /// <param name="options">Options containing error correction settings</param>
+        /// <returns>Error correction provider</returns>
+        public static ErrorCorrectionProvider Create(FragileOptions options)
+        {
+            if (options == null)
             {
-                return new NoneErrorCorrectionProvider();
+                throw new ArgumentNullException(nameof(options));
             }
 
-            return new ReedSolomonErrorCorrectionProvider(correctionLevel);
+            if (options.ErrorCorrectionLevel <= 0 || !options.EnableErrorCorrection)
+            {
+                return new NoneErrorCorrectionProvider(options.UseParallelProcessing, options.MaxThreads);
+            }
+
+            return new ReedSolomonErrorCorrectionProvider(
+                options.ErrorCorrectionLevel,
+                options.UseParallelProcessing,
+                options.MaxThreads);
         }
 
         /// <summary>
@@ -83,7 +118,18 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Creates a new empty error correction provider
         /// </summary>
-        public NoneErrorCorrectionProvider() : base(0) { }
+        public NoneErrorCorrectionProvider()
+            : base(0, false, 1)
+        { }
+
+        /// <summary>
+        /// Creates a new empty error correction provider with parallel processing options
+        /// </summary>
+        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+        /// <param name="maxThreads">Maximum number of threads to use</param>
+        public NoneErrorCorrectionProvider(bool useParallelProcessing, int maxThreads)
+            : base(0, useParallelProcessing, maxThreads)
+        { }
 
         /// <summary>
         /// Copies data without modification (no error correction)
@@ -124,7 +170,23 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Stream copying helper method
         /// </summary>
-        private static async Task CopyStreamAsync(Stream input, Stream output,
+        private async Task CopyStreamAsync(Stream input, Stream output,
+            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        {
+            if (UseParallelProcessing && input.CanSeek && input.Length > 10 * 1024 * 1024) // 10MB threshold for parallel copy
+            {
+                await CopyStreamParallelAsync(input, output, progress, cancellationToken);
+            }
+            else
+            {
+                await CopyStreamSequentialAsync(input, output, progress, cancellationToken);
+            }
+        }
+
+        /// <summary>
+        /// Sequential stream copying
+        /// </summary>
+        private static async Task CopyStreamSequentialAsync(Stream input, Stream output,
             IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             byte[] buffer = new byte[81920]; // 80 KB buffer
@@ -151,6 +213,99 @@ namespace Fragile.ErrorCorrection
                 cancellationToken.ThrowIfCancellationRequested();
             }
         }
+
+        /// <summary>
+        /// Parallel stream copying
+        /// </summary>
+        private async Task CopyStreamParallelAsync(Stream input, Stream output,
+            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        {
+            long streamLength = input.Length;
+            int threadCount = Math.Min(MaxThreads, Environment.ProcessorCount);
+            long chunkSize = streamLength / threadCount;
+
+            // Create at least 1MB chunks, but no more than 100MB chunks
+            chunkSize = Math.Max(1024 * 1024, Math.Min(chunkSize, 100 * 1024 * 1024));
+
+            int chunkCount = (int)Math.Ceiling((double)streamLength / chunkSize);
+
+            // Adjust thread count if there are fewer chunks than threads
+            threadCount = Math.Min(threadCount, chunkCount);
+
+            // Initialize progress tracking
+            double[] chunkProgress = new double[chunkCount];
+            object progressLock = new();
+
+            // Use semaphore to limit concurrent tasks
+            using SemaphoreSlim semaphore = new(threadCount);
+            using SemaphoreSlim inputLock = new(1, 1);
+            using SemaphoreSlim outputLock = new(1, 1);
+            List<Task> tasks = new(chunkCount);
+
+            // Process each chunk
+            for (int i = 0; i < chunkCount; i++)
+            {
+                int chunkIndex = i;
+                long startPosition = chunkIndex * chunkSize;
+                long endPosition = Math.Min(startPosition + chunkSize, streamLength);
+                long chunkLength = endPosition - startPosition;
+
+                await semaphore.WaitAsync(cancellationToken);
+
+                tasks.Add(Task.Run(async () =>
+                {
+                    try
+                    {
+                        byte[] buffer = new byte[chunkLength];
+
+                        // Read chunk
+                        await inputLock.WaitAsync(cancellationToken);
+                        try
+                        {
+                            input.Position = startPosition;
+                            await input.ReadAsync(buffer, 0, (int)chunkLength, cancellationToken);
+                        }
+                        finally
+                        {
+                            inputLock.Release();
+                        }
+
+                        // Write chunk
+                        await outputLock.WaitAsync(cancellationToken);
+                        try
+                        {
+                            output.Position = startPosition;
+                            await output.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
+                        }
+                        finally
+                        {
+                            outputLock.Release();
+                        }
+
+                        // Update progress
+                        if (progress != null)
+                        {
+                            lock (progressLock)
+                            {
+                                chunkProgress[chunkIndex] = 1.0;
+                                double overallProgress = chunkProgress.Sum() / chunkCount;
+                                progress.Report(overallProgress);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }, cancellationToken));
+            }
+
+            // Wait for all tasks to complete
+            await Task.WhenAll(tasks);
+
+            // Ensure we report 100% completion
+            progress?.Report(1.0);
+        }
     }
 
     /// <summary>
@@ -172,7 +327,19 @@ namespace Fragile.ErrorCorrection
         /// Creates a new Reed-Solomon error correction provider
         /// </summary>
         /// <param name="correctionLevel">Error correction level (between 1-50)</param>
-        public ReedSolomonErrorCorrectionProvider(int correctionLevel) : base(correctionLevel) { }
+        public ReedSolomonErrorCorrectionProvider(int correctionLevel)
+            : base(correctionLevel, false, 1)
+        { }
+
+        /// <summary>
+        /// Creates a new Reed-Solomon error correction provider with parallel processing options
+        /// </summary>
+        /// <param name="correctionLevel">Error correction level (between 1-50)</param>
+        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+        /// <param name="maxThreads">Maximum number of threads to use</param>
+        public ReedSolomonErrorCorrectionProvider(int correctionLevel, bool useParallelProcessing, int maxThreads)
+            : base(correctionLevel, useParallelProcessing, maxThreads)
+        { }
 
         /// <summary>
         /// Adds Reed-Solomon error correction codes to data
@@ -195,6 +362,24 @@ namespace Fragile.ErrorCorrection
             // Write header
             await WriteHeaderAsync(output, dataSize, ecSize, cancellationToken);
 
+            // For large files, use parallel processing if enabled
+            if (UseParallelProcessing && input.CanSeek && input.Length > 10 * 1024 * 1024) // 10MB threshold
+            {
+                return await AddErrorCorrectionParallelAsync(input, output, rs, dataSize, ecSize, progress, cancellationToken);
+            }
+            else
+            {
+                return await AddErrorCorrectionSequentialAsync(input, output, rs, dataSize, ecSize, progress, cancellationToken);
+            }
+        }
+
+        /// <summary>
+        /// Sequentially adds error correction to data
+        /// </summary>
+        private async Task<long> AddErrorCorrectionSequentialAsync(Stream input, Stream output,
+            ReedSolomonAlgorithm rs, int dataSize, int ecSize,
+            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        {
             // Process data in blocks
             byte[] buffer = new byte[dataSize];
             long totalBytesRead = 0;
@@ -248,95 +433,355 @@ namespace Fragile.ErrorCorrection
         }
 
         /// <summary>
+        /// Adds error correction to data using parallel processing
+        /// </summary>
+        private async Task<long> AddErrorCorrectionParallelAsync(Stream input, Stream output,
+            ReedSolomonAlgorithm rs, int dataSize, int ecSize,
+            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        {
+            long fileLength = input.Length;
+
+            // Calculate number of blocks
+            int totalBlocks = (int)Math.Ceiling((double)fileLength / dataSize);
+
+            // Determine thread count
+            int threadCount = Math.Min(MaxThreads, Environment.ProcessorCount);
+            threadCount = Math.Min(threadCount, totalBlocks);
+
+            // Progress tracking
+            double[] blockProgress = new double[totalBlocks];
+            object progressLock = new();
+
+            // Output tracking
+            long totalBytesWritten = 8; // header size
+
+            // Use semaphore to limit concurrent operations
+            using SemaphoreSlim semaphore = new(threadCount);
+            using SemaphoreSlim inputLock = new(1, 1);
+            using SemaphoreSlim outputLock = new(1, 1);
+
+            // Process blocks in batches to minimize memory usage
+            int batchSize = Math.Min(threadCount * 4, totalBlocks);
+            int completedBlocks = 0;
+
+            while (completedBlocks < totalBlocks)
+            {
+                int currentBatchSize = Math.Min(batchSize, totalBlocks - completedBlocks);
+                List<Task<byte[]>> batchTasks = new(currentBatchSize);
+
+                // Process batch
+                for (int i = 0; i < currentBatchSize; i++)
+                {
+                    int blockIndex = completedBlocks + i;
+                    long startPosition = blockIndex * dataSize;
+                    long bytesToRead = Math.Min(dataSize, fileLength - startPosition);
+
+                    await semaphore.WaitAsync(cancellationToken);
+
+                    batchTasks.Add(Task.Run(async () =>
+                    {
+                        try
+                        {
+                            // Create buffer for this block
+                            byte[] blockBuffer = new byte[dataSize];
+
+                            // Read block data
+                            await inputLock.WaitAsync(cancellationToken);
+                            try
+                            {
+                                input.Position = startPosition;
+                                await input.ReadAsync(blockBuffer, 0, (int)bytesToRead, cancellationToken);
+                            }
+                            finally
+                            {
+                                inputLock.Release();
+                            }
+
+                            // If block is not completely filled, zero out the remainder
+                            if (bytesToRead < dataSize)
+                            {
+                                Array.Clear(blockBuffer, (int)bytesToRead, dataSize - (int)bytesToRead);
+                            }
+
+                            // Encode with error correction
+                            byte[] encoded = rs.Encode(blockBuffer);
+
+                            // Update progress
+                            lock (progressLock)
+                            {
+                                blockProgress[blockIndex] = 1.0;
+                                if (progress != null)
+                                {
+                                    double overallProgress = blockProgress.Sum() / totalBlocks;
+                                    progress.Report(overallProgress);
+                                }
+                            }
+
+                            return encoded;
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }, cancellationToken));
+                }
+
+                // Process results for this batch
+                byte[][] batchResults = await Task.WhenAll(batchTasks);
+
+                // Write batch results to output
+                await outputLock.WaitAsync(cancellationToken);
+                try
+                {
+                    foreach (byte[] encoded in batchResults)
+                    {
+                        await output.WriteAsync(encoded, 0, encoded.Length, cancellationToken);
+                        totalBytesWritten += encoded.Length;
+                    }
+                }
+                finally
+                {
+                    outputLock.Release();
+                }
+
+                completedBlocks += currentBatchSize;
+            }
+
+            // Final progress update
+            progress?.Report(1.0);
+
+            return totalBytesWritten;
+        }
+
+        /// <summary>
         /// Corrects data using Reed-Solomon error correction codes
         /// </summary>
         public override async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output,
             Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
-            long initialPosition = output.Position;
-            int totalRepaired = 0;
-
-            // If input stream is seekable, we can learn the total size
-            long totalBytes = input.CanSeek ? input.Length : 0;
-            long processedBytes = 0;
-
-            try
+            // If input stream is empty, return without writing anything to output stream
+            if (input.Length == 0)
             {
-                // Read header
-                (int dataSize, int ecSize) = await ReadHeaderAsync(input, cancellationToken);
+                return (0, 0);
+            }
 
-                // Create Reed-Solomon encoder
-                ReedSolomonAlgorithm rs = new(dataSize, ecSize);
+            // Read header
+            (int dataSize, int ecSize) = await ReadHeaderAsync(input, cancellationToken);
 
-                // Encoded block size
-                int encodedBlockSize = dataSize + ecSize;
+            // Create RS algorithm
+            ReedSolomonAlgorithm rs = new(dataSize, ecSize);
 
-                // Split input data into blocks and decode each block
-                byte[] encodedBuffer = new byte[encodedBlockSize];
+            // For large files, use parallel processing if enabled
+            if (UseParallelProcessing && input.CanSeek && input.Length > 10 * 1024 * 1024) // 10MB threshold
+            {
+                return await CorrectErrorsParallelAsync(input, output, rs, dataSize, ecSize, reportRepairs, progress, cancellationToken);
+            }
+            else
+            {
+                return await CorrectErrorsSequentialAsync(input, output, rs, dataSize, ecSize, reportRepairs, progress, cancellationToken);
+            }
+        }
 
-                while (true)
+        /// <summary>
+        /// Sequentially corrects errors in data
+        /// </summary>
+        private async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsSequentialAsync(Stream input, Stream output,
+            ReedSolomonAlgorithm rs, int dataSize, int ecSize,
+            Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        {
+            int blockSize = dataSize + ecSize;
+            byte[] buffer = new byte[blockSize];
+            long totalBytesWritten = 0;
+            int totalRepairs = 0;
+            long inputLength = input.Length - 8; // Subtract header size
+            long totalBytesRead = 0;
+
+            while (true)
+            {
+                int bytesRead = await input.ReadAsync(buffer, 0, blockSize, cancellationToken);
+                if (bytesRead == 0)
                 {
-                    int bytesRead = await ReadExactlyAsync(input, encodedBuffer, 0, encodedBlockSize, cancellationToken);
-                    if (bytesRead == 0)
-                    {
-                        break;
-                    }
-
-                    // If last block is incomplete, complete the process
-                    if (bytesRead < encodedBlockSize)
-                    {
-                        // Copy remaining data directly
-                        await output.WriteAsync(encodedBuffer, 0, Math.Min(bytesRead, dataSize), cancellationToken);
-                        break;
-                    }
-
-                    try
-                    {
-                        // Decode with Reed-Solomon and correct errors
-                        byte[] decoded = rs.Decode(encodedBuffer);
-
-                        // Check if correction was made
-                        int repairedCount = CountRepairs(encodedBuffer, decoded, dataSize, ecSize);
-
-                        // Write decoded data
-                        await output.WriteAsync(decoded, 0, dataSize, cancellationToken);
-
-                        // Report repairs
-                        if (repairedCount > 0)
-                        {
-                            totalRepaired += repairedCount;
-                            reportRepairs?.Invoke(processedBytes, repairedCount);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        // If error correction fails, recover as much data as possible
-                        await output.WriteAsync(encodedBuffer, 0, Math.Min(bytesRead, dataSize), cancellationToken);
-                    }
-
-                    // Report progress
-                    processedBytes += encodedBlockSize;
-                    if (totalBytes > 0 && progress != null)
-                    {
-                        double progressValue = (double)processedBytes / totalBytes;
-                        progress.Report(progressValue);
-                    }
-
-                    // Check for cancellation
-                    cancellationToken.ThrowIfCancellationRequested();
+                    break;
                 }
 
-                // Final progress update
-                progress?.Report(1.0);
-            }
-            catch (Exception ex)
-            {
-                // If error correction completely fails, copy remaining data as is
-                input.CopyTo(output);
-                throw new IOException($"Error occurred during error correction process: {ex.Message}", ex);
+                if (bytesRead < blockSize)
+                {
+                    Array.Clear(buffer, bytesRead, blockSize - bytesRead);
+                }
+
+                try
+                {
+                    // Try to decode and correct errors
+                    (byte[] decoded, int errors) = rs.Decode(buffer);
+
+                    // Write corrected data
+                    await output.WriteAsync(decoded, 0, decoded.Length, cancellationToken);
+
+                    // Update statistics
+                    totalBytesWritten += decoded.Length;
+                    if (errors > 0)
+                    {
+                        totalRepairs += errors;
+                        reportRepairs?.Invoke(totalBytesWritten, errors);
+                    }
+
+                    // Progress notification
+                    totalBytesRead += blockSize;
+                    if (progress != null && inputLength > 0)
+                    {
+                        progress.Report((double)totalBytesRead / inputLength);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new IOException($"Error correction failed: {ex.Message}", ex);
+                }
+
+                // If this is the last block and it's not completely filled, end the process
+                if (bytesRead < blockSize)
+                {
+                    break;
+                }
             }
 
-            return (output.Position - initialPosition, totalRepaired);
+            return (totalBytesWritten, totalRepairs);
+        }
+
+        /// <summary>
+        /// Corrects errors in data using parallel processing
+        /// </summary>
+        private async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsParallelAsync(Stream input, Stream output,
+            ReedSolomonAlgorithm rs, int dataSize, int ecSize,
+            Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        {
+            int blockSize = dataSize + ecSize;
+            long fileLength = input.Length - 8; // Subtract header size
+
+            // Calculate number of blocks
+            int totalBlocks = (int)Math.Ceiling((double)fileLength / blockSize);
+
+            // Determine thread count
+            int threadCount = Math.Min(MaxThreads, Environment.ProcessorCount);
+            threadCount = Math.Min(threadCount, totalBlocks);
+
+            // Progress tracking
+            double[] blockProgress = new double[totalBlocks];
+            object progressLock = new();
+
+            // Repair statistics
+            int totalRepairs = 0;
+            long totalBytesWritten = 0;
+            object statsLock = new();
+
+            // Use semaphore to limit concurrent operations
+            using SemaphoreSlim semaphore = new(threadCount);
+            using SemaphoreSlim inputLock = new(1, 1);
+            using SemaphoreSlim outputLock = new(1, 1);
+
+            // Process blocks in batches to minimize memory usage
+            int batchSize = Math.Min(threadCount * 4, totalBlocks);
+            int completedBlocks = 0;
+
+            while (completedBlocks < totalBlocks)
+            {
+                int currentBatchSize = Math.Min(batchSize, totalBlocks - completedBlocks);
+                List<Task<(byte[] decoded, int errors, int blockIndex)>> batchTasks = new(currentBatchSize);
+
+                // Process batch
+                for (int i = 0; i < currentBatchSize; i++)
+                {
+                    int blockIndex = completedBlocks + i;
+                    long startPosition = 8 + ((long)blockIndex * blockSize); // Skip header
+
+                    await semaphore.WaitAsync(cancellationToken);
+
+                    batchTasks.Add(Task.Run(async () =>
+                    {
+                        try
+                        {
+                            // Read block
+                            byte[] blockBuffer = new byte[blockSize];
+                            int bytesRead;
+
+                            await inputLock.WaitAsync(cancellationToken);
+                            try
+                            {
+                                input.Position = startPosition;
+                                bytesRead = await input.ReadAsync(blockBuffer, 0, blockSize, cancellationToken);
+
+                                if (bytesRead < blockSize)
+                                {
+                                    Array.Clear(blockBuffer, bytesRead, blockSize - bytesRead);
+                                }
+                            }
+                            finally
+                            {
+                                inputLock.Release();
+                            }
+
+                            // Decode and correct errors
+                            (byte[] decoded, int errors) = rs.Decode(blockBuffer);
+
+                            // Update progress
+                            lock (progressLock)
+                            {
+                                blockProgress[blockIndex] = 1.0;
+                                if (progress != null)
+                                {
+                                    double overallProgress = blockProgress.Sum() / totalBlocks;
+                                    progress.Report(overallProgress);
+                                }
+                            }
+
+                            return (decoded, errors, blockIndex);
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }, cancellationToken));
+                }
+
+                // Process results for this batch
+                (byte[] decoded, int errors, int blockIndex)[] batchResults = await Task.WhenAll(batchTasks);
+
+                // Sort results by block index to ensure correct output order
+                Array.Sort(batchResults, (a, b) => a.blockIndex.CompareTo(b.blockIndex));
+
+                // Write batch results to output and track repairs
+                await outputLock.WaitAsync(cancellationToken);
+                try
+                {
+                    foreach ((byte[] decoded, int errors, int _) in batchResults)
+                    {
+                        long currentPosition = output.Position;
+                        await output.WriteAsync(decoded, 0, decoded.Length, cancellationToken);
+                        long bytesWritten = decoded.Length;
+
+                        lock (statsLock)
+                        {
+                            totalBytesWritten += bytesWritten;
+
+                            if (errors > 0)
+                            {
+                                totalRepairs += errors;
+                                reportRepairs?.Invoke(currentPosition, errors);
+                            }
+                        }
+                    }
+                }
+                finally
+                {
+                    outputLock.Release();
+                }
+
+                completedBlocks += currentBatchSize;
+            }
+
+            // Final progress update
+            progress?.Report(1.0);
+
+            return (totalBytesWritten, totalRepairs);
         }
 
         /// <summary>
@@ -413,25 +858,6 @@ namespace Fragile.ErrorCorrection
         }
 
         /// <summary>
-        /// Calculates the number of corrected bytes
-        /// </summary>
-        private static int CountRepairs(byte[] encoded, byte[] decoded, int dataSize, int ecSize)
-        {
-            int repairedCount = 0;
-
-            // Compare the original data portion
-            for (int i = 0; i < Math.Min(dataSize, decoded.Length); i++)
-            {
-                if (encoded[i + ecSize] != decoded[i])
-                {
-                    repairedCount++;
-                }
-            }
-
-            return repairedCount;
-        }
-
-        /// <summary>
         /// Writes error correction header information
         /// </summary>
         private static async Task WriteHeaderAsync(Stream output, int dataSize, int ecSize, CancellationToken cancellationToken)
@@ -480,29 +906,6 @@ namespace Fragile.ErrorCorrection
             int ecSize = header[6] | (header[7] << 8);
 
             return (dataSize, ecSize);
-        }
-
-        /// <summary>
-        /// Reads exactly the specified number of bytes from the stream
-        /// </summary>
-        private static async Task<int> ReadExactlyAsync(Stream stream, byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        {
-            int totalBytesRead = 0;
-
-            while (totalBytesRead < count)
-            {
-                int bytesRead = await stream.ReadAsync(buffer, offset + totalBytesRead, count - totalBytesRead, cancellationToken);
-
-                if (bytesRead == 0)
-                {
-                    // End of stream reached
-                    break;
-                }
-
-                totalBytesRead += bytesRead;
-            }
-
-            return totalBytesRead;
         }
     }
 }

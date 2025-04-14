@@ -102,8 +102,8 @@ namespace Fragile.ErrorCorrection
         /// Decodes error-corrected data and corrects errors
         /// </summary>
         /// <param name="data">Error-corrected data</param>
-        /// <returns>Data with errors corrected</returns>
-        public byte[] Decode(byte[] data)
+        /// <returns>Data with errors corrected and number of errors fixed</returns>
+        public (byte[] data, int errorsFixed) Decode(byte[] data)
         {
             if (data == null)
             {
@@ -127,11 +127,12 @@ namespace Fragile.ErrorCorrection
             {
                 byte[] result = new byte[_dataSize];
                 Array.Copy(receivedData, _errorCorrectionSize, result, 0, _dataSize);
-                return result;
+                return (result, 0);
             }
 
             // Find error locations
             int[] errorLocations = FindErrorLocations(syndromes);
+            int errorsFixed = errorLocations.Length;
 
             // Find error values
             int[] errorValues = FindErrorValues(syndromes, errorLocations);
@@ -149,7 +150,7 @@ namespace Fragile.ErrorCorrection
             // Return only the data part
             byte[] result2 = new byte[_dataSize];
             Array.Copy(receivedData, _errorCorrectionSize, result2, 0, _dataSize);
-            return result2;
+            return (result2, errorsFixed);
         }
 
         /// <summary>
