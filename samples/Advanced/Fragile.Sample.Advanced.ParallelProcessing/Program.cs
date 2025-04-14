@@ -249,13 +249,19 @@ namespace Fragile.Sample.Advanced.ParallelProcessing
                 // Calculate compression ratio
                 result.CompressionRatio = (double)originalSize / archiveFile.Length;
 
+                // Dispose the archive after creating and saving
+                archive.Dispose();
+
                 // Measure extraction time
                 string extractDir = Path.Combine(resultsDir, $"Extracted_{Path.GetFileNameWithoutExtension(archivePath)}");
                 Directory.CreateDirectory(extractDir);
 
                 Console.WriteLine("Extracting archive to measure extraction time...");
                 stopwatch.Restart();
-                await archive.ExtractAllAsync(extractDir);
+
+                // Reopen the archive in read mode for extraction
+                using FragileArchive extractArchive = await FragileArchive.OpenAsync(archivePath);
+                await extractArchive.ExtractAllAsync(extractDir);
                 stopwatch.Stop();
 
                 result.ExtractionTimeMs = stopwatch.ElapsedMilliseconds;

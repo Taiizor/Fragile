@@ -103,37 +103,37 @@ namespace Fragile.Sample.Advanced.ErrorCorrection
         static async Task CorruptArchiveFile(string archivePath)
         {
             Console.WriteLine("\nSimulating archive corruption...");
-            
+
             // Uyarı ekleyelim
             Console.WriteLine("WARNING: Arşiv dosyasına bozulma uygulanırken, Fragile formatının karmaşık yapısı");
             Console.WriteLine("nedeniyle dosya imzasının korunması gerekmektedir. Bu demonstrasyon amacıyla,");
             Console.WriteLine("gerçek uygulamalarda karşılaşılabilecek bozulma senaryolarını simüle ediyoruz.");
-            
+
             // Read the entire file
             byte[] fileBytes = await File.ReadAllBytesAsync(archivePath);
-            
+
             // Çok önemli: İmza kısımlarını korumak için sadece veri bloklarını hedefleyelim
             // Fragile formatı, dosyanın farklı bölgelerinde imza/meta veri kullanabilir
             // Bu nedenle çok kontrollü bir bozulma yapmalıyız
-            
+
             // Eğitim amaçlı strateji: Çok sınırlı bir orta bölgeyi hedefleyelim
             int totalLength = fileBytes.Length;
-            
+
             // İlk ve son 2KB'ı kesinlikle koruyalım (imza ve meta veriler için)
             int safeHeaderSize = 2048; // Başlık bölgesi - 2KB
             int safeFooterSize = 2048; // Son bölge - 2KB
-            
+
             // Güvenli bir orta bölge seçelim - dosyanın tam orta %25'lik kısmı
-            int middleStart = (totalLength - safeHeaderSize - safeFooterSize) / 4 + safeHeaderSize;
+            int middleStart = ((totalLength - safeHeaderSize - safeFooterSize) / 4) + safeHeaderSize;
             int middleSize = (int)((totalLength - safeHeaderSize - safeFooterSize) * 0.25);
             int middleEnd = middleStart + middleSize;
-            
+
             if (middleEnd > totalLength - safeFooterSize)
             {
                 middleEnd = totalLength - safeFooterSize;
                 middleSize = middleEnd - middleStart;
             }
-            
+
             if (middleSize <= 0 || middleStart >= middleEnd)
             {
                 Console.WriteLine("UYARI: Arşiv çok küçük olduğu için güvenli bozulma yapılamıyor.");
@@ -141,16 +141,19 @@ namespace Fragile.Sample.Advanced.ErrorCorrection
                 Console.WriteLine("Gerçek dünyada, küçük arşivler kritik bölümleri korumak için daha hassas bozulma stratejileri gerektirir.");
                 return;
             }
-            
+
             Console.WriteLine($"Arşiv boyutu: {totalLength} bayt");
             Console.WriteLine($"Güvenli başlık bölgesi: 0-{safeHeaderSize} ({safeHeaderSize} bayt)");
-            Console.WriteLine($"Hedeflenen bozulma bölgesi: {middleStart}-{middleEnd} ({middleSize} bayt, %{(double)middleSize/totalLength:P1})");
-            Console.WriteLine($"Güvenli son bölge: {totalLength-safeFooterSize}-{totalLength} ({safeFooterSize} bayt)");
-            
+            Console.WriteLine($"Hedeflenen bozulma bölgesi: {middleStart}-{middleEnd} ({middleSize} bayt, %{(double)middleSize / totalLength:P1})");
+            Console.WriteLine($"Güvenli son bölge: {totalLength - safeFooterSize}-{totalLength} ({safeFooterSize} bayt)");
+
             // Çok az sayıda ve sınırlı bir bozulma uygulayalım
             int corruptionCount = Math.Min(5, middleSize / 200); // Her 200 bayt için 1 bozulma, maks 5
-            if (corruptionCount <= 0) corruptionCount = 1; // En az 1 bozulma yapmalıyız
-            
+            if (corruptionCount <= 0)
+            {
+                corruptionCount = 1; // En az 1 bozulma yapmalıyız
+            }
+
             // Sağlamlık için ekstra korumalar
             if (middleSize < 100)
             {
@@ -178,7 +181,7 @@ namespace Fragile.Sample.Advanced.ErrorCorrection
             // Write the corrupted data back to the file
             await File.WriteAllBytesAsync(archivePath, fileBytes);
             Console.WriteLine($"Toplam {corruptionCount} bayt arşiv dosyasında bozuldu");
-            
+
             // Not ekleyelim
             Console.WriteLine("\nNOT: Gerçek uygulamalarda, dosyalarda doğal olarak oluşan bozulmalar daha az kritik");
             Console.WriteLine("bölgelerde oluşma eğilimindedir. Bu eğitimsel demo, en kötü senaryoyu göstermektedir.");
@@ -241,7 +244,7 @@ namespace Fragile.Sample.Advanced.ErrorCorrection
             {
                 Console.WriteLine($"Onarım ve çıkarma sırasında hata: {ex.Message}");
                 Console.WriteLine("Hata düzeltme, bozulmanın seviyesi için yeterli olmayabilir.");
-                
+
                 // Eğitimsel açıklama ekleyelim
                 Console.WriteLine("\nÖNEMLİ NOTLAR HAKKINDA:");
                 Console.WriteLine("1. Gerçek uygulamalarda, arşiv imzasının bozulması en ciddi sorunlardan biridir.");
