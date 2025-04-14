@@ -1,6 +1,5 @@
 using Fragile.Compression;
 using Fragile.Encryption;
-using Fragile.Formats;
 using Fragile.Verification;
 using System;
 using System.Threading;
@@ -87,11 +86,6 @@ namespace Fragile.Models
         /// Checksum algorithm to use for file integrity verification
         /// </summary>
         public ChecksumAlgorithm ChecksumAlgorithm { get; set; } = ChecksumAlgorithm.CRC32;
-
-        /// <summary>
-        /// Supported format compatibility mode
-        /// </summary>
-        public FormatCompatibility FormatCompatibility { get; set; } = FormatCompatibility.Native;
 
         /// <summary>
         /// The compression algorithm to use
