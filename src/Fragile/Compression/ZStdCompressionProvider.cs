@@ -1,8 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 
 namespace Fragile.Compression
 {
@@ -47,10 +47,10 @@ namespace Fragile.Compression
             long initialPosition = output.Position;
 
             // Gerçek bir ZStd kütüphanesi olmadan sıkıştırma işlemini simüle ediyoruz
-            
+
             // Önce orijinal stream'i oku
             byte[] inputData;
-            using (MemoryStream memoryStream = new MemoryStream())
+            using (MemoryStream memoryStream = new())
             {
                 await input.CopyToAsync(memoryStream, cancellationToken);
                 inputData = memoryStream.ToArray();
@@ -74,37 +74,37 @@ namespace Fragile.Compression
             zstdHeader[1] = 0xB5;
             zstdHeader[2] = 0x2F;
             zstdHeader[3] = 0xFD;
-            
+
             // Orijinal boyutu header'a ekle
             BitConverter.TryWriteBytes(new Span<byte>(zstdHeader, 4, 8), inputData.Length);
-            
+
             // Header'ı yaz
             await output.WriteAsync(zstdHeader, 0, zstdHeader.Length, cancellationToken);
 
             // "Sıkıştırılmış" veriyi hesapla
             int compressedSize = (int)(inputData.Length * compressionRatio);
-            
+
             // İçeriğin sıkıştırılmış boyutunu yaz
             byte[] compressedSizeBytes = BitConverter.GetBytes(compressedSize);
             await output.WriteAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
-            
+
             // Dictionary tabanlı basit sıkıştırma simülasyonu yap
-            using (MemoryStream compressedStream = new MemoryStream())
+            using (MemoryStream compressedStream = new())
             {
                 // Veriyi satırlara böl
-                using (MemoryStream inputStream = new MemoryStream(inputData))
-                using (StreamReader reader = new StreamReader(inputStream))
+                using (MemoryStream inputStream = new(inputData))
+                using (StreamReader reader = new(inputStream))
                 {
                     // Tekrarlanan sözlük kayıtları için bir önbellek oluştur
-                    Dictionary<string, int> dictionary = new Dictionary<string, int>();
+                    Dictionary<string, int> dictionary = new();
                     int nextDictionaryId = 1;
                     int processedBytes = 0;
-                    
+
                     string? line;
                     while ((line = await reader.ReadLineAsync()) != null)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        
+
                         // ZStd'nin blok temelli yaklaşımını taklit et
                         if (line.Length > 20)
                         {
@@ -113,7 +113,7 @@ namespace Fragile.Compression
                             {
                                 int blockLength = Math.Min(20, line.Length - i);
                                 string block = line.Substring(i, blockLength);
-                                
+
                                 // Blok daha önce görüldü mü?
                                 if (dictionary.TryGetValue(block, out int dictionaryId))
                                 {
@@ -125,7 +125,7 @@ namespace Fragile.Compression
                                 {
                                     // Bloku dictionary'ye ekle
                                     dictionary[block] = nextDictionaryId++;
-                                    
+
                                     // Literal olarak yaz
                                     compressedStream.WriteByte((byte)blockLength);
                                     byte[] blockBytes = System.Text.Encoding.UTF8.GetBytes(block);
@@ -147,10 +147,10 @@ namespace Fragile.Compression
                             byte[] lineBytes = System.Text.Encoding.UTF8.GetBytes(line);
                             compressedStream.Write(lineBytes, 0, lineBytes.Length);
                         }
-                        
+
                         // Satır sonu işareti
                         compressedStream.WriteByte(0x0A);
-                        
+
                         // İlerleme durumunu bildir
                         processedBytes += line.Length + 1;
                         if (progress != null && inputData.Length > 0)
@@ -160,14 +160,14 @@ namespace Fragile.Compression
                         }
                     }
                 }
-                
+
                 compressedStream.Position = 0;
-                
+
                 // Sıkıştırılmış veriyi yaz, hedeflenen orana ulaşmak için
                 byte[] compressedData = compressedStream.ToArray();
                 int bytesToWrite = Math.Min(compressedSize, compressedData.Length);
                 await output.WriteAsync(compressedData, 0, bytesToWrite, cancellationToken);
-                
+
                 // Eğer istenen sıkıştırma oranı gerçek veriden daha küçükse, kalan kısmı doldur
                 if (bytesToWrite < compressedSize)
                 {
@@ -193,27 +193,27 @@ namespace Fragile.Compression
             // Meta verileri oku (header)
             byte[] zstdHeader = new byte[12];
             await input.ReadAsync(zstdHeader, 0, zstdHeader.Length, cancellationToken);
-            
+
             // Orijinal boyutu al
             long originalSize = BitConverter.ToInt64(zstdHeader, 4);
-            
+
             // Sıkıştırılmış boyutu oku
             byte[] compressedSizeBytes = new byte[4];
             await input.ReadAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
             int compressedSize = BitConverter.ToInt32(compressedSizeBytes, 0);
-            
+
             // Sıkıştırılmış veriyi oku
             byte[] compressedData = new byte[compressedSize];
             int bytesRead = 0;
             int chunkSize;
-            
+
             while (bytesRead < compressedSize &&
-                  (chunkSize = await input.ReadAsync(compressedData, bytesRead, 
-                                                   compressedSize - bytesRead, 
+                  (chunkSize = await input.ReadAsync(compressedData, bytesRead,
+                                                   compressedSize - bytesRead,
                                                    cancellationToken)) > 0)
             {
                 bytesRead += chunkSize;
-                
+
                 // İlerleme durumunu bildir
                 if (progress != null)
                 {
@@ -221,31 +221,35 @@ namespace Fragile.Compression
                     progress.Report(progressValue);
                 }
             }
-            
+
             // Veri açma işlemi - dictionary tabanlı açma
-            using (MemoryStream ms = new MemoryStream(compressedData, 0, bytesRead))
+            using (MemoryStream ms = new(compressedData, 0, bytesRead))
             {
                 // Dictionary'yi yeniden oluştur
-                Dictionary<int, string> dictionary = new Dictionary<int, string>();
+                Dictionary<int, string> dictionary = new();
                 int position = 0;
-                
+
                 while (position < ms.Length)
                 {
                     int control = ms.ReadByte();
                     position++;
-                    
+
                     if (control == -1)
+                    {
                         break;
-                    
+                    }
+
                     if (control == 0xFF) // Dictionary referansı
                     {
                         if (position + 2 > ms.Length)
+                        {
                             break;
-                            
+                        }
+
                         byte[] idBytes = new byte[2];
                         ms.Read(idBytes, 0, 2);
                         position += 2;
-                        
+
                         int dictionaryId = BitConverter.ToInt16(idBytes, 0);
                         if (dictionary.TryGetValue(dictionaryId, out string? value))
                         {
@@ -261,22 +265,26 @@ namespace Fragile.Compression
                     {
                         int blockLength = control;
                         if (position + blockLength > ms.Length)
+                        {
                             break;
-                            
+                        }
+
                         byte[] blockBytes = new byte[blockLength];
                         ms.Read(blockBytes, 0, blockLength);
                         position += blockLength;
-                        
+
                         string block = System.Text.Encoding.UTF8.GetString(blockBytes);
-                        
+
                         // Dictionary'ye ekle
                         int nextId = dictionary.Count + 1;
                         if (nextId < 65000)
+                        {
                             dictionary[nextId] = block;
-                            
+                        }
+
                         await output.WriteAsync(blockBytes, 0, blockBytes.Length, cancellationToken);
                     }
-                    
+
                     // İlerleme durumunu güncelle
                     if (progress != null)
                     {
@@ -341,10 +349,10 @@ namespace Fragile.Compression
             {
                 // Sıkıştırma oranını belirle
                 double compressionRatio = GetCompressionRatio();
-                
+
                 // Buffer'daki veriyi al
                 byte[] originalData = _buffer.ToArray();
-                
+
                 // Header yaz (12 byte - ZStd magic number + size)
                 byte[] header = new byte[12];
                 header[0] = 0x28; // ZStd magic number
@@ -353,20 +361,20 @@ namespace Fragile.Compression
                 header[3] = 0xFD;
                 BitConverter.TryWriteBytes(new Span<byte>(header, 4, 8), originalData.Length);
                 _baseStream.Write(header, 0, header.Length);
-                
+
                 // Sıkıştırılmış boyutu hesapla
                 int compressedSize = (int)(originalData.Length * compressionRatio);
                 byte[] compressedSizeBytes = BitConverter.GetBytes(compressedSize);
                 _baseStream.Write(compressedSizeBytes, 0, compressedSizeBytes.Length);
-                
+
                 // "Sıkıştırılmış" veriyi yaz
                 int bytesToWrite = Math.Min(compressedSize, originalData.Length);
                 _baseStream.Write(originalData, 0, bytesToWrite);
-                
+
                 // Buffer'ı temizle
                 _buffer.SetLength(0);
             }
-            
+
             _baseStream.Flush();
         }
 
@@ -406,10 +414,10 @@ namespace Fragile.Compression
             {
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
-            
+
             // Veriyi buffer'a yazalım
             _buffer.Write(buffer, offset, count);
-            
+
             // Eğer buffer belli bir boyutu aşarsa, flush edelim
             if (_buffer.Length > 1024 * 1024) // 1 MB
             {
@@ -423,17 +431,17 @@ namespace Fragile.Compression
             {
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
-            
+
             // Veriyi buffer'a yazalım
             await _buffer.WriteAsync(buffer, offset, count, cancellationToken);
-            
+
             // Eğer buffer belli bir boyutu aşarsa, flush edelim
             if (_buffer.Length > 1024 * 1024) // 1 MB
             {
                 Flush();
             }
         }
-        
+
         // Sıkıştırma oranını hesapla
         private double GetCompressionRatio()
         {
@@ -459,7 +467,7 @@ namespace Fragile.Compression
                         // Kalan veriyi flush et
                         Flush();
                     }
-                    
+
                     _buffer.Dispose();
                 }
 
