@@ -1,3 +1,4 @@
+using Fragile.Models;
 using System;
 using System.IO;
 using System.Security.Cryptography;
@@ -38,6 +39,42 @@ namespace Fragile.Encryption
                 // EncryptionMethod.ChaCha20 => new ChaCha20EncryptionProvider(password),
                 // EncryptionMethod.Twofish => new TwofishEncryptionProvider(password),
                 _ => throw new NotSupportedException($"Encryption method {method} is not supported")
+            };
+        }
+
+        /// <summary>
+        /// Creates an encryption provider based on the provided options
+        /// </summary>
+        /// <param name="options">Options containing encryption settings</param>
+        /// <returns>A suitable encryption provider</returns>
+        public static EncryptionProvider Create(FragileOptions options)
+        {
+            if (options == null)
+            {
+                throw new ArgumentNullException(nameof(options));
+            }
+
+            // If encryption is disabled, use the None provider
+            if (!options.EnableEncryption)
+            {
+                return new NoneEncryptionProvider();
+            }
+
+            // Otherwise, create a provider based on the selected method and password
+            if (string.IsNullOrEmpty(options.Password) && options.EncryptionMethod != EncryptionMethod.None)
+            {
+                throw new ArgumentException("Password cannot be null or empty when encryption is enabled", nameof(options.Password));
+            }
+
+            return options.EncryptionMethod switch
+            {
+                EncryptionMethod.None => new NoneEncryptionProvider(),
+                EncryptionMethod.AES128 => new AesEncryptionProvider(options.Password, 128),
+                EncryptionMethod.AES256 => new AesEncryptionProvider(options.Password, 256),
+                // These would be implemented with additional libraries
+                // EncryptionMethod.ChaCha20 => new ChaCha20EncryptionProvider(options.Password),
+                // EncryptionMethod.Twofish => new TwofishEncryptionProvider(options.Password),
+                _ => throw new NotSupportedException($"Encryption method {options.EncryptionMethod} is not supported")
             };
         }
 

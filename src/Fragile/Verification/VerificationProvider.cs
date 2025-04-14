@@ -1,3 +1,4 @@
+using Fragile.Models;
 using System;
 using System.IO;
 using System.Threading;
@@ -11,9 +12,30 @@ namespace Fragile.Verification
     public abstract class VerificationProvider
     {
         /// <summary>
+        /// Whether to use parallel processing for checksum calculation
+        /// </summary>
+        public bool UseParallelProcessing { get; }
+
+        /// <summary>
+        /// Maximum number of threads to use for parallel operations
+        /// </summary>
+        public int MaxThreads { get; }
+
+        /// <summary>
         /// The checksum algorithm used by this provider
         /// </summary>
         public abstract ChecksumAlgorithm Algorithm { get; }
+
+        /// <summary>
+        /// Constructor with parallel processing options
+        /// </summary>
+        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+        /// <param name="maxThreads">Maximum number of threads to use</param>
+        protected VerificationProvider(bool useParallelProcessing = false, int maxThreads = 1)
+        {
+            UseParallelProcessing = useParallelProcessing;
+            MaxThreads = maxThreads;
+        }
 
         /// <summary>
         /// Creates a verification provider for the specified algorithm
@@ -22,15 +44,38 @@ namespace Fragile.Verification
         /// <returns>A suitable verification provider</returns>
         public static VerificationProvider Create(ChecksumAlgorithm algorithm)
         {
-            return algorithm switch
+            // Use default options
+            return Create(new FragileOptions { ChecksumAlgorithm = algorithm, EnableChecksumVerification = true });
+        }
+
+        /// <summary>
+        /// Creates a verification provider based on the provided options
+        /// </summary>
+        /// <param name="options">Options containing verification settings</param>
+        /// <returns>A suitable verification provider</returns>
+        public static VerificationProvider Create(FragileOptions options)
+        {
+            if (options == null)
             {
-                ChecksumAlgorithm.None => new NoneVerificationProvider(),
-                ChecksumAlgorithm.CRC32 => new Crc32VerificationProvider(),
-                ChecksumAlgorithm.MD5 => new HashVerificationProvider(ChecksumAlgorithm.MD5),
-                ChecksumAlgorithm.SHA1 => new HashVerificationProvider(ChecksumAlgorithm.SHA1),
-                ChecksumAlgorithm.SHA256 => new HashVerificationProvider(ChecksumAlgorithm.SHA256),
-                ChecksumAlgorithm.SHA512 => new HashVerificationProvider(ChecksumAlgorithm.SHA512),
-                _ => throw new NotSupportedException($"Checksum algorithm {algorithm} is not supported")
+                throw new ArgumentNullException(nameof(options));
+            }
+
+            // If checksum verification is disabled, use the None provider
+            if (!options.EnableChecksumVerification)
+            {
+                return new NoneVerificationProvider(options.UseParallelProcessing, options.MaxThreads);
+            }
+
+            // Otherwise, create a provider based on the selected algorithm
+            return options.ChecksumAlgorithm switch
+            {
+                ChecksumAlgorithm.None => new NoneVerificationProvider(options.UseParallelProcessing, options.MaxThreads),
+                ChecksumAlgorithm.CRC32 => new Crc32VerificationProvider(options.UseParallelProcessing, options.MaxThreads),
+                ChecksumAlgorithm.MD5 => new HashVerificationProvider(ChecksumAlgorithm.MD5, options.UseParallelProcessing, options.MaxThreads),
+                ChecksumAlgorithm.SHA1 => new HashVerificationProvider(ChecksumAlgorithm.SHA1, options.UseParallelProcessing, options.MaxThreads),
+                ChecksumAlgorithm.SHA256 => new HashVerificationProvider(ChecksumAlgorithm.SHA256, options.UseParallelProcessing, options.MaxThreads),
+                ChecksumAlgorithm.SHA512 => new HashVerificationProvider(ChecksumAlgorithm.SHA512, options.UseParallelProcessing, options.MaxThreads),
+                _ => throw new NotSupportedException($"Checksum algorithm {options.ChecksumAlgorithm} is not supported")
             };
         }
 

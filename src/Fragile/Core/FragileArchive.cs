@@ -26,10 +26,10 @@ namespace Fragile.Core
         private FileStream? _fileStream;
         private FragileOptions _options;
         private bool _disposed = false;
-        
+
         // Arşiv metadata bilgisini saklayan alan
         private ArchiveMetadata _archiveMetadata = new();
-        
+
         // Giriş metadata bilgilerini saklayan koleksiyon
         private readonly Dictionary<string, EntryMetadata> _entryMetadata = new();
 
@@ -46,7 +46,7 @@ namespace Fragile.Core
         /// <summary>
         /// Archive metadata
         /// </summary>
-        public ArchiveMetadata Metadata 
+        public ArchiveMetadata Metadata
         {
             get => _archiveMetadata;
             set => _archiveMetadata = value ?? new ArchiveMetadata();
@@ -473,28 +473,38 @@ namespace Fragile.Core
 
                     // Options
                     byte optionFlags = 0;
-                    
+
                     // Set option flags based on enabled features
                     if (_options.EnableEncryption)
+                    {
                         optionFlags |= 0x01;
-                    
+                    }
+
                     if (_options.EnableChecksumVerification)
+                    {
                         optionFlags |= 0x02;
-                    
+                    }
+
                     if (_options.EnableErrorCorrection)
+                    {
                         optionFlags |= 0x04;
-                    
+                    }
+
                     if (_options.IncludeMetadata)
+                    {
                         optionFlags |= 0x08;
-                    
+                    }
+
                     if (_options.UseSolidCompression)
+                    {
                         optionFlags |= 0x10;
-                    
+                    }
+
                     writer.Write(optionFlags);
 
                     // Compression algorithm
                     writer.Write((byte)_options.CompressionAlgorithm);
-                    
+
                     // Reserve space for metadata offset
                     long metadataOffsetPosition = outputStream.Position;
                     writer.Write((long)0);
@@ -507,11 +517,13 @@ namespace Fragile.Core
                     writer.Write((long)0);
 
                     // Process each entry
-                    foreach (var entry in _entries.Values)
+                    foreach (FragileArchiveEntry entry in _entries.Values)
                     {
                         // Skip if already compressed or special handling is needed
                         if (entry.IsDirectory || entry.Data != null)
+                        {
                             continue;
+                        }
 
                         // Record position for this entry
                         entry.HeaderOffset = outputStream.Position;
@@ -540,7 +552,7 @@ namespace Fragile.Core
                             // Entry data is already in memory
                             entry.PositionOffset = outputStream.Position;
                             entry.CompressedSize = entry.Data.Length;
-                            
+
                             // Update compressed size
                             long temp = outputStream.Position;
                             outputStream.Position = sizePosition;
@@ -559,14 +571,14 @@ namespace Fragile.Core
                             try
                             {
                                 using FileStream fileStream = new(entry.SourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                                
+
                                 // Create compression provider with options
                                 CompressionProvider compressionProvider = CompressionProvider.Create(
-                                    _options.CompressionAlgorithm, 
+                                    _options.CompressionAlgorithm,
                                     _options.CompressionLevel,
                                     _options.UseParallelProcessing,
                                     _options.MaxThreads);
-                                
+
                                 // Report progress for this file if needed
                                 IProgress<double>? fileProgress = null;
                                 if (_options.Progress != null)
@@ -575,8 +587,8 @@ namespace Fragile.Core
                                     double endPercentage = (double)(outputStream.Position + fileStream.Length) / (outputStream.Length + fileStream.Length);
                                     double range = endPercentage - startPercentage;
 
-                                    fileProgress = new Progress<double>(p => 
-                                        _options.Progress.Report(startPercentage + p * range));
+                                    fileProgress = new Progress<double>(p =>
+                                        _options.Progress.Report(startPercentage + (p * range)));
                                 }
 
                                 // Check if encryption is enabled
@@ -593,22 +605,22 @@ namespace Fragile.Core
 
                                     // Compress first, then encrypt
                                     using MemoryStream compressedStream = new();
-                                    
+
                                     // Compress the file to temporary stream
                                     await compressionProvider.CompressAsync(
-                                        fileStream, 
-                                        compressedStream, 
-                                        fileProgress, 
+                                        fileStream,
+                                        compressedStream,
+                                        fileProgress,
                                         _options.CancellationToken);
-                                    
+
                                     // Reset position for reading
                                     compressedStream.Position = 0;
-                                    
+
                                     // Encrypt the compressed data to the output
                                     entry.CompressedSize = await encryptionProvider.EncryptAsync(
-                                        compressedStream, 
-                                        outputStream, 
-                                        fileProgress, 
+                                        compressedStream,
+                                        outputStream,
+                                        fileProgress,
                                         _options.CancellationToken);
                                 }
                                 else
@@ -616,14 +628,14 @@ namespace Fragile.Core
                                     // No encryption, just compress the file
                                     entry.IsEncrypted = false;
                                     entry.EncryptionMethod = Encryption.EncryptionMethod.None;
-                                    
+
                                     entry.CompressedSize = await compressionProvider.CompressAsync(
-                                        fileStream, 
-                                        outputStream, 
-                                        fileProgress, 
+                                        fileStream,
+                                        outputStream,
+                                        fileProgress,
                                         _options.CancellationToken);
                                 }
-                                
+
                                 // Update compressed size
                                 outputStream.Position = sizePosition;
                                 writer.Write(entry.CompressedSize);
@@ -649,7 +661,7 @@ namespace Fragile.Core
                     outputStream.Position = centralDirOffset;
 
                     // Write each entry's info in the central directory
-                    foreach (var entry in _entries.Values)
+                    foreach (FragileArchiveEntry entry in _entries.Values)
                     {
                         // Entry path
                         byte[] pathBytes = Encoding.UTF8.GetBytes(entry.Path);
@@ -662,7 +674,7 @@ namespace Fragile.Core
                         writer.Write(entry.Size);
                         writer.Write(entry.CompressedSize);
                         writer.Write(entry.IsDirectory);
-                        
+
                         // Write encryption info
                         writer.Write(entry.IsEncrypted);
                         if (entry.IsEncrypted)
@@ -674,37 +686,37 @@ namespace Fragile.Core
                             writer.Write((byte)0); // No encryption method
                         }
                     }
-                    
+
                     // Write metadata section if enabled
                     if (_options.IncludeMetadata)
                     {
                         long metadataOffset = outputStream.Position;
-                        
+
                         // Update metadata offset in the header
                         outputStream.Position = metadataOffsetPosition;
                         writer.Write(metadataOffset);
                         outputStream.Position = metadataOffset;
-                        
+
                         // Update archive metadata with current date
                         _archiveMetadata.LastModifiedTime = DateTime.UtcNow;
-                        
+
                         // Serialize and write archive metadata
                         string archiveMetadataJson = _archiveMetadata.ToJson();
                         byte[] archiveMetadataBytes = Encoding.UTF8.GetBytes(archiveMetadataJson);
                         writer.Write(archiveMetadataBytes.Length);
                         writer.Write(archiveMetadataBytes);
-                        
+
                         // Write entry metadata count
                         writer.Write(_entryMetadata.Count);
-                        
+
                         // Write each entry metadata
-                        foreach (var kvp in _entryMetadata)
+                        foreach (KeyValuePair<string, EntryMetadata> kvp in _entryMetadata)
                         {
                             // Entry path
                             byte[] pathBytes = Encoding.UTF8.GetBytes(kvp.Key);
                             writer.Write(pathBytes.Length);
                             writer.Write(pathBytes);
-                            
+
                             // Entry metadata
                             string entryMetadataJson = kvp.Value.ToJson();
                             byte[] entryMetadataBytes = Encoding.UTF8.GetBytes(entryMetadataJson);
@@ -816,35 +828,35 @@ namespace Fragile.Core
 
             // Read options flags
             byte optionFlags = reader.ReadByte();
-            
+
             // Extract settings from flags
             bool isEncrypted = (optionFlags & 0x01) != 0;
             bool hasChecksum = (optionFlags & 0x02) != 0;
             bool hasErrorCorrection = (optionFlags & 0x04) != 0;
             bool hasMetadata = (optionFlags & 0x08) != 0;
             bool useSolidCompression = (optionFlags & 0x10) != 0;
-            
+
             // Update options from file flags
             if (isEncrypted)
             {
                 _options.EnableEncryption = true;
             }
-            
+
             if (hasChecksum)
             {
                 _options.EnableChecksumVerification = true;
             }
-            
+
             if (hasErrorCorrection)
             {
                 _options.EnableErrorCorrection = true;
             }
-            
+
             if (hasMetadata)
             {
                 _options.IncludeMetadata = true;
             }
-            
+
             if (useSolidCompression)
             {
                 _options.UseSolidCompression = true;
@@ -852,7 +864,7 @@ namespace Fragile.Core
 
             // Read compression algorithm
             byte compressionAlgorithm = reader.ReadByte();
-            
+
             // Read metadata offset
             long metadataOffset = reader.ReadInt64();
 
@@ -881,16 +893,16 @@ namespace Fragile.Core
 
                 _entries[entry.Path] = entry;
             }
-            
+
             // Read central directory
             _fileStream!.Position = dataPosition;
-            
+
             // Update each entry with its specific encryption details from the central directory
             for (int i = 0; i < entryCount; i++)
             {
                 string path = reader.ReadString();
-                
-                if (!_entries.TryGetValue(path, out var entry))
+
+                if (!_entries.TryGetValue(path, out FragileArchiveEntry? entry))
                 {
                     // Skip this entry if not found (shouldn't happen)
                     reader.ReadInt64(); // HeaderOffset
@@ -902,7 +914,7 @@ namespace Fragile.Core
                     reader.ReadByte(); // EncryptionMethod
                     continue;
                 }
-                
+
                 // Update entry properties from central directory
                 entry.HeaderOffset = reader.ReadInt64();
                 entry.PositionOffset = reader.ReadInt64();
@@ -911,11 +923,11 @@ namespace Fragile.Core
                 reader.ReadInt64(); // CompressedSize (skip)
                 // IsDirectory already set
                 reader.ReadBoolean(); // IsDirectory (skip)
-                
+
                 // Read encryption info
                 bool isEntryEncrypted = reader.ReadBoolean();
                 byte encryptionMethodByte = reader.ReadByte();
-                
+
                 // Update entry encryption info
                 entry.IsEncrypted = isEntryEncrypted;
                 if (isEntryEncrypted)
@@ -927,7 +939,7 @@ namespace Fragile.Core
                     entry.EncryptionMethod = Encryption.EncryptionMethod.None;
                 }
             }
-            
+
             // Read metadata if included and offset is valid
             if (hasMetadata && metadataOffset > 0)
             {
@@ -935,16 +947,16 @@ namespace Fragile.Core
                 {
                     // Position at metadata section
                     _fileStream!.Position = metadataOffset;
-                    
+
                     // Read archive metadata
                     int archiveMetadataLength = reader.ReadInt32();
                     byte[] archiveMetadataBytes = reader.ReadBytes(archiveMetadataLength);
                     string archiveMetadataJson = Encoding.UTF8.GetString(archiveMetadataBytes);
                     _archiveMetadata = ArchiveMetadata.FromJson(archiveMetadataJson);
-                    
+
                     // Read entry metadata count
                     int entryMetadataCount = reader.ReadInt32();
-                    
+
                     // Read each entry metadata
                     for (int i = 0; i < entryMetadataCount; i++)
                     {
@@ -952,13 +964,13 @@ namespace Fragile.Core
                         int pathLength = reader.ReadInt32();
                         byte[] pathBytes = reader.ReadBytes(pathLength);
                         string path = Encoding.UTF8.GetString(pathBytes);
-                        
+
                         // Entry metadata
                         int metadataLength = reader.ReadInt32();
                         byte[] metadataBytes = reader.ReadBytes(metadataLength);
                         string metadataJson = Encoding.UTF8.GetString(metadataBytes);
                         EntryMetadata metadata = EntryMetadata.FromJson(metadataJson);
-                        
+
                         // Add to metadata dictionary
                         _entryMetadata[path] = metadata;
                     }
@@ -967,7 +979,7 @@ namespace Fragile.Core
                 {
                     // If metadata reading fails, log error but continue
                     Console.Error.WriteLine($"Error reading metadata: {ex.Message}");
-                    
+
                     // Reset metadata to defaults
                     _archiveMetadata = new ArchiveMetadata();
                     _entryMetadata.Clear();
@@ -1415,15 +1427,15 @@ namespace Fragile.Core
         public EntryMetadata GetEntryMetadata(string entryPath)
         {
             entryPath = NormalizePath(entryPath);
-            
+
             if (_entryMetadata.TryGetValue(entryPath, out EntryMetadata? metadata))
             {
                 return metadata;
             }
-            
+
             return new EntryMetadata();
         }
-        
+
         /// <summary>
         /// Sets metadata for a specific entry
         /// </summary>
@@ -1436,14 +1448,14 @@ namespace Fragile.Core
                 // Metadata is disabled, do nothing
                 return;
             }
-            
+
             entryPath = NormalizePath(entryPath);
-            
+
             if (!_entries.ContainsKey(entryPath))
             {
                 throw new KeyNotFoundException($"Entry not found: {entryPath}");
             }
-            
+
             _entryMetadata[entryPath] = metadata ?? new EntryMetadata();
         }
 
@@ -1455,30 +1467,30 @@ namespace Fragile.Core
         public FragileArchiveEntryExtended GetExtendedEntry(string entryPath)
         {
             entryPath = NormalizePath(entryPath);
-            
+
             if (!_entries.TryGetValue(entryPath, out FragileArchiveEntry? entry))
             {
                 throw new KeyNotFoundException($"Entry not found: {entryPath}");
             }
-            
+
             // Create extended entry
             FragileArchiveEntryExtended extendedEntry = FragileArchiveEntryExtended.FromEntry(entry);
-            
+
             // Set metadata if available
             if (_options.IncludeMetadata && _entryMetadata.TryGetValue(entryPath, out EntryMetadata? metadata))
             {
                 extendedEntry.Metadata = metadata;
             }
-            
+
             // Set compression algorithm from options
             extendedEntry.CompressionAlgorithm = _options.CompressionAlgorithm;
-            
+
             // Error correction is based on archive level settings
             extendedEntry.HasErrorCorrection = _options.EnableErrorCorrection;
-            
+
             return extendedEntry;
         }
-        
+
         /// <summary>
         /// Update entry with additional metadata
         /// </summary>
@@ -1489,21 +1501,21 @@ namespace Fragile.Core
             {
                 throw new ArgumentNullException(nameof(extendedEntry));
             }
-            
+
             string entryPath = NormalizePath(extendedEntry.Path);
-            
+
             if (!_entries.TryGetValue(entryPath, out _))
             {
                 throw new KeyNotFoundException($"Entry not found: {entryPath}");
             }
-            
+
             // Update metadata if enabled
             if (_options.IncludeMetadata)
             {
                 _entryMetadata[entryPath] = extendedEntry.Metadata ?? new EntryMetadata();
             }
         }
-        
+
         /// <summary>
         /// Gets all extended entries with additional metadata
         /// </summary>
@@ -1513,22 +1525,22 @@ namespace Fragile.Core
             foreach (FragileArchiveEntry entry in _entries.Values)
             {
                 string entryPath = entry.Path;
-                
+
                 // Create extended entry
                 FragileArchiveEntryExtended extendedEntry = FragileArchiveEntryExtended.FromEntry(entry);
-                
+
                 // Set metadata if available
                 if (_options.IncludeMetadata && _entryMetadata.TryGetValue(entryPath, out EntryMetadata? metadata))
                 {
                     extendedEntry.Metadata = metadata;
                 }
-                
+
                 // Set compression algorithm from options
                 extendedEntry.CompressionAlgorithm = _options.CompressionAlgorithm;
-                
+
                 // Error correction is based on archive level settings
                 extendedEntry.HasErrorCorrection = _options.EnableErrorCorrection;
-                
+
                 yield return extendedEntry;
             }
         }

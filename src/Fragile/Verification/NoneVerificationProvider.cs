@@ -11,6 +11,24 @@ namespace Fragile.Verification
     internal class NoneVerificationProvider : VerificationProvider
     {
         /// <summary>
+        /// Creates a new NoneVerificationProvider with default settings
+        /// </summary>
+        public NoneVerificationProvider()
+            : base(false, 1)
+        {
+        }
+
+        /// <summary>
+        /// Creates a new NoneVerificationProvider with the specified parallel processing options
+        /// </summary>
+        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+        /// <param name="maxThreads">Maximum number of threads to use</param>
+        public NoneVerificationProvider(bool useParallelProcessing, int maxThreads)
+            : base(useParallelProcessing, maxThreads)
+        {
+        }
+
+        /// <summary>
         /// The checksum algorithm used by this provider
         /// </summary>
         public override ChecksumAlgorithm Algorithm => ChecksumAlgorithm.None;
