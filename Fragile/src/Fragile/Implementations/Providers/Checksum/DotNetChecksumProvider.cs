@@ -41,15 +41,9 @@ internal class DotNetChecksumProvider : IChecksumProvider, IDisposable
 
         try
         {
-            // HashAlgorithm.ComputeHashAsync is available in .NET Standard 2.1+
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
-            byte[] hash = await _hashAlgorithm.ComputeHashAsync(source, cancellationToken).ConfigureAwait(false);
-            return hash;
-#else
             // Fallback for environments where ComputeHashAsync isn't directly available (e.g., might need manual chunking)
             // For simplicity, calling the sync version here, but a true async implementation would buffer.
             return await Task.Run(() => ComputeChecksum(source, options), cancellationToken);
-#endif
         }
         finally
         {

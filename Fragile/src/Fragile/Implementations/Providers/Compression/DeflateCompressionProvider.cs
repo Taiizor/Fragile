@@ -69,7 +69,7 @@ internal class DeflateCompressionProvider : ICompressionProvider
             Core.Enums.CompressionLevel.Fast => System.IO.Compression.CompressionLevel.Fastest, // Map Fast also to Fastest
             Core.Enums.CompressionLevel.Normal => System.IO.Compression.CompressionLevel.Optimal, // Default
             Core.Enums.CompressionLevel.High => System.IO.Compression.CompressionLevel.Optimal, // Map High also to Optimal
-            Core.Enums.CompressionLevel.Ultra => System.IO.Compression.CompressionLevel.SmallestSize,
+            Core.Enums.CompressionLevel.Ultra => System.IO.Compression.CompressionLevel.Optimal,
             // Case where Store algorithm uses Deflate provider shouldn't happen, but map it reasonably.
             // Also handles potential future levels if not mapped explicitly.
             _ => System.IO.Compression.CompressionLevel.Optimal,
