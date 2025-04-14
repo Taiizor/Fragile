@@ -175,6 +175,19 @@ namespace Fragile.Encryption
     /// </remarks>
     internal class TwofishManaged : SymmetricAlgorithm
     {
+        private static readonly byte[] DefaultKey = new byte[32]; // 256 bits
+        private static readonly byte[] DefaultIV = new byte[16];  // 128 bits
+
+        static TwofishManaged()
+        {
+            // Initialize default key and IV with random data
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(DefaultKey);
+                rng.GetBytes(DefaultIV);
+            }
+        }
+
         public TwofishManaged()
         {
             // Default settings
@@ -183,6 +196,10 @@ namespace Fragile.Encryption
             FeedbackSize = 8;
             Padding = PaddingMode.PKCS7;
             Mode = CipherMode.CBC;
+            
+            // Initialize with default key and IV
+            Key = (byte[])DefaultKey.Clone();
+            IV = (byte[])DefaultIV.Clone();
         }
 
         public override ICryptoTransform CreateDecryptor(byte[] rgbKey, byte[] rgbIV)
@@ -197,7 +214,11 @@ namespace Fragile.Encryption
                 throw new ArgumentNullException(nameof(rgbIV));
             }
 
-            return new TwofishTransform(rgbKey, rgbIV, false);
+            // Copy key and IV to make sure they are not modified externally
+            byte[] keyCopy = (byte[])rgbKey.Clone();
+            byte[] ivCopy = (byte[])rgbIV.Clone();
+
+            return new TwofishTransform(keyCopy, ivCopy, false);
         }
 
         public override ICryptoTransform CreateEncryptor(byte[] rgbKey, byte[] rgbIV)
@@ -212,13 +233,17 @@ namespace Fragile.Encryption
                 throw new ArgumentNullException(nameof(rgbIV));
             }
 
-            return new TwofishTransform(rgbKey, rgbIV, true);
+            // Copy key and IV to make sure they are not modified externally
+            byte[] keyCopy = (byte[])rgbKey.Clone();
+            byte[] ivCopy = (byte[])rgbIV.Clone();
+
+            return new TwofishTransform(keyCopy, ivCopy, true);
         }
 
         public override void GenerateIV()
         {
             byte[] iv = new byte[BlockSize / 8];
-            using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
+            using (var rng = RandomNumberGenerator.Create())
             {
                 rng.GetBytes(iv);
             }
@@ -228,7 +253,7 @@ namespace Fragile.Encryption
         public override void GenerateKey()
         {
             byte[] key = new byte[KeySize / 8];
-            using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
+            using (var rng = RandomNumberGenerator.Create())
             {
                 rng.GetBytes(key);
             }
@@ -249,11 +274,22 @@ namespace Fragile.Encryption
         private readonly byte[] _key;
         private readonly byte[] _iv;
         private readonly bool _encrypting;
+        private bool _disposed = false;
 
         public TwofishTransform(byte[] key, byte[] iv, bool encrypting)
         {
-            _key = key;
-            _iv = iv;
+            if (key == null)
+            {
+                throw new ArgumentNullException(nameof(key));
+            }
+
+            if (iv == null)
+            {
+                throw new ArgumentNullException(nameof(iv));
+            }
+
+            _key = (byte[])key.Clone();
+            _iv = (byte[])iv.Clone();
             _encrypting = encrypting;
         }
 
@@ -267,12 +303,56 @@ namespace Fragile.Encryption
 
         public void Dispose()
         {
-            // Clean up resources
-            GC.SuppressFinalize(this);
+            if (!_disposed)
+            {
+                // Clear sensitive data
+                if (_key != null)
+                {
+                    Array.Clear(_key, 0, _key.Length);
+                }
+                
+                if (_iv != null)
+                {
+                    Array.Clear(_iv, 0, _iv.Length);
+                }
+                
+                _disposed = true;
+                GC.SuppressFinalize(this);
+            }
         }
 
         public int TransformBlock(byte[] inputBuffer, int inputOffset, int inputCount, byte[] outputBuffer, int outputOffset)
         {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(TwofishTransform));
+            }
+
+            if (inputBuffer == null)
+            {
+                throw new ArgumentNullException(nameof(inputBuffer));
+            }
+
+            if (outputBuffer == null)
+            {
+                throw new ArgumentNullException(nameof(outputBuffer));
+            }
+
+            if (inputOffset < 0 || inputOffset > inputBuffer.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(inputOffset));
+            }
+
+            if (inputCount < 0 || inputOffset + inputCount > inputBuffer.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(inputCount));
+            }
+
+            if (outputOffset < 0 || outputOffset + inputCount > outputBuffer.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(outputOffset));
+            }
+
             // Implementation would contain the actual Twofish block cipher operations
             // This placeholder simply copies the input to output as if it were encrypted/decrypted
             Buffer.BlockCopy(inputBuffer, inputOffset, outputBuffer, outputOffset, inputCount);
@@ -281,10 +361,33 @@ namespace Fragile.Encryption
 
         public byte[] TransformFinalBlock(byte[] inputBuffer, int inputOffset, int inputCount)
         {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(TwofishTransform));
+            }
+
+            if (inputBuffer == null)
+            {
+                throw new ArgumentNullException(nameof(inputBuffer));
+            }
+
+            if (inputOffset < 0 || inputOffset > inputBuffer.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(inputOffset));
+            }
+
+            if (inputCount < 0 || inputOffset + inputCount > inputBuffer.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(inputCount));
+            }
+
             // Implementation would handle padding and final block processing
             // This placeholder simply returns a copy of the input
             byte[] output = new byte[inputCount];
-            Buffer.BlockCopy(inputBuffer, inputOffset, output, 0, inputCount);
+            if (inputCount > 0)
+            {
+                Buffer.BlockCopy(inputBuffer, inputOffset, output, 0, inputCount);
+            }
             return output;
         }
     }
