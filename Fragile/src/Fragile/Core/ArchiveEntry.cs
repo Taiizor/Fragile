@@ -122,6 +122,17 @@ public class FileArchiveEntry : ArchiveEntry
     /// </summary>
     internal FormatConstants.EntryHeaderFlags Flags { get; set; }
 
+    /// <summary>
+    /// Gets a value indicating whether this entry is part of a solid block.
+    /// </summary>
+    internal bool IsSolidEntry { get; set; } = false;
+
+    /// <summary>
+    /// Gets the offset of this entry's data within the uncompressed solid block stream.
+    /// Only relevant if <see cref="IsSolidEntry"/> is true.
+    /// </summary>
+    internal long SolidOffset { get; set; } = 0;
+
     internal FileArchiveEntry(string fullPath) : base(fullPath)
     {
         if (fullPath.EndsWith("/"))

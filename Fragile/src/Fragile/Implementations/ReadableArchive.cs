@@ -23,6 +23,12 @@ internal class ReadableArchive : IReadableArchive
     private readonly ArchiveOptions _options;
     private bool _disposed = false;
 
+    // Solid archive specific fields
+    private readonly bool _isSolid;
+    private readonly FileArchiveEntry? _solidBlockEntry;
+    private MemoryStream? _decompressedSolidStream = null; // Lazily loaded
+    private readonly object _solidStreamLock = new object();
+
     // Potentially also hold a reference to the format handler or manager that created it
     // private readonly IFragileFormatReader _formatReader;
 
@@ -45,13 +51,17 @@ internal class ReadableArchive : IReadableArchive
     /// <param name="metadata">The archive-level metadata.</param>
     /// <param name="leaveOpen">Indicates whether to leave the stream open upon disposal.</param>
     /// <param name="options">The options used to open the archive.</param>
-    internal ReadableArchive(Stream? archiveStream, List<ArchiveEntry> entries, ArchiveMetadata? metadata, bool leaveOpen, ArchiveOptions options)
+    /// <param name="solidBlockEntry">Information about the solid block, if this is a solid archive. Null otherwise.</param>
+    internal ReadableArchive(Stream? archiveStream, List<ArchiveEntry> entries, ArchiveMetadata? metadata, bool leaveOpen, ArchiveOptions options, FileArchiveEntry? solidBlockEntry = null)
     {
         _archiveStream = archiveStream;
         _entries = entries ?? throw new ArgumentNullException(nameof(entries));
         Metadata = metadata;
         _leaveOpen = leaveOpen;
         _options = options ?? throw new ArgumentNullException(nameof(options));
+
+        _solidBlockEntry = solidBlockEntry;
+        _isSolid = _solidBlockEntry != null;
 
         // Associate the archive with each entry (if ArchiveEntry has the property)
         // foreach (var entry in _entries) { entry.Archive = this; }
@@ -598,5 +608,100 @@ internal class ReadableArchive : IReadableArchive
     ~ReadableArchive()
     {
         Dispose(false);
+    }
+
+    // Helper method to ensure the solid block is decompressed only once
+    private async Task<MemoryStream> GetDecompressedSolidStreamAsync(CancellationToken cancellationToken)
+    {
+        if (!_isSolid || _solidBlockEntry == null || _archiveStream == null)
+        {
+            throw new InvalidOperationException("Cannot get decompressed stream for a non-solid archive.");
+        }
+
+        // Double-checked locking for thread safety
+        if (_decompressedSolidStream == null)
+        {
+            lock (_solidStreamLock)
+            {
+                if (_decompressedSolidStream == null)
+                {
+                    // Decompress/decrypt the entire solid block into memory
+                    _decompressedSolidStream = new MemoryStream((int)_solidBlockEntry.UncompressedSize); // Pre-allocate capacity
+
+                    // --- Decompression/Decryption Pipeline (Similar to ExtractEntryToStreamAsync) ---
+                    _archiveStream.Position = _solidBlockEntry.DataOffset;
+                    Stream streamToReadFrom = new SubStream(_archiveStream, _solidBlockEntry.DataOffset, _solidBlockEntry.CompressedSize, true);
+                    List<IDisposable> processingStreams = new() { streamToReadFrom };
+                    bool needsDispose = true;
+                    try
+                    {
+                        // Decryption
+                        if ((_solidBlockEntry.Flags & FormatConstants.EntryHeaderFlags.IsEncrypted) != 0)
+                        {
+                           if (string.IsNullOrEmpty(_options.Encryption?.Password))
+                                throw new InvalidOperationException("Password required to decrypt solid block.");
+
+                           IEncryptionProvider decryptionProvider = ProviderFactory.GetEncryptionProvider(_options.Encryption.Algorithm, _options.StreamBufferSize);
+                           byte[] salt = ReadBytes(streamToReadFrom, AesEncryptionProviderBase.DefaultSaltSizeBytes);
+                           byte[] iv = ReadBytes(streamToReadFrom, AesEncryptionProviderBase.DefaultIvSizeBytes);
+                           byte[] key = DeriveKeyFromPassword(_options.Encryption.Password, salt, decryptionProvider is Aes256EncryptionProvider ? 256 : 128);
+                           using Aes aes = CreateAesInstance(decryptionProvider is Aes256EncryptionProvider ? 256 : 128);
+                           aes.Key = key; aes.IV = iv; aes.Mode = CipherMode.CBC; aes.Padding = PaddingMode.PKCS7;
+                           CryptoStream cryptoStream = new(streamToReadFrom, aes.CreateDecryptor(), CryptoStreamMode.Read, true);
+                           processingStreams.Add(cryptoStream);
+                           streamToReadFrom = cryptoStream;
+                        }
+
+                        // Decompression (Assuming Deflate for now - TODO: Check solid block flags/options)
+                        // Note: Solid archives typically use only one compression algorithm for the block
+                        if (_options.Compression?.Algorithm != CompressionAlgorithm.Store)
+                        {
+                            ICompressionProvider decompressionProvider = ProviderFactory.GetCompressionProvider(_options.Compression.Algorithm, _options.StreamBufferSize);
+                            DeflateStream decompressionStream = new(streamToReadFrom, CompressionMode.Decompress, true);
+                            processingStreams.Add(decompressionStream);
+                            streamToReadFrom = decompressionStream;
+                        }
+
+                        // Copy the fully processed stream to the memory stream
+                        // Using sync copy here because it's inside a lock
+                        streamToReadFrom.CopyTo(_decompressedSolidStream); 
+                        needsDispose = false; // Ownership transferred if successful
+                    }
+                    finally
+                    {
+                         if(needsDispose) _decompressedSolidStream.Dispose(); // Dispose memory stream on error
+                         // Dispose wrapper streams
+                         processingStreams.Reverse();
+                         foreach (IDisposable stream in processingStreams)
+                         {
+                            // We are inside a lock, avoid async dispose here for simplicity unless absolutely necessary
+                            // If underlying streams require async dispose, this needs restructuring.
+                            stream.Dispose(); 
+                         }
+                    }
+                    // --- End Pipeline ---
+
+                    _decompressedSolidStream.Position = 0; // Rewind for reading
+                }
+            }
+        }
+        return _decompressedSolidStream;
+    }
+
+    // Synchronous helper for ReadBytes within the lock
+    private byte[] ReadBytes(Stream stream, int count)
+    {
+        byte[] buffer = new byte[count];
+        int offset = 0;
+        while (offset < count)
+        {
+            int read = stream.Read(buffer, offset, count - offset);
+            if (read == 0)
+            {
+                throw new EndOfStreamException("Unexpected end of stream while reading solid block data.");
+            }
+            offset += read;
+        }
+        return buffer;
     }
 }
