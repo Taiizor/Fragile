@@ -1,3 +1,4 @@
+using Fragile.Encryption;
 using System;
 
 namespace Fragile.Models
@@ -48,6 +49,11 @@ namespace Fragile.Models
         public byte[]? Data { get; set; }
 
         /// <summary>
+        /// Is this entry encrypted?
+        /// </summary>
+        public bool IsEncrypted { get; set; }
+
+        /// <summary>
         /// Internal use: Header offsets
         /// </summary>
         internal long HeaderOffset { get; set; }
@@ -56,6 +62,11 @@ namespace Fragile.Models
         /// Internal use: Data offsets
         /// </summary>
         internal long PositionOffset { get; set; }
+
+        /// <summary>
+        /// Encryption method used for this entry
+        /// </summary>
+        public EncryptionMethod EncryptionMethod { get; set; } = EncryptionMethod.None;
 
         /// <summary>
         /// Calculates compression ratio

@@ -559,12 +559,50 @@ namespace Fragile.Core
                                         _options.Progress.Report(startPercentage + p * range));
                                 }
 
-                                // Compress the file
-                                entry.CompressedSize = await compressionProvider.CompressAsync(
-                                    fileStream, 
-                                    outputStream, 
-                                    fileProgress, 
-                                    _options.CancellationToken);
+                                // Check if encryption is enabled
+                                if (_options.EnableEncryption)
+                                {
+                                    // Create encryption provider
+                                    Encryption.EncryptionProvider encryptionProvider = Encryption.EncryptionProvider.Create(
+                                        _options.EncryptionMethod,
+                                        _options.Password);
+
+                                    // Set encryption properties on the entry
+                                    entry.IsEncrypted = true;
+                                    entry.EncryptionMethod = _options.EncryptionMethod;
+
+                                    // Compress first, then encrypt
+                                    using MemoryStream compressedStream = new();
+                                    
+                                    // Compress the file to temporary stream
+                                    await compressionProvider.CompressAsync(
+                                        fileStream, 
+                                        compressedStream, 
+                                        fileProgress, 
+                                        _options.CancellationToken);
+                                    
+                                    // Reset position for reading
+                                    compressedStream.Position = 0;
+                                    
+                                    // Encrypt the compressed data to the output
+                                    entry.CompressedSize = await encryptionProvider.EncryptAsync(
+                                        compressedStream, 
+                                        outputStream, 
+                                        fileProgress, 
+                                        _options.CancellationToken);
+                                }
+                                else
+                                {
+                                    // No encryption, just compress the file
+                                    entry.IsEncrypted = false;
+                                    entry.EncryptionMethod = Encryption.EncryptionMethod.None;
+                                    
+                                    entry.CompressedSize = await compressionProvider.CompressAsync(
+                                        fileStream, 
+                                        outputStream, 
+                                        fileProgress, 
+                                        _options.CancellationToken);
+                                }
                                 
                                 // Update compressed size
                                 outputStream.Position = sizePosition;
@@ -604,6 +642,17 @@ namespace Fragile.Core
                         writer.Write(entry.Size);
                         writer.Write(entry.CompressedSize);
                         writer.Write(entry.IsDirectory);
+                        
+                        // Write encryption info
+                        writer.Write(entry.IsEncrypted);
+                        if (entry.IsEncrypted)
+                        {
+                            writer.Write((byte)entry.EncryptionMethod);
+                        }
+                        else
+                        {
+                            writer.Write((byte)0); // No encryption method
+                        }
                     }
                 }
 
@@ -699,6 +748,25 @@ namespace Fragile.Core
                 throw new InvalidDataException($"Unsupported Fragile archive file version: {majorVersion}.{minorVersion}");
             }
 
+            // Read options flags
+            byte optionFlags = reader.ReadByte();
+            
+            // Extract encryption settings from flags
+            bool isEncrypted = (optionFlags & 0x01) != 0;
+            
+            // If archive is encrypted, make sure our options reflect that
+            if (isEncrypted)
+            {
+                _options.EnableEncryption = true;
+                
+                // Since we don't know the exact encryption method from the flags,
+                // we rely on the _options.EncryptionMethod that was passed in
+                // when opening the archive
+            }
+
+            // Read compression algorithm
+            byte compressionAlgorithm = reader.ReadByte();
+            
             // Entry count
             int entryCount = reader.ReadInt32();
 
@@ -715,10 +783,60 @@ namespace Fragile.Core
                     CompressedSize = reader.ReadInt64(),
                     LastModified = DateTime.FromBinary(reader.ReadInt64()),
                     IsDirectory = reader.ReadBoolean(),
-                    Position = reader.ReadInt64()
+                    Position = reader.ReadInt64(),
+                    // Only set the initial encryption state based on archive options
+                    // The actual per-entry encryption state will be read later from the central directory
+                    IsEncrypted = isEncrypted,
+                    EncryptionMethod = isEncrypted ? _options.EncryptionMethod : Encryption.EncryptionMethod.None
                 };
 
                 _entries[entry.Path] = entry;
+            }
+            
+            // Read central directory
+            _fileStream!.Position = dataPosition;
+            
+            // Update each entry with its specific encryption details from the central directory
+            for (int i = 0; i < entryCount; i++)
+            {
+                string path = reader.ReadString();
+                
+                if (!_entries.TryGetValue(path, out var entry))
+                {
+                    // Skip this entry if not found (shouldn't happen)
+                    reader.ReadInt64(); // HeaderOffset
+                    reader.ReadInt64(); // PositionOffset
+                    reader.ReadInt64(); // Size
+                    reader.ReadInt64(); // CompressedSize
+                    reader.ReadBoolean(); // IsDirectory
+                    reader.ReadBoolean(); // IsEncrypted
+                    reader.ReadByte(); // EncryptionMethod
+                    continue;
+                }
+                
+                // Update entry properties from central directory
+                entry.HeaderOffset = reader.ReadInt64();
+                entry.PositionOffset = reader.ReadInt64();
+                // Size and CompressedSize already set
+                reader.ReadInt64(); // Size (skip)
+                reader.ReadInt64(); // CompressedSize (skip)
+                // IsDirectory already set
+                reader.ReadBoolean(); // IsDirectory (skip)
+                
+                // Read encryption info
+                bool isEntryEncrypted = reader.ReadBoolean();
+                byte encryptionMethodByte = reader.ReadByte();
+                
+                // Update entry encryption info
+                entry.IsEncrypted = isEntryEncrypted;
+                if (isEntryEncrypted)
+                {
+                    entry.EncryptionMethod = (Encryption.EncryptionMethod)encryptionMethodByte;
+                }
+                else
+                {
+                    entry.EncryptionMethod = Encryption.EncryptionMethod.None;
+                }
             }
         }
 
@@ -810,12 +928,65 @@ namespace Fragile.Core
                     _options.UseParallelProcessing,
                     _options.MaxThreads);
                 
-                // Decompress the data
-                await compressionProvider.DecompressAsync(
-                    compressedStream, 
-                    outputFile, 
-                    _options.Progress, 
-                    _options.CancellationToken);
+                // Check if the entry is encrypted
+                bool isEncrypted = entry.IsEncrypted;
+                
+                // If entry is encrypted but no password is provided, throw an exception
+                if (isEncrypted && string.IsNullOrEmpty(_options.Password))
+                {
+                    throw new InvalidOperationException($"Entry {entry.Path} is encrypted but no password was provided. Set the Password property in FragileOptions.");
+                }
+                
+                // If entry is encrypted but EnableEncryption is false, still attempt to decrypt
+                // using the provided encryption method and password
+                if (isEncrypted && !_options.EnableEncryption)
+                {
+                    _options.EnableEncryption = true;
+                    
+                    // If the encryption method is not set in options, use the one from the entry
+                    if (_options.EncryptionMethod == Encryption.EncryptionMethod.None)
+                    {
+                        _options.EncryptionMethod = entry.EncryptionMethod;
+                    }
+                }
+                
+                if (isEncrypted && _options.EnableEncryption)
+                {
+                    // Create encryption provider for decryption
+                    Encryption.EncryptionProvider encryptionProvider = Encryption.EncryptionProvider.Create(
+                        entry.EncryptionMethod != Encryption.EncryptionMethod.None ? 
+                            entry.EncryptionMethod : _options.EncryptionMethod, 
+                        _options.Password);
+                    
+                    // First decrypt, then decompress
+                    using MemoryStream decryptedStream = new();
+                    
+                    // Decrypt the data
+                    await encryptionProvider.DecryptAsync(
+                        compressedStream, 
+                        decryptedStream, 
+                        _options.Progress, 
+                        _options.CancellationToken);
+                    
+                    // Reset position for reading
+                    decryptedStream.Position = 0;
+                    
+                    // Decompress the decrypted data
+                    await compressionProvider.DecompressAsync(
+                        decryptedStream, 
+                        outputFile, 
+                        _options.Progress, 
+                        _options.CancellationToken);
+                }
+                else
+                {
+                    // No encryption, just decompress the data
+                    await compressionProvider.DecompressAsync(
+                        compressedStream, 
+                        outputFile, 
+                        _options.Progress, 
+                        _options.CancellationToken);
+                }
             }
             catch (Exception)
             {

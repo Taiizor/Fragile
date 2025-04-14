@@ -141,6 +141,52 @@ namespace Fragile.Core
                     }
                 }
             }
+
+            // After combining is done, if encryption is enabled, encrypt the entire output file
+            if (_options.EnableEncryption && !string.IsNullOrEmpty(_options.Password))
+            {
+                // Get current file position to remember the file size
+                long fileSize = outputStream.Length;
+                
+                // Reset output stream for reading
+                outputStream.Position = 0;
+                
+                // Create a temporary file for encrypted output
+                string tempEncryptedFile = Path.GetTempFileName();
+                using FileStream encryptedOutput = new(tempEncryptedFile, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+                
+                try
+                {
+                    // Create encryption provider
+                    Encryption.EncryptionProvider encryptionProvider = Encryption.EncryptionProvider.Create(
+                        _options.EncryptionMethod,
+                        _options.Password);
+                    
+                    // Encrypt the combined file
+                    await encryptionProvider.EncryptAsync(
+                        outputStream, 
+                        encryptedOutput, 
+                        progress, 
+                        cancellationToken);
+                    
+                    // Close streams
+                    outputStream.Close();
+                    encryptedOutput.Close();
+                    
+                    // Replace the original file with encrypted one
+                    File.Delete(outputPath);
+                    File.Move(tempEncryptedFile, outputPath);
+                }
+                catch
+                {
+                    // Cleanup on error
+                    if (File.Exists(tempEncryptedFile))
+                    {
+                        File.Delete(tempEncryptedFile);
+                    }
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -216,6 +262,60 @@ namespace Fragile.Core
             
             // Ensure we report 100% completion
             progress?.Report(1.0);
+            
+            // After parallel combination is done, if encryption is enabled, encrypt the entire output file
+            if (_options.EnableEncryption && !string.IsNullOrEmpty(_options.Password))
+            {
+                // Need to close and reopen output stream for reading/writing
+                long fileSize = outputStream.Length;
+                outputStream.Flush();
+                
+                // Create a temporary file for encrypted output
+                string tempEncryptedFile = Path.GetTempFileName();
+                
+                try
+                {
+                    // Reopen output stream for reading
+                    outputStream.Position = 0;
+                    
+                    using FileStream encryptedOutput = new(tempEncryptedFile, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+                    
+                    // Create encryption provider
+                    Encryption.EncryptionProvider encryptionProvider = Encryption.EncryptionProvider.Create(
+                        _options.EncryptionMethod,
+                        _options.Password);
+                    
+                    // Encrypt the combined file
+                    await encryptionProvider.EncryptAsync(
+                        outputStream, 
+                        encryptedOutput, 
+                        new Progress<double>(p => progress?.Report(0.5 + p * 0.5)), // Scale progress from 50% to 100%
+                        cancellationToken);
+                    
+                    // Close streams
+                    encryptedOutput.Close();
+                    outputStream.Close();
+                    
+                    // Determine the full path of the output
+                    string fullOutputPath = (outputStream as FileStream)?.Name;
+                    
+                    if (!string.IsNullOrEmpty(fullOutputPath))
+                    {
+                        // Replace the original file with encrypted one
+                        File.Delete(fullOutputPath);
+                        File.Move(tempEncryptedFile, fullOutputPath);
+                    }
+                }
+                catch
+                {
+                    // Cleanup on error
+                    if (File.Exists(tempEncryptedFile))
+                    {
+                        File.Delete(tempEncryptedFile);
+                    }
+                    throw;
+                }
+            }
         }
 
         /// <summary>
