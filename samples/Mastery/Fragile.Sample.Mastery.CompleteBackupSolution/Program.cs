@@ -56,7 +56,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 BackupResult backupResult = await PerformFullBackup(_settings, cts.Token);
 
                 // Display backup summary
-                DisplayBackupSummary(backupResult);
+                backupResult.DisplayBackupSummary();
 
                 // Verify the backup
                 Console.WriteLine("\nVerifying backup integrity...");
