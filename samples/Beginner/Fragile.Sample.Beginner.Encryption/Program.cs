@@ -29,6 +29,8 @@ namespace Fragile.Sample.Beginner.Encryption
             // Create encrypted archives using different methods
             await CreateEncryptedArchive(sampleDir, "aes128_encrypted.frgl", password, EncryptionMethod.AES128);
             await CreateEncryptedArchive(sampleDir, "aes256_encrypted.frgl", password, EncryptionMethod.AES256);
+            await CreateEncryptedArchive(sampleDir, "chacha20_encrypted.frgl", password, EncryptionMethod.ChaCha20);
+            await CreateEncryptedArchive(sampleDir, "twofish_encrypted.frgl", password, EncryptionMethod.Twofish);
 
             // Try to extract with correct password
             Console.WriteLine("\nExtracting with correct password:");
