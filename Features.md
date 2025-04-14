@@ -20,7 +20,7 @@ Fragile is a custom file archiving library for .NET that provides advanced featu
   - Store (no compression)
   - Deflate (standard compression compatible with ZIP)
   
-  > **Note**: LZMA, BZip2, ZStd, and LZ4 are defined in the enum but not currently implemented.
+  > **Note**: LZMA, BZip2, ZStd and LZ4 are defined in the enum but not currently implemented.
 
 - **Compression Options**:
   - Adjustable compression levels (Fastest, Fast, Normal, High, Ultra)
