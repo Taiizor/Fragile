@@ -1,5 +1,6 @@
 using Fragile.Core;
 using Fragile.Core.Enums;
+using Fragile.Core.Format;
 using Fragile.Core.Metadata;
 using Fragile.Core.Options;
 using Fragile.Implementations.Providers.Encryption;
@@ -205,11 +206,51 @@ internal class ReadableArchive : IReadableArchive
                 }
             }
 
-            // TODO: Implement Checksum Verification if needed.
-            // This would involve reading the checksum data after the compressed data
-            // (using fileEntry.DataOffset + fileEntry.CompressedSize as the starting point)
-            // and comparing it against a checksum computed from the *destination* stream.
-            // This requires the destination stream to be readable and seekable, or buffering.
+            // --- Checksum Verification --- 
+            if ((effectiveOptions.Checksum?.VerifyOnExtract ?? true) && 
+                (fileEntry.Flags & FormatConstants.EntryHeaderFlags.HasChecksum) != 0 &&
+                effectiveOptions.Checksum?.Algorithm != ChecksumAlgorithm.None)
+            {
+                IChecksumProvider? checksumProvider = null;
+                try
+                {
+                    checksumProvider = ProviderFactory.GetChecksumProvider(effectiveOptions.Checksum.Algorithm, bufferSize);
+                    if (checksumProvider is IDisposable disposableChecksum) disposableProviders.Add(disposableChecksum);
+
+                    // Position the archive stream right after the entry data to read the stored checksum
+                    _archiveStream.Position = fileEntry.DataOffset + fileEntry.CompressedSize;
+                    byte[] expectedChecksum = await ReadBytesAsync(_archiveStream, checksumProvider.ChecksumLengthBytes, cancellationToken).ConfigureAwait(false);
+
+                    // Verify against the actual extracted data in the destination stream
+                    if (!destination.CanRead || !destination.CanSeek)
+                    {
+                        // Cannot verify checksum if destination stream is not readable/seekable.
+                        // Log a warning or throw an exception based on desired behavior.
+                         System.Diagnostics.Debug.WriteLine($"Warning: Cannot verify checksum for entry '{entry.FullPath}' because the destination stream is not readable or seekable.");
+                    }
+                    else
+                    {
+                         long originalDestPosition = destination.Position;
+                         destination.Position = 0; // Rewind destination stream to calculate checksum
+                         byte[] actualChecksum = await checksumProvider.ComputeChecksumAsync(destination, effectiveOptions.Checksum, cancellationToken).ConfigureAwait(false);
+                         destination.Position = originalDestPosition; // Restore original position
+
+                         if (!actualChecksum.SequenceEqual(expectedChecksum))
+                         { 
+                             // Consider more robust error handling, maybe deleting the corrupted output?
+                             throw new InvalidDataException($"Checksum mismatch for extracted entry: {entry.FullPath}");
+                         }
+                    }
+                }
+                catch (Exception ex) when (ex is NotSupportedException || ex is IOException || ex is EndOfStreamException)
+                {
+                    // Log or handle errors during checksum provider creation or reading
+                     System.Diagnostics.Debug.WriteLine($"Error during checksum verification for entry '{entry.FullPath}': {ex.Message}");
+                    // Potentially re-throw or handle as a verification failure
+                    throw new InvalidOperationException("Checksum verification failed.", ex); 
+                }
+                // Provider disposal is handled in the outer finally block
+            }
 
         }
         finally

@@ -1,4 +1,6 @@
 using Fragile.Core.Metadata;
+using System.IO;
+using Fragile.Core.Format;
 
 namespace Fragile.Core;
 
@@ -115,6 +117,11 @@ public class FileArchiveEntry : ArchiveEntry
     /// Value is 0 if the entry has no metadata.
     /// </summary>
     internal long MetadataLength { get; set; }
+
+    /// <summary>
+    /// Gets the flags associated with this entry, read from the entry header.
+    /// </summary>
+    internal FormatConstants.EntryHeaderFlags Flags { get; set; }
 
     internal FileArchiveEntry(string fullPath) : base(fullPath)
     {

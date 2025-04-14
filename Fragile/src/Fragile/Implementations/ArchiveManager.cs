@@ -486,11 +486,12 @@ public class ArchiveManager : IArchiveManager
                 }
                 else
                 {
-                    FileArchiveEntry fileEntry = new(relativePath)
+                    var fileEntry = new FileArchiveEntry(relativePath)
                     {
                         DataOffset = entryDataOffset,
                         MetadataOffset = metadataOffset,
                         MetadataLength = headerMetadataLength,
+                        Flags = entryFlags // Assign the read flags
                     };
                     entry = fileEntry;
                     entry.Metadata = fileMetadata; // Assign potentially populated or placeholder metadata
@@ -927,11 +928,12 @@ public class ArchiveManager : IArchiveManager
                 }
                 else
                 {
-                    FileArchiveEntry fileEntry = new(relativePath)
+                    var fileEntry = new FileArchiveEntry(relativePath)
                     {
                         DataOffset = entryDataOffset,
                         MetadataOffset = metadataOffset,
                         MetadataLength = headerMetadataLength,
+                        Flags = entryFlags // Assign the read flags
                     };
                     entry = fileEntry;
                     entry.Metadata = fileMetadata; // Assign potentially populated or placeholder metadata
