@@ -1,4 +1,5 @@
 using Fragile.Compression;
+using Fragile.Encryption;
 using Fragile.ErrorCorrection;
 using Fragile.Metadata;
 using Fragile.Models;
@@ -619,7 +620,7 @@ namespace Fragile.Core
                                 if (_options.EnableEncryption)
                                 {
                                     // Create encryption provider
-                                    Encryption.EncryptionProvider encryptionProvider = Encryption.EncryptionProvider.Create(
+                                    EncryptionProvider encryptionProvider = EncryptionProvider.Create(
                                         _options.EncryptionMethod,
                                         _options.Password);
 
@@ -651,7 +652,7 @@ namespace Fragile.Core
                                 {
                                     // No encryption, just compress the file
                                     entry.IsEncrypted = false;
-                                    entry.EncryptionMethod = Encryption.EncryptionMethod.None;
+                                    entry.EncryptionMethod = EncryptionMethod.None;
 
                                     entry.CompressedSize = await compressionProvider.CompressAsync(
                                         fileStream,
@@ -912,7 +913,7 @@ namespace Fragile.Core
                     // Only set the initial encryption state based on archive options
                     // The actual per-entry encryption state will be read later from the central directory
                     IsEncrypted = isEncrypted,
-                    EncryptionMethod = isEncrypted ? _options.EncryptionMethod : Encryption.EncryptionMethod.None
+                    EncryptionMethod = isEncrypted ? _options.EncryptionMethod : EncryptionMethod.None
                 };
 
                 _entries[entry.Path] = entry;
@@ -956,11 +957,11 @@ namespace Fragile.Core
                 entry.IsEncrypted = isEntryEncrypted;
                 if (isEntryEncrypted)
                 {
-                    entry.EncryptionMethod = (Encryption.EncryptionMethod)encryptionMethodByte;
+                    entry.EncryptionMethod = (EncryptionMethod)encryptionMethodByte;
                 }
                 else
                 {
-                    entry.EncryptionMethod = Encryption.EncryptionMethod.None;
+                    entry.EncryptionMethod = EncryptionMethod.None;
                 }
             }
 
@@ -1121,7 +1122,7 @@ namespace Fragile.Core
                     _options.EnableEncryption = true;
 
                     // If the encryption method is not set in options, use the one from the entry
-                    if (_options.EncryptionMethod == Encryption.EncryptionMethod.None)
+                    if (_options.EncryptionMethod == EncryptionMethod.None)
                     {
                         _options.EncryptionMethod = entry.EncryptionMethod;
                     }
@@ -1130,8 +1131,8 @@ namespace Fragile.Core
                 if (isEncrypted && _options.EnableEncryption)
                 {
                     // Create encryption provider for decryption
-                    Encryption.EncryptionProvider encryptionProvider = Encryption.EncryptionProvider.Create(
-                        entry.EncryptionMethod != Encryption.EncryptionMethod.None ?
+                    EncryptionProvider encryptionProvider = EncryptionProvider.Create(
+                        entry.EncryptionMethod != EncryptionMethod.None ?
                             entry.EncryptionMethod : _options.EncryptionMethod,
                         _options.Password);
 
