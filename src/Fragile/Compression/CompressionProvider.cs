@@ -30,7 +30,7 @@ namespace Fragile.Compression
         /// </summary>
         /// <param name="useParallelProcessing">Whether to use parallel processing</param>
         /// <param name="maxThreads">Maximum number of threads to use</param>
-        protected CompressionProvider(bool useParallelProcessing = true, int maxThreads = 4)
+        protected CompressionProvider(bool useParallelProcessing = true, int maxThreads = 1)
         {
             UseParallelProcessing = useParallelProcessing;
             MaxThreads = maxThreads;
