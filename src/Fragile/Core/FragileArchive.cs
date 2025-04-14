@@ -596,7 +596,8 @@ namespace Fragile.Core
 
                         // Write data
                         if (entry.Data != null)
-                        {                             // Write data from memory
+                        {
+                            // Write data from memory
                             entry.CompressedSize = entry.Data.Length; // Assume data in memory is already compressed/processed
                             await outputStream.WriteAsync(entry.Data, 0, entry.Data.Length);
                         }
@@ -610,9 +611,55 @@ namespace Fragile.Core
                                 _options.CompressionLevel,
                                 _options.UseParallelProcessing,
                                 _options.MaxThreads);
-                            // ... (rest of the compression/encryption logic remains largely the same)
-                            // Make sure entry.CompressedSize is calculated correctly here
-                            // ...
+
+                            // --- BEGIN RE-INSERTED COMPRESSION/ENCRYPTION LOGIC ---
+                            if (_options.EnableEncryption)
+                            {
+                                // Create encryption provider
+                                EncryptionProvider encryptionProvider = EncryptionProvider.Create(
+                                    _options.EncryptionMethod,
+                                    _options.Password);
+
+                                // Set encryption properties on the entry
+                                entry.IsEncrypted = true;
+                                entry.EncryptionMethod = _options.EncryptionMethod;
+
+                                // Compress first, then encrypt
+                                using MemoryStream compressedStream = new();
+
+                                // Compress the file to temporary stream
+                                await compressionProvider.CompressAsync(
+                                    fileStream,
+                                    compressedStream,
+                                    _options.Progress, // Assuming Progress<double> is handled correctly
+                                    _options.CancellationToken);
+
+                                // Reset position for reading
+                                compressedStream.Position = 0;
+
+                                // Encrypt the compressed data to the output
+                                await encryptionProvider.EncryptAsync(
+                                    compressedStream,
+                                    outputStream,
+                                    _options.Progress, // Assuming Progress<double> is handled correctly
+                                    _options.CancellationToken);
+                            }
+                            else
+                            {
+                                // No encryption, just compress the file
+                                entry.IsEncrypted = false;
+                                entry.EncryptionMethod = EncryptionMethod.None;
+
+                                await compressionProvider.CompressAsync(
+                                    fileStream,
+                                    outputStream,
+                                    _options.Progress, // Assuming Progress<double> is handled correctly
+                                    _options.CancellationToken);
+                            }
+                            // Ensure data is written before calculating size based on position
+                            await outputStream.FlushAsync(_options.CancellationToken);
+                            // --- END RE-INSERTED COMPRESSION/ENCRYPTION LOGIC ---
+
                             // After compression/encryption:
                             entry.CompressedSize = outputStream.Position - fileDataStartPosition; // Calculate actual compressed size written
                         }
