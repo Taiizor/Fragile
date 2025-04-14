@@ -2,10 +2,6 @@ using Fragile.Core;
 using Fragile.Core.Events;
 using Fragile.Core.Metadata;
 using Fragile.Core.Options;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Interfaces;
 
@@ -159,6 +155,30 @@ public interface IReadableArchive : IDisposable, IAsyncDisposable
     /// <param name="entryPath">The full path of the entry to retrieve (case-insensitive, uses '/' as separator).</param>
     /// <returns>The <see cref="ArchiveEntry"/> if found; otherwise, null.</returns>
     ArchiveEntry? GetEntry(string entryPath);
+
+    /// <summary>
+    /// Extracts the content of the specified file entry to the given stream asynchronously.
+    /// </summary>
+    /// <param name="entry">The file entry to extract. Must be a FileArchiveEntry.</param>
+    /// <param name="destination">The stream to write the entry's content to.</param>
+    /// <param name="options">Options potentially needed for extraction (e.g., password for decryption, checksum verification). If null, options used to open the archive might be assumed, or defaults used.</param>
+    /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+    /// <returns>A task representing the asynchronous extraction operation.</returns>
+    /// <exception cref="ArgumentException">Thrown if the entry is not a FileArchiveEntry.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if extraction requires options (like a password) that are not provided.</exception>
+    Task ExtractEntryToStreamAsync(ArchiveEntry entry, Stream destination, ArchiveOptions? options = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads and deserializes the FileMetadata for the specified file entry asynchronously, 
+    /// using the offset stored in the entry.
+    /// </summary>
+    /// <param name="entry">The file entry whose metadata is to be read. Must be a FileArchiveEntry.</param>
+    /// <param name="options">Options potentially needed for reading metadata (e.g., password if metadata is encrypted). If null, options used to open the archive might be assumed.</param>
+    /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+    /// <returns>A task representing the asynchronous operation, yielding the deserialized FileMetadata, or null if the entry has no metadata or an error occurs.</returns>
+    /// <exception cref="ArgumentException">Thrown if the entry is not a FileArchiveEntry.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the underlying stream is unavailable or metadata requires options (like a password) that are not provided.</exception>
+    Task<FileMetadata?> ReadEntryMetadataAsync(ArchiveEntry entry, ArchiveOptions? options = null, CancellationToken cancellationToken = default);
 
     // Potentially add methods for seeking entries if needed
 }

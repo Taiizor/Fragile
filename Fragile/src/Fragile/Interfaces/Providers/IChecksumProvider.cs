@@ -1,7 +1,4 @@
 using Fragile.Core.Options;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Interfaces.Providers;
 
@@ -38,4 +35,4 @@ public interface IChecksumProvider
     /// Gets the expected length (in bytes) of the checksum produced by this provider's algorithm.
     /// </summary>
     int ChecksumLengthBytes { get; }
-} 
+}

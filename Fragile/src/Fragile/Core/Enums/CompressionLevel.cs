@@ -29,4 +29,4 @@ public enum CompressionLevel
     /// Slowest compression speed, highest compression ratio.
     /// </summary>
     Ultra = 4
-} 
+}

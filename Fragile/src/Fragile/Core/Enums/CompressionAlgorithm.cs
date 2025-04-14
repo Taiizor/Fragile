@@ -21,7 +21,7 @@ public enum CompressionAlgorithm
     /// <summary>
     /// LZMA (Lempel–Ziv–Markov chain algorithm). (Not Implemented)
     /// </summary>
-    Lzma = 2, 
+    Lzma = 2,
 
     /// <summary>
     /// BZip2 algorithm. (Not Implemented)
@@ -37,4 +37,4 @@ public enum CompressionAlgorithm
     /// LZ4 algorithm. (Not Implemented)
     /// </summary>
     Lz4 = 5
-} 
+}

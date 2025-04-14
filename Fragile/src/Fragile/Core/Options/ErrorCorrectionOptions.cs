@@ -40,4 +40,4 @@ public class ErrorCorrectionOptions
     // Potential future options:
     // public int? CustomRedundancyPercentage { get; set; } // Allow finer control than levels?
     // public ErrorCorrectionAlgorithm Algorithm { get; set; } // If more than Reed-Solomon is supported later.
-} 
+}

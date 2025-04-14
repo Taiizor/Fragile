@@ -33,4 +33,4 @@ public enum ErrorCorrectionLevel
     /// Maximum level of error correction (e.g., ~50% redundancy or more, implementation defined).
     /// </summary>
     Maximum = 4
-} 
+}

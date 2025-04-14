@@ -1,9 +1,5 @@
 using Fragile.Core.Options;
 using Fragile.Interfaces.Providers;
-using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Implementations.Providers.Checksum;
 
@@ -34,9 +30,13 @@ internal class Crc32ChecksumProvider : IChecksumProvider
             for (int j = 0; j < 8; j++)
             {
                 if ((entry & 1) == 1)
+                {
                     entry = (entry >> 1) ^ Polynomial;
+                }
                 else
+                {
                     entry = entry >> 1;
+                }
             }
             createTable[i] = entry;
         }
@@ -52,7 +52,10 @@ internal class Crc32ChecksumProvider : IChecksumProvider
         // Store initial position and ensure stream is seekable if we need to reset
         long initialPosition = -1;
         bool canSeek = source.CanSeek;
-        if (canSeek) initialPosition = source.Position;
+        if (canSeek)
+        {
+            initialPosition = source.Position;
+        }
 
         try
         {
@@ -85,7 +88,10 @@ internal class Crc32ChecksumProvider : IChecksumProvider
 
         long initialPosition = -1;
         bool canSeek = source.CanSeek;
-        if (canSeek) initialPosition = source.Position;
+        if (canSeek)
+        {
+            initialPosition = source.Position;
+        }
 
         try
         {
@@ -104,8 +110,8 @@ internal class Crc32ChecksumProvider : IChecksumProvider
                 source.Position = initialPosition;
             }
         }
-        
+
         crc ^= 0xFFFFFFFFu;
         return BitConverter.GetBytes(crc);
     }
-} 
+}

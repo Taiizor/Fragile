@@ -1,7 +1,4 @@
 using Fragile.Core.Options;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Interfaces.Providers;
 
@@ -49,4 +46,4 @@ public interface ICompressionProvider
 
     // Optional: A property to indicate if parallel processing is supported by this provider
     // bool SupportsParallelProcessing { get; }
-} 
+}

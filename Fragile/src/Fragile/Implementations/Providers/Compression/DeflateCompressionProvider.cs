@@ -1,10 +1,6 @@
-using Fragile.Core.Enums;
 using Fragile.Core.Options;
 using Fragile.Interfaces.Providers;
-using System.IO;
 using System.IO.Compression;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Implementations.Providers.Compression;
 
@@ -22,40 +18,32 @@ internal class DeflateCompressionProvider : ICompressionProvider
 
     public async Task CompressAsync(Stream source, Stream target, CompressionOptions options, CancellationToken cancellationToken = default)
     {
-        var compressionLevel = MapCompressionLevel(options.Level);
+        System.IO.Compression.CompressionLevel compressionLevel = MapCompressionLevel(options.Level);
         // DeflateStream needs to be disposed to flush final blocks.
         // leaveOpen: true ensures the target stream is not closed when DeflateStream is disposed.
-        using (var deflateStream = new DeflateStream(target, compressionLevel, leaveOpen: true))
-        {
-            await source.CopyToAsync(deflateStream, _bufferSize, cancellationToken).ConfigureAwait(false);
-        }
+        using DeflateStream deflateStream = new(target, compressionLevel, leaveOpen: true);
+        await source.CopyToAsync(deflateStream, _bufferSize, cancellationToken).ConfigureAwait(false);
         // No need to FlushAsync explicitly on deflateStream as Dispose handles it.
     }
 
     public async Task DecompressAsync(Stream source, Stream target, CompressionOptions options, CancellationToken cancellationToken = default)
     {
         // leaveOpen: true ensures the source stream is not closed when DeflateStream is disposed.
-        using (var deflateStream = new DeflateStream(source, CompressionMode.Decompress, leaveOpen: true))
-        {
-            await deflateStream.CopyToAsync(target, _bufferSize, cancellationToken).ConfigureAwait(false);
-        }
+        using DeflateStream deflateStream = new(source, CompressionMode.Decompress, leaveOpen: true);
+        await deflateStream.CopyToAsync(target, _bufferSize, cancellationToken).ConfigureAwait(false);
     }
 
     public void Compress(Stream source, Stream target, CompressionOptions options)
     {
-        var compressionLevel = MapCompressionLevel(options.Level);
-        using (var deflateStream = new DeflateStream(target, compressionLevel, leaveOpen: true))
-        {
-            source.CopyTo(deflateStream, _bufferSize);
-        }
+        System.IO.Compression.CompressionLevel compressionLevel = MapCompressionLevel(options.Level);
+        using DeflateStream deflateStream = new(target, compressionLevel, leaveOpen: true);
+        source.CopyTo(deflateStream, _bufferSize);
     }
 
     public void Decompress(Stream source, Stream target, CompressionOptions options)
     {
-        using (var deflateStream = new DeflateStream(source, CompressionMode.Decompress, leaveOpen: true))
-        {
-            deflateStream.CopyTo(target, _bufferSize);
-        }
+        using DeflateStream deflateStream = new(source, CompressionMode.Decompress, leaveOpen: true);
+        deflateStream.CopyTo(target, _bufferSize);
     }
 
     /// <summary>
@@ -77,4 +65,4 @@ internal class DeflateCompressionProvider : ICompressionProvider
         // Note: DeflateStream doesn't have a direct equivalent for all levels, so we map to the closest.
         // System.IO.Compression.CompressionLevel.NoCompression exists but DeflateStream is specifically for compression.
     }
-} 
+}

@@ -2,10 +2,6 @@ using Fragile.Core.Events;
 using Fragile.Core.Options;
 using Fragile.Implementations;
 using Fragile.Interfaces;
-using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile;
 
@@ -16,7 +12,7 @@ namespace Fragile;
 public static class FragileArchive
 {
     // Lazily initialize the manager instance
-    private static readonly Lazy<IArchiveManager> _manager = new Lazy<IArchiveManager>(() => new ArchiveManager());
+    private static readonly Lazy<IArchiveManager> _manager = new(() => new ArchiveManager());
     private static IArchiveManager Manager => _manager.Value;
 
     /// <summary>
@@ -29,13 +25,13 @@ public static class FragileArchive
     /// <param name="cancellationToken">Token to monitor for cancellation requests (optional).</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public static Task CreateFromDirectoryAsync(
-        string sourceDirectoryPath, 
-        string archiveFilePath, 
+        string sourceDirectoryPath,
+        string archiveFilePath,
         ArchiveOptions? options = null,
-        IProgress<ProgressEventArgs>? progress = null, 
+        IProgress<ProgressEventArgs>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var archiveOptions = options ?? new ArchiveOptions(); // Use default options if null
+        ArchiveOptions archiveOptions = options ?? new ArchiveOptions(); // Use default options if null
         return Manager.CreateFromDirectoryAsync(sourceDirectoryPath, archiveFilePath, archiveOptions, progress, cancellationToken);
     }
 
@@ -48,13 +44,13 @@ public static class FragileArchive
     /// <param name="progress">Provider for progress updates (optional).</param>
     /// <param name="cancellationToken">Token to monitor for cancellation requests (optional).</param>
     public static void CreateFromDirectory(
-        string sourceDirectoryPath, 
-        string archiveFilePath, 
+        string sourceDirectoryPath,
+        string archiveFilePath,
         ArchiveOptions? options = null,
-        IProgress<ProgressEventArgs>? progress = null, 
+        IProgress<ProgressEventArgs>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var archiveOptions = options ?? new ArchiveOptions();
+        ArchiveOptions archiveOptions = options ?? new ArchiveOptions();
         Manager.CreateFromDirectory(sourceDirectoryPath, archiveFilePath, archiveOptions, progress, cancellationToken);
     }
 
@@ -68,13 +64,13 @@ public static class FragileArchive
     /// <param name="cancellationToken">Token to monitor for cancellation requests (optional).</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public static Task ExtractToDirectoryAsync(
-        string archiveFilePath, 
-        string destinationDirectoryPath, 
+        string archiveFilePath,
+        string destinationDirectoryPath,
         ArchiveOptions? options = null,
-        IProgress<ProgressEventArgs>? progress = null, 
+        IProgress<ProgressEventArgs>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var archiveOptions = options ?? new ArchiveOptions();
+        ArchiveOptions archiveOptions = options ?? new ArchiveOptions();
         return Manager.ExtractToDirectoryAsync(archiveFilePath, destinationDirectoryPath, archiveOptions, progress, cancellationToken);
     }
 
@@ -87,13 +83,13 @@ public static class FragileArchive
     /// <param name="progress">Provider for progress updates (optional).</param>
     /// <param name="cancellationToken">Token to monitor for cancellation requests (optional).</param>
     public static void ExtractToDirectory(
-        string archiveFilePath, 
-        string destinationDirectoryPath, 
+        string archiveFilePath,
+        string destinationDirectoryPath,
         ArchiveOptions? options = null,
-        IProgress<ProgressEventArgs>? progress = null, 
+        IProgress<ProgressEventArgs>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var archiveOptions = options ?? new ArchiveOptions();
+        ArchiveOptions archiveOptions = options ?? new ArchiveOptions();
         Manager.ExtractToDirectory(archiveFilePath, destinationDirectoryPath, archiveOptions, progress, cancellationToken);
     }
 
@@ -106,11 +102,11 @@ public static class FragileArchive
     /// <returns>A task representing the asynchronous operation, yielding a readable archive object.</returns>
     /// <remarks>The returned IReadableArchive should be disposed after use (e.g., using `await using`).</remarks>
     public static Task<IReadableArchive> OpenReadAsync(
-        string archiveFilePath, 
-        ArchiveOptions? options = null, 
+        string archiveFilePath,
+        ArchiveOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var archiveOptions = options ?? new ArchiveOptions();
+        ArchiveOptions archiveOptions = options ?? new ArchiveOptions();
         return Manager.OpenReadAsync(archiveFilePath, archiveOptions, cancellationToken);
     }
 
@@ -122,14 +118,14 @@ public static class FragileArchive
     /// <returns>A readable archive object.</returns>
     /// <remarks>The returned IReadableArchive should be disposed after use (e.g., using `using`).</remarks>
     public static IReadableArchive OpenRead(
-        string archiveFilePath, 
+        string archiveFilePath,
         ArchiveOptions? options = null)
     {
-        var archiveOptions = options ?? new ArchiveOptions();
+        ArchiveOptions archiveOptions = options ?? new ArchiveOptions();
         return Manager.OpenRead(archiveFilePath, archiveOptions);
     }
 
-     /// <summary>
+    /// <summary>
     /// Opens an archive from a stream for reading its entries asynchronously.
     /// </summary>
     /// <param name="archiveStream">The stream containing the archive data. The stream must be readable and seekable.</param>
@@ -139,12 +135,12 @@ public static class FragileArchive
     /// <returns>A task representing the asynchronous operation, yielding a readable archive object.</returns>
     /// <remarks>The returned IReadableArchive should be disposed after use (e.g., using `await using`).</remarks>
     public static Task<IReadableArchive> OpenReadAsync(
-        Stream archiveStream, 
-        ArchiveOptions? options = null, 
-        bool leaveOpen = false, 
+        Stream archiveStream,
+        ArchiveOptions? options = null,
+        bool leaveOpen = false,
         CancellationToken cancellationToken = default)
     {
-        var archiveOptions = options ?? new ArchiveOptions();
+        ArchiveOptions archiveOptions = options ?? new ArchiveOptions();
         return Manager.OpenReadAsync(archiveStream, archiveOptions, leaveOpen, cancellationToken);
     }
 
@@ -157,11 +153,11 @@ public static class FragileArchive
     /// <returns>A readable archive object.</returns>
     /// <remarks>The returned IReadableArchive should be disposed after use (e.g., using `using`).</remarks>
     public static IReadableArchive OpenRead(
-        Stream archiveStream, 
-        ArchiveOptions? options = null, 
+        Stream archiveStream,
+        ArchiveOptions? options = null,
         bool leaveOpen = false)
     {
-        var archiveOptions = options ?? new ArchiveOptions();
+        ArchiveOptions archiveOptions = options ?? new ArchiveOptions();
         return Manager.OpenRead(archiveStream, archiveOptions, leaveOpen);
     }
 
@@ -174,12 +170,12 @@ public static class FragileArchive
     /// <param name="cancellationToken">Token to monitor for cancellation requests (optional).</param>
     /// <returns>A task representing the asynchronous operation, yielding true if verification succeeds, false otherwise.</returns>
     public static Task<bool> VerifyArchiveAsync(
-        string archiveFilePath, 
-        ArchiveOptions? options = null, 
-        IProgress<ProgressEventArgs>? progress = null, 
+        string archiveFilePath,
+        ArchiveOptions? options = null,
+        IProgress<ProgressEventArgs>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var archiveOptions = options ?? new ArchiveOptions();
+        ArchiveOptions archiveOptions = options ?? new ArchiveOptions();
         return Manager.VerifyArchiveAsync(archiveFilePath, archiveOptions, progress, cancellationToken);
     }
 
@@ -192,12 +188,12 @@ public static class FragileArchive
     /// <param name="cancellationToken">Token to monitor for cancellation requests (optional).</param>
     /// <returns>True if verification succeeds, false otherwise.</returns>
     public static bool VerifyArchive(
-        string archiveFilePath, 
-        ArchiveOptions? options = null, 
-        IProgress<ProgressEventArgs>? progress = null, 
+        string archiveFilePath,
+        ArchiveOptions? options = null,
+        IProgress<ProgressEventArgs>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var archiveOptions = options ?? new ArchiveOptions();
+        ArchiveOptions archiveOptions = options ?? new ArchiveOptions();
         return Manager.VerifyArchive(archiveFilePath, archiveOptions, progress, cancellationToken);
     }
 
@@ -210,8 +206,6 @@ public static class FragileArchive
     /// separate IArchiveManager instances or using the IProgress parameter on individual methods.
     /// </remarks>
     public static event EventHandler<ProgressEventArgs>? GlobalProgressChanged
-    {
-        add { Manager.ProgressChanged += value; }
-        remove { Manager.ProgressChanged -= value; }
+    { add => Manager.ProgressChanged += value; remove => Manager.ProgressChanged -= value;
     }
-} 
+}

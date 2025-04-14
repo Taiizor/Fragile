@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace Fragile.Core.Metadata;
 
 /// <summary>
@@ -70,4 +68,4 @@ public class FileMetadata
     // public long UncompressedSize { get; set; }
     // public long CompressedSize { get; set; }
     // public string FileName { get; internal set; } // Usually part of the entry itself, not just metadata
-} 
+}

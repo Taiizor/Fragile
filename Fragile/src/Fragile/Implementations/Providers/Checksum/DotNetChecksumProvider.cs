@@ -1,10 +1,6 @@
 using Fragile.Core.Options;
 using Fragile.Interfaces.Providers;
-using System;
-using System.IO;
 using System.Security.Cryptography;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Implementations.Providers.Checksum;
 
@@ -32,12 +28,18 @@ internal class DotNetChecksumProvider : IChecksumProvider, IDisposable
 
     public async Task<byte[]> ComputeChecksumAsync(Stream source, ChecksumOptions options, CancellationToken cancellationToken = default)
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(DotNetChecksumProvider));
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(DotNetChecksumProvider));
+        }
 
         // Store initial position and ensure stream is seekable if we need to reset
         long initialPosition = -1;
         bool canSeek = source.CanSeek;
-        if (canSeek) initialPosition = source.Position;
+        if (canSeek)
+        {
+            initialPosition = source.Position;
+        }
 
         try
         {
@@ -58,11 +60,17 @@ internal class DotNetChecksumProvider : IChecksumProvider, IDisposable
 
     public byte[] ComputeChecksum(Stream source, ChecksumOptions options)
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(DotNetChecksumProvider));
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(DotNetChecksumProvider));
+        }
 
         long initialPosition = -1;
         bool canSeek = source.CanSeek;
-        if (canSeek) initialPosition = source.Position;
+        if (canSeek)
+        {
+            initialPosition = source.Position;
+        }
 
         try
         {
@@ -96,4 +104,4 @@ internal class DotNetChecksumProvider : IChecksumProvider, IDisposable
             _disposed = true;
         }
     }
-} 
+}

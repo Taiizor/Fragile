@@ -1,9 +1,5 @@
 using Fragile.Core.Options;
 using Fragile.Interfaces.Providers;
-using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Implementations.Providers.ErrorCorrection;
 
@@ -34,4 +30,4 @@ internal class NotImplementedErrorCorrectionProvider : IErrorCorrectionProvider
     {
         throw new NotImplementedException(ErrorMessage);
     }
-} 
+}

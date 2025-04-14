@@ -44,16 +44,24 @@ public class ProgressEventArgs : EventArgs
     /// <param name="statusMessage">A status message (optional).</param>
     public ProgressEventArgs(long bytesProcessed, long? totalBytes = null, string? currentFile = null, string? statusMessage = null)
     {
-        if (bytesProcessed < 0) 
+        if (bytesProcessed < 0)
+        {
             throw new ArgumentOutOfRangeException(nameof(bytesProcessed), "Bytes processed cannot be negative.");
+        }
+
         if (totalBytes.HasValue && totalBytes.Value < 0)
+        {
             throw new ArgumentOutOfRangeException(nameof(totalBytes), "Total bytes cannot be negative.");
+        }
+
         if (totalBytes.HasValue && bytesProcessed > totalBytes.Value)
+        {
             throw new ArgumentOutOfRangeException(nameof(bytesProcessed), "Bytes processed cannot exceed total bytes.");
-            
+        }
+
         BytesProcessed = bytesProcessed;
         TotalBytes = totalBytes;
         CurrentFile = currentFile;
         StatusMessage = statusMessage;
     }
-} 
+}

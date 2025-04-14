@@ -32,4 +32,4 @@ public enum EncryptionAlgorithm
     /// Twofish block cipher. (Not Implemented)
     /// </summary>
     Twofish = 4
-} 
+}

@@ -22,4 +22,4 @@ public class ChecksumOptions
     /// Disabling verification can speed up extraction but increases the risk of using corrupted data.
     /// </remarks>
     public bool VerifyOnExtract { get; set; } = true;
-} 
+}

@@ -41,4 +41,4 @@ public class CompressionOptions
     // Potential future options:
     // public long? SolidBlockSize { get; set; }
     // public Dictionary<string, string> AlgorithmSpecificParameters { get; set; } = new Dictionary<string, string>();
-} 
+}

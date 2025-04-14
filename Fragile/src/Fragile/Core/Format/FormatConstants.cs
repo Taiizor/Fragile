@@ -52,4 +52,4 @@ internal static class FormatConstants
     }
 
     // Other constants like block sizes, default settings related to format can go here.
-} 
+}

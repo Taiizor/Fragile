@@ -36,4 +36,4 @@ public enum ChecksumAlgorithm
     /// Secure Hash Algorithm 2 with a 512-bit digest.
     /// </summary>
     Sha512 = 5
-} 
+}

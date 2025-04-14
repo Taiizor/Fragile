@@ -1,7 +1,4 @@
 using Fragile.Core.Options;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Interfaces.Providers;
 
@@ -58,4 +55,4 @@ public interface IEncryptionProvider
     // Optional: Properties to indicate required key sizes or block sizes if needed
     // int RequiredKeySizeBits { get; }
     // int BlockSizeBits { get; } 
-} 
+}

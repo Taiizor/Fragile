@@ -1,8 +1,5 @@
 using Fragile.Core.Options;
 using Fragile.Interfaces.Providers;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Implementations.Providers.Compression;
 
@@ -40,4 +37,4 @@ internal class StoreCompressionProvider : ICompressionProvider
     {
         source.CopyTo(target, _bufferSize);
     }
-} 
+}

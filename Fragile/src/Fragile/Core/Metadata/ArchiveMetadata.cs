@@ -57,4 +57,4 @@ public class ArchiveMetadata
     // Internal/Format Specific - Usually not directly set by user but stored in archive header
     // internal int FormatVersion { get; set; }
     // internal Guid ArchiveId { get; set; }
-} 
+}

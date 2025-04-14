@@ -1,6 +1,3 @@
-using Fragile.Core.Options;
-using System.IO;
-
 namespace Fragile.Implementations.Providers.Encryption;
 
 /// <summary>
@@ -16,4 +13,4 @@ internal class Aes256EncryptionProvider : AesEncryptionProviderBase
     }
 
     // Inherits Encrypt/Decrypt/EncryptAsync/DecryptAsync logic from base class
-} 
+}

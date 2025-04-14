@@ -69,5 +69,5 @@ public class ArchiveOptions
     /// Gets or sets the buffer size used for stream operations (copying, compressing, etc.).
     /// Defaults to a sensible value (e.g., 81920 bytes, similar to Stream.CopyTo default).
     /// </summary>
-    public int StreamBufferSize { get; set; } = 81920; 
-} 
+    public int StreamBufferSize { get; set; } = 81920;
+}

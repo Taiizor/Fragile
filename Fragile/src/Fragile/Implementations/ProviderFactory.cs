@@ -1,11 +1,9 @@
 using Fragile.Core.Enums;
-using Fragile.Core.Options;
 using Fragile.Implementations.Providers.Checksum;
 using Fragile.Implementations.Providers.Compression;
 using Fragile.Implementations.Providers.Encryption;
 using Fragile.Implementations.Providers.ErrorCorrection;
 using Fragile.Interfaces.Providers;
-using System;
 using System.Security.Cryptography;
 
 namespace Fragile.Implementations;
@@ -90,7 +88,7 @@ internal static class ProviderFactory
         {
             // Perhaps return a specific 'Null' provider that does nothing?
             // For now, relying on caller to check options.Level.
-            throw new NotSupportedException("Cannot get an error correction provider for level 'None'."); 
+            throw new NotSupportedException("Cannot get an error correction provider for level 'None'.");
         }
         else
         {
@@ -106,4 +104,4 @@ internal static class ProviderFactory
             // };
         }
     }
-} 
+}

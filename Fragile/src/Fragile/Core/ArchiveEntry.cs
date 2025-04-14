@@ -1,5 +1,4 @@
 using Fragile.Core.Metadata;
-using System.IO;
 
 namespace Fragile.Core;
 
@@ -100,6 +99,23 @@ public class FileArchiveEntry : ArchiveEntry
 {
     public override bool IsDirectory => false;
 
+    /// <summary>
+    /// Gets the starting position (offset) of the entry's compressed data within the archive stream.
+    /// </summary>
+    internal long DataOffset { get; set; }
+
+    /// <summary>
+    /// Gets the starting position (offset) of the entry's FileMetadata block within the archive stream.
+    /// Value is 0 if the entry has no metadata.
+    /// </summary>
+    internal long MetadataOffset { get; set; }
+
+    /// <summary>
+    /// Gets the length of the entry's FileMetadata block in bytes.
+    /// Value is 0 if the entry has no metadata.
+    /// </summary>
+    internal long MetadataLength { get; set; }
+
     internal FileArchiveEntry(string fullPath) : base(fullPath)
     {
         if (fullPath.EndsWith("/"))
@@ -169,4 +185,4 @@ public class DirectoryArchiveEntry : ArchiveEntry
         // Extracting a directory to a stream doesn't typically make sense.
         throw new InvalidOperationException("Cannot extract a directory entry to a stream.");
     }
-} 
+}

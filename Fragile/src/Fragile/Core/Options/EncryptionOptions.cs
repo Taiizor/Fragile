@@ -35,4 +35,4 @@ public class EncryptionOptions
     // public byte[]? Salt { get; set; } // Allow specifying salt? Maybe not good practice.
     // public int Pbkdf2IterationCount { get; set; } = 600000; // OWASP recommendation (as of late 2023)
     // public KeyDerivationPrf Pbkdf2Prf { get; set; } = KeyDerivationPrf.HMACSHA256; // Default PRF for PBKDF2
-} 
+}

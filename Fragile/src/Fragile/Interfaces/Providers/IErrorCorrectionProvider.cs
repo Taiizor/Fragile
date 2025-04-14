@@ -1,7 +1,4 @@
 using Fragile.Core.Options;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Interfaces.Providers;
 
@@ -47,4 +44,4 @@ public interface IErrorCorrectionProvider
     /// <param name="options">Error correction options used during verification/repair.</param>
     /// <returns>True if the data is valid or successfully repaired, false otherwise.</returns>
     bool VerifyAndRepair(Stream sourceStream, Stream targetData, ErrorCorrectionOptions options);
-} 
+}
