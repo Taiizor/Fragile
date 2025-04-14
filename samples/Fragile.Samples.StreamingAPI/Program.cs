@@ -260,12 +260,6 @@ namespace Fragile.Samples.StreamingAPI
                     CompressionLevel = CompressionLevel.Normal
                 };
 
-                // İlerleme bildirimi için
-                Progress<double> archiveProgress = new(value =>
-                {
-                    Console.Write($"\rArşivleme: %{value * 100:F1}");
-                });
-
                 // Akış tabanlı arşivleme
                 using (FragileArchive archive = new(archivePath, FragileArchiveMode.Create, options))
                 {
@@ -300,12 +294,6 @@ namespace Fragile.Samples.StreamingAPI
                     Directory.Delete(extractDir, true);
                 }
                 Directory.CreateDirectory(extractDir);
-
-                // İlerleme bildirimi için
-                Progress<double> extractProgress = new(value =>
-                {
-                    Console.Write($"\rÇıkarma: %{value * 100:F1}");
-                });
 
                 // Akış tabanlı çıkarma
                 using (FragileArchive archive = new(archivePath, FragileArchiveMode.Read))
