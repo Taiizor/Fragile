@@ -15,67 +15,67 @@ namespace Fragile.Metadata
         /// </summary>
         [JsonPropertyName("created")]
         public DateTime CreationTime { get; set; } = DateTime.UtcNow;
-        
+
         /// <summary>
         /// Archive last modified date
         /// </summary>
         [JsonPropertyName("modified")]
         public DateTime LastModifiedTime { get; set; } = DateTime.UtcNow;
-        
+
         /// <summary>
         /// Archive creator name or application
         /// </summary>
         [JsonPropertyName("creator")]
         public string? Creator { get; set; } = "Fragile Library";
-        
+
         /// <summary>
         /// Archive title
         /// </summary>
         [JsonPropertyName("title")]
         public string? Title { get; set; }
-        
+
         /// <summary>
         /// Archive description
         /// </summary>
         [JsonPropertyName("description")]
         public string? Description { get; set; }
-        
+
         /// <summary>
         /// Archive author or owner
         /// </summary>
         [JsonPropertyName("author")]
         public string? Author { get; set; }
-        
+
         /// <summary>
         /// Archive version
         /// </summary>
         [JsonPropertyName("version")]
         public string? Version { get; set; }
-        
+
         /// <summary>
         /// Archive categories or tags
         /// </summary>
         [JsonPropertyName("tags")]
         public List<string> Tags { get; set; } = new List<string>();
-        
+
         /// <summary>
         /// Custom metadata dictionary for user-defined properties
         /// </summary>
         [JsonPropertyName("custom")]
         public Dictionary<string, string> CustomProperties { get; set; } = new Dictionary<string, string>();
-        
+
         /// <summary>
         /// Application-specific data
         /// </summary>
         [JsonPropertyName("app_data")]
         public Dictionary<string, string> ApplicationData { get; set; } = new Dictionary<string, string>();
-        
+
         /// <summary>
         /// Fragile library version used to create the archive
         /// </summary>
         [JsonPropertyName("library_version")]
         public string LibraryVersion { get; set; } = GetLibraryVersion();
-        
+
         /// <summary>
         /// Serializes metadata to JSON
         /// </summary>
@@ -88,7 +88,7 @@ namespace Fragile.Metadata
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             });
         }
-        
+
         /// <summary>
         /// Deserializes metadata from JSON
         /// </summary>
@@ -100,10 +100,10 @@ namespace Fragile.Metadata
             {
                 return new ArchiveMetadata();
             }
-            
+
             return JsonSerializer.Deserialize<ArchiveMetadata>(json) ?? new ArchiveMetadata();
         }
-        
+
         /// <summary>
         /// Adds a custom property
         /// </summary>
@@ -115,10 +115,10 @@ namespace Fragile.Metadata
             {
                 throw new ArgumentException("Property key cannot be null or empty", nameof(key));
             }
-            
+
             CustomProperties[key] = value;
         }
-        
+
         /// <summary>
         /// Gets a custom property value
         /// </summary>
@@ -130,10 +130,10 @@ namespace Fragile.Metadata
             {
                 return null;
             }
-            
+
             return CustomProperties.TryGetValue(key, out string? value) ? value : null;
         }
-        
+
         /// <summary>
         /// Adds an application-specific data item
         /// </summary>
@@ -145,10 +145,10 @@ namespace Fragile.Metadata
             {
                 throw new ArgumentException("Application data key cannot be null or empty", nameof(key));
             }
-            
+
             ApplicationData[key] = value;
         }
-        
+
         /// <summary>
         /// Gets the current Fragile library version
         /// </summary>
@@ -158,4 +158,4 @@ namespace Fragile.Metadata
             return typeof(ArchiveMetadata).Assembly.GetName().Version?.ToString() ?? "1.0.0";
         }
     }
-} 
+}

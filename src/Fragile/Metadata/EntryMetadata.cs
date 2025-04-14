@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -16,55 +15,55 @@ namespace Fragile.Metadata
         /// </summary>
         [JsonPropertyName("custom")]
         public Dictionary<string, string> CustomProperties { get; set; } = new Dictionary<string, string>();
-        
+
         /// <summary>
         /// Creation time of the file
         /// </summary>
         [JsonPropertyName("created")]
         public DateTime? CreationTime { get; set; }
-        
+
         /// <summary>
         /// Last access time of the file
         /// </summary>
         [JsonPropertyName("accessed")]
         public DateTime? LastAccessTime { get; set; }
-        
+
         /// <summary>
         /// File attributes
         /// </summary>
         [JsonPropertyName("attributes")]
         public string? Attributes { get; set; }
-        
+
         /// <summary>
         /// Original file owner
         /// </summary>
         [JsonPropertyName("owner")]
         public string? Owner { get; set; }
-        
+
         /// <summary>
         /// File group (on Unix-like systems)
         /// </summary>
         [JsonPropertyName("group")]
         public string? Group { get; set; }
-        
+
         /// <summary>
         /// MIME type of the file
         /// </summary>
         [JsonPropertyName("mime")]
         public string? MimeType { get; set; }
-        
+
         /// <summary>
         /// Tags for searching and categorization
         /// </summary>
         [JsonPropertyName("tags")]
         public List<string> Tags { get; set; } = new List<string>();
-        
+
         /// <summary>
         /// Comments about the file
         /// </summary>
         [JsonPropertyName("comment")]
         public string? Comment { get; set; }
-        
+
         /// <summary>
         /// Serializes metadata to JSON
         /// </summary>
@@ -77,7 +76,7 @@ namespace Fragile.Metadata
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             });
         }
-        
+
         /// <summary>
         /// Deserializes metadata from JSON
         /// </summary>
@@ -89,10 +88,10 @@ namespace Fragile.Metadata
             {
                 return new EntryMetadata();
             }
-            
+
             return JsonSerializer.Deserialize<EntryMetadata>(json) ?? new EntryMetadata();
         }
-        
+
         /// <summary>
         /// Adds a custom property
         /// </summary>
@@ -104,10 +103,10 @@ namespace Fragile.Metadata
             {
                 throw new ArgumentException("Property key cannot be null or empty", nameof(key));
             }
-            
+
             CustomProperties[key] = value;
         }
-        
+
         /// <summary>
         /// Gets a custom property value
         /// </summary>
@@ -119,10 +118,10 @@ namespace Fragile.Metadata
             {
                 return null;
             }
-            
+
             return CustomProperties.TryGetValue(key, out string? value) ? value : null;
         }
-        
+
         /// <summary>
         /// Adds a tag
         /// </summary>
@@ -133,13 +132,13 @@ namespace Fragile.Metadata
             {
                 return;
             }
-            
+
             if (!Tags.Contains(tag))
             {
                 Tags.Add(tag);
             }
         }
-        
+
         /// <summary>
         /// Removes a tag
         /// </summary>
@@ -150,4 +149,4 @@ namespace Fragile.Metadata
             return Tags.Remove(tag);
         }
     }
-} 
+}

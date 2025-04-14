@@ -6,388 +6,420 @@ using System.Threading.Tasks;
 namespace Fragile.ErrorCorrection
 {
     /// <summary>
-    /// Hata düzeltme sağlayıcı algoritması için soyut temel sınıf
+    /// Abstract base class for error correction provider algorithm
     /// </summary>
     public abstract class ErrorCorrectionProvider
     {
         /// <summary>
-        /// Hata düzeltme seviyesi (yüzde olarak)
+        /// Error correction level (as percentage)
         /// </summary>
         public int CorrectionLevel { get; }
-        
+
         /// <summary>
-        /// Yeni bir hata düzeltme sağlayıcı oluşturur
+        /// Creates a new error correction provider
         /// </summary>
-        /// <param name="correctionLevel">Hata düzeltme seviyesi (yüzde olarak)</param>
+        /// <param name="correctionLevel">Error correction level (as percentage)</param>
         protected ErrorCorrectionProvider(int correctionLevel)
         {
-            if (correctionLevel < 0 || correctionLevel > 50)
-                throw new ArgumentOutOfRangeException(nameof(correctionLevel), "Hata düzeltme seviyesi 0-50 arasında olmalıdır");
-            
+            if (correctionLevel is < 0 or > 50)
+            {
+                throw new ArgumentOutOfRangeException(nameof(correctionLevel), "Error correction level must be between 0-50");
+            }
+
             CorrectionLevel = correctionLevel;
         }
-        
+
         /// <summary>
-        /// Belirtilen seviyede hata düzeltme sağlayıcı oluşturur
+        /// Creates an error correction provider with the specified level
         /// </summary>
-        /// <param name="correctionLevel">Hata düzeltme seviyesi (0-50 arası)</param>
-        /// <returns>Hata düzeltme sağlayıcısı</returns>
+        /// <param name="correctionLevel">Error correction level (between 0-50)</param>
+        /// <returns>Error correction provider</returns>
         public static ErrorCorrectionProvider Create(int correctionLevel)
         {
             if (correctionLevel <= 0)
+            {
                 return new NoneErrorCorrectionProvider();
-            
+            }
+
             return new ReedSolomonErrorCorrectionProvider(correctionLevel);
         }
-        
+
         /// <summary>
-        /// Veriye hata düzeltme kodları ekler
+        /// Adds error correction codes to data
         /// </summary>
-        /// <param name="input">Hata düzeltme uygulanacak veri akışı</param>
-        /// <param name="output">Hata düzeltme kodları eklenmiş veri akışı</param>
-        /// <param name="progress">İlerleme bildirimi</param>
-        /// <param name="cancellationToken">İptal jetonu</param>
-        /// <returns>Yazılan toplam bayt sayısı</returns>
-        public abstract Task<long> AddErrorCorrectionAsync(Stream input, Stream output, 
+        /// <param name="input">Data stream to apply error correction</param>
+        /// <param name="output">Data stream with error correction codes added</param>
+        /// <param name="progress">Progress notification</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Total number of bytes written</returns>
+        public abstract Task<long> AddErrorCorrectionAsync(Stream input, Stream output,
             IProgress<double>? progress = null, CancellationToken cancellationToken = default);
-        
+
         /// <summary>
-        /// Veriyi düzeltir ve hata düzeltme kodlarını çıkarır
+        /// Corrects data and removes error correction codes
         /// </summary>
-        /// <param name="input">Hata düzeltme kodlu veri akışı</param>
-        /// <param name="output">Düzeltilmiş veri akışı</param>
-        /// <param name="reportRepairs">Onarım bildirimi geri çağırma işlevi</param>
-        /// <param name="progress">İlerleme bildirimi</param>
-        /// <param name="cancellationToken">İptal jetonu</param>
-        /// <returns>Yazılan toplam bayt sayısı ve düzeltilen bayt sayısını içeren (yazılan, düzeltilen) değer çifti</returns>
-        public abstract Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output, 
+        /// <param name="input">Error correction coded data stream</param>
+        /// <param name="output">Corrected data stream</param>
+        /// <param name="reportRepairs">Repair notification callback function</param>
+        /// <param name="progress">Progress notification</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Value pair containing (bytes written, bytes repaired) - total number of bytes written and number of bytes corrected</returns>
+        public abstract Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output,
             Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
-        
+
         /// <summary>
-        /// Hata düzeltme için gerekli ek veri boyutunu hesaplar
+        /// Calculates the additional data size required for error correction
         /// </summary>
-        /// <param name="dataSize">Orijinal veri boyutu</param>
-        /// <returns>Hata düzeltme verileri için gerekli ek boyut</returns>
+        /// <param name="dataSize">Original data size</param>
+        /// <returns>Additional size required for error correction data</returns>
         public abstract long CalculateOverhead(long dataSize);
     }
-    
+
     /// <summary>
-    /// Hata düzeltme uygulamayan boş sağlayıcı
+    /// Empty provider that does not implement error correction
     /// </summary>
     internal class NoneErrorCorrectionProvider : ErrorCorrectionProvider
     {
         /// <summary>
-        /// Yeni bir boş hata düzeltme sağlayıcısı oluşturur
+        /// Creates a new empty error correction provider
         /// </summary>
         public NoneErrorCorrectionProvider() : base(0) { }
-        
+
         /// <summary>
-        /// Veriyi değiştirmeden kopyalar (hata düzeltme yok)
+        /// Copies data without modification (no error correction)
         /// </summary>
-        public override async Task<long> AddErrorCorrectionAsync(Stream input, Stream output, 
+        public override async Task<long> AddErrorCorrectionAsync(Stream input, Stream output,
             IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             long initialPosition = output.Position;
-            
-            // Hata düzeltme yapmadan doğrudan kopyala
+
+            // Copy directly without error correction
             await CopyStreamAsync(input, output, progress, cancellationToken);
-            
+
             return output.Position - initialPosition;
         }
-        
+
         /// <summary>
-        /// Veriyi değiştirmeden kopyalar (hata düzeltme yok)
+        /// Copies data without modification (no error correction)
         /// </summary>
-        public override async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output, 
+        public override async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output,
             Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             long initialPosition = output.Position;
-            
-            // Hata düzeltme yapmadan doğrudan kopyala
+
+            // Copy directly without error correction
             await CopyStreamAsync(input, output, progress, cancellationToken);
-            
+
             return (output.Position - initialPosition, 0);
         }
-        
+
         /// <summary>
-        /// Hata düzeltme ek boyutunu döndürür (hiç ek yok)
+        /// Returns error correction overhead size (no overhead)
         /// </summary>
         public override long CalculateOverhead(long dataSize)
         {
-            return 0; // Hata düzeltme yok, ek veri de yok
+            return 0; // No error correction, no additional data
         }
-        
+
         /// <summary>
-        /// Akış kopyalama yardımcı metodu
+        /// Stream copying helper method
         /// </summary>
-        private static async Task CopyStreamAsync(Stream input, Stream output, 
+        private static async Task CopyStreamAsync(Stream input, Stream output,
             IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
-            byte[] buffer = new byte[81920]; // 80 KB arabellek
-            
-            // Giriş akışı konumlandırılabilirse ilerleme bildirebiliriz
+            byte[] buffer = new byte[81920]; // 80 KB buffer
+
+            // If input stream is seekable, we can report progress
             bool canReportProgress = input.CanSeek;
             long totalBytes = canReportProgress ? input.Length : 0;
             long totalBytesRead = 0;
-            
+
             int bytesRead;
             while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
             {
                 await output.WriteAsync(buffer, 0, bytesRead, cancellationToken);
-                
-                // Mümkünse ilerleme bildir
+
+                // Report progress if possible
                 if (canReportProgress && progress != null)
                 {
                     totalBytesRead += bytesRead;
                     double progressValue = (double)totalBytesRead / totalBytes;
                     progress.Report(progressValue);
                 }
-                
-                // İptal kontrolü
+
+                // Check for cancellation
                 cancellationToken.ThrowIfCancellationRequested();
             }
         }
     }
-    
+
     /// <summary>
-    /// Reed-Solomon algoritması kullanan hata düzeltme sağlayıcı
+    /// Error correction provider using Reed-Solomon algorithm
     /// </summary>
     internal class ReedSolomonErrorCorrectionProvider : ErrorCorrectionProvider
     {
-        // Maximum 80 KB blok boyutu
-        private const int MaxBlockSize = 80 * 1024;
-        
-        // Reed-Solomon algoritması maksimum düzeltebileceği hata yüzdesi
+        // Block size limited by Reed-Solomon Galois field size
+        private const int MaxBlockSize = 255;
+
+        // Maximum error percentage that Reed-Solomon algorithm can correct
         private const double MaxCorrectableErrorPercentage = 0.5;
-        
+
+        // Default error correction sizes
+        private const int DefaultECSize = 32;    // Standard RS(255,223)
+        private const int DefaultDataSize = 223; // Standard RS(255,223)
+
         /// <summary>
-        /// Yeni bir Reed-Solomon hata düzeltme sağlayıcısı oluşturur
+        /// Creates a new Reed-Solomon error correction provider
         /// </summary>
-        /// <param name="correctionLevel">Hata düzeltme seviyesi (1-50 arası)</param>
+        /// <param name="correctionLevel">Error correction level (between 1-50)</param>
         public ReedSolomonErrorCorrectionProvider(int correctionLevel) : base(correctionLevel) { }
-        
+
         /// <summary>
-        /// Veriye Reed-Solomon hata düzeltme kodlarını ekler
+        /// Adds Reed-Solomon error correction codes to data
         /// </summary>
-        public override async Task<long> AddErrorCorrectionAsync(Stream input, Stream output, 
+        public override async Task<long> AddErrorCorrectionAsync(Stream input, Stream output,
             IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
-            long initialPosition = output.Position;
-            
-            // Giriş akışı konumlandırılabilirse, toplam boyutu öğrenebiliriz
-            long totalBytes = input.CanSeek ? input.Length : 0;
-            long processedBytes = 0;
-            
-            // Blok boyutunu, akış boyutuna göre ayarla
-            int blockSize = CalculateOptimalBlockSize(totalBytes);
-            
-            // Reed-Solomon veri ve hata düzeltme boyutlarını hesapla
-            int dataSize = blockSize;
-            int ecSize = CalculateErrorCorrectionSize(dataSize);
-            
-            // Hata düzeltme bilgisini başlığa yaz
-            await WriteHeaderAsync(output, blockSize, ecSize, cancellationToken);
-            
-            // Reed-Solomon kodlayıcı oluştur
-            var rs = new ReedSolomonAlgorithm(dataSize, ecSize);
-            
-            // Girişi bloklara ayır ve her bloğu kodla
-            byte[] buffer = new byte[blockSize];
-            
+            // If input stream is empty, return without writing anything to output stream
+            if (input.Length == 0)
+            {
+                return 0;
+            }
+
+            // Calculate optimal data and error correction sizes
+            (int dataSize, int ecSize) = CalculateOptimalBlockSizes();
+
+            // Create RS algorithm
+            ReedSolomonAlgorithm rs = new(dataSize, ecSize);
+
+            // Write header
+            await WriteHeaderAsync(output, dataSize, ecSize, cancellationToken);
+
+            // Process data in blocks
+            byte[] buffer = new byte[dataSize];
+            long totalBytesRead = 0;
+            long totalBytesWritten = 0;
+            long inputLength = input.Length;
+
             while (true)
             {
-                int bytesRead = await ReadExactlyAsync(input, buffer, 0, blockSize, cancellationToken);
+                int bytesRead = await input.ReadAsync(buffer, 0, dataSize, cancellationToken);
                 if (bytesRead == 0)
-                    break;
-                
-                // Son blok tam değilse, kalan kısmı sıfırla
-                if (bytesRead < blockSize)
                 {
-                    Array.Clear(buffer, bytesRead, blockSize - bytesRead);
-                }
-                
-                // Reed-Solomon ile kodla
-                byte[] encoded = rs.Encode(buffer);
-                
-                // Kodlanmış veriyi yaz
-                await output.WriteAsync(encoded, 0, encoded.Length, cancellationToken);
-                
-                // İlerleme bildir
-                processedBytes += bytesRead;
-                if (totalBytes > 0 && progress != null)
-                {
-                    double progressValue = (double)processedBytes / totalBytes;
-                    progress.Report(progressValue);
-                }
-                
-                // İptal kontrolü
-                cancellationToken.ThrowIfCancellationRequested();
-                
-                // Son blok tam değilse döngüden çık
-                if (bytesRead < blockSize)
                     break;
+                }
+
+                // If block is not completely filled, zero out the remaining portion
+                if (bytesRead < dataSize)
+                {
+                    Array.Clear(buffer, bytesRead, dataSize - bytesRead);
+                }
+
+                try
+                {
+                    // Add error correction codes
+                    byte[] encoded = rs.Encode(buffer);
+
+                    // Write encoded data
+                    await output.WriteAsync(encoded, 0, encoded.Length, cancellationToken);
+
+                    totalBytesRead += bytesRead;
+                    totalBytesWritten += encoded.Length;
+
+                    // Progress notification
+                    if (progress != null && inputLength > 0)
+                    {
+                        progress.Report((double)totalBytesRead / inputLength);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new IOException($"Error occurred during Reed-Solomon encoding: {ex.Message}", ex);
+                }
+
+                // If this is the last block and it's not completely filled, end the process
+                if (bytesRead < dataSize)
+                {
+                    break;
+                }
             }
-            
-            // Son bir ilerleme güncellemesi
-            progress?.Report(1.0);
-            
-            return output.Position - initialPosition;
+
+            return totalBytesWritten;
         }
-        
+
         /// <summary>
-        /// Reed-Solomon hata düzeltme kodlarını kullanarak veriyi düzeltir
+        /// Corrects data using Reed-Solomon error correction codes
         /// </summary>
-        public override async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output, 
+        public override async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output,
             Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             long initialPosition = output.Position;
             int totalRepaired = 0;
-            
-            // Giriş akışı konumlandırılabilirse, toplam boyutu öğrenebiliriz
+
+            // If input stream is seekable, we can learn the total size
             long totalBytes = input.CanSeek ? input.Length : 0;
             long processedBytes = 0;
-            
+
             try
             {
-                // Başlığı oku
-                var (blockSize, ecSize) = await ReadHeaderAsync(input, cancellationToken);
-                
-                // Reed-Solomon kodlayıcı oluştur
-                var rs = new ReedSolomonAlgorithm(blockSize, ecSize);
-                
-                // Kodlanmış blok boyutu
-                int encodedBlockSize = blockSize + ecSize;
-                
-                // Giriş verisini bloklara ayır ve her bloğu çöz
+                // Read header
+                (int dataSize, int ecSize) = await ReadHeaderAsync(input, cancellationToken);
+
+                // Create Reed-Solomon encoder
+                ReedSolomonAlgorithm rs = new(dataSize, ecSize);
+
+                // Encoded block size
+                int encodedBlockSize = dataSize + ecSize;
+
+                // Split input data into blocks and decode each block
                 byte[] encodedBuffer = new byte[encodedBlockSize];
-                
+
                 while (true)
                 {
                     int bytesRead = await ReadExactlyAsync(input, encodedBuffer, 0, encodedBlockSize, cancellationToken);
                     if (bytesRead == 0)
-                        break;
-                    
-                    // Son blok tam değilse, işlemi tamamla
-                    if (bytesRead < encodedBlockSize)
                     {
-                        // Kalan veriyi doğrudan kopyala
-                        await output.WriteAsync(encodedBuffer, 0, Math.Min(bytesRead, blockSize), cancellationToken);
                         break;
                     }
-                    
+
+                    // If last block is incomplete, complete the process
+                    if (bytesRead < encodedBlockSize)
+                    {
+                        // Copy remaining data directly
+                        await output.WriteAsync(encodedBuffer, 0, Math.Min(bytesRead, dataSize), cancellationToken);
+                        break;
+                    }
+
                     try
                     {
-                        // Reed-Solomon ile çöz ve hataları düzelt
+                        // Decode with Reed-Solomon and correct errors
                         byte[] decoded = rs.Decode(encodedBuffer);
-                        
-                        // Düzeltme yapıldı mı kontrol et
-                        int repairedCount = CountRepairs(encodedBuffer, decoded, blockSize, ecSize);
-                        
-                        // Çözülmüş veriyi yaz
-                        await output.WriteAsync(decoded, 0, blockSize, cancellationToken);
-                        
-                        // Onarım raporla
+
+                        // Check if correction was made
+                        int repairedCount = CountRepairs(encodedBuffer, decoded, dataSize, ecSize);
+
+                        // Write decoded data
+                        await output.WriteAsync(decoded, 0, dataSize, cancellationToken);
+
+                        // Report repairs
                         if (repairedCount > 0)
                         {
                             totalRepaired += repairedCount;
                             reportRepairs?.Invoke(processedBytes, repairedCount);
                         }
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
-                        // Hata düzeltme başarısız olursa, mümkün olduğunca veriyi kurtar
-                        await output.WriteAsync(encodedBuffer, 0, Math.Min(bytesRead, blockSize), cancellationToken);
+                        // If error correction fails, recover as much data as possible
+                        await output.WriteAsync(encodedBuffer, 0, Math.Min(bytesRead, dataSize), cancellationToken);
                     }
-                    
-                    // İlerleme bildir
+
+                    // Report progress
                     processedBytes += encodedBlockSize;
                     if (totalBytes > 0 && progress != null)
                     {
                         double progressValue = (double)processedBytes / totalBytes;
                         progress.Report(progressValue);
                     }
-                    
-                    // İptal kontrolü
+
+                    // Check for cancellation
                     cancellationToken.ThrowIfCancellationRequested();
                 }
-                
-                // Son bir ilerleme güncellemesi
+
+                // Final progress update
                 progress?.Report(1.0);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Hata düzeltme tamamen başarısız olursa, kalan veriyi olduğu gibi kopyala
+                // If error correction completely fails, copy remaining data as is
                 input.CopyTo(output);
+                throw new IOException($"Error occurred during error correction process: {ex.Message}", ex);
             }
-            
+
             return (output.Position - initialPosition, totalRepaired);
         }
-        
+
         /// <summary>
-        /// Hata düzeltme için gerekli ek veri boyutunu hesaplar
+        /// Calculates the additional data size required for error correction
         /// </summary>
         public override long CalculateOverhead(long dataSize)
         {
             if (dataSize <= 0)
+            {
                 return 0;
-            
-            // Başlık boyutu
+            }
+
+            // Header size
             int headerSize = 8;
-            
-            // Kullanılacak blok boyutunu belirle
-            int blockSize = CalculateOptimalBlockSize(dataSize);
-            
-            // Blok başına hata düzeltme verisi boyutu
-            int ecSize = CalculateErrorCorrectionSize(blockSize);
-            
-            // Toplam blok sayısı (yukarı yuvarla)
-            long numBlocks = (dataSize + blockSize - 1) / blockSize;
-            
-            // Toplam ek veri boyutu
-            return headerSize + (numBlocks * ecSize);
+
+            // Calculate optimal data and error correction sizes
+            (int optimalDataSize, int optimalECSize) = CalculateOptimalBlockSizes();
+
+            // Total number of blocks (round up)
+            long totalDataBlocks = (dataSize + optimalDataSize - 1) / optimalDataSize;
+
+            // Total additional data size
+            return headerSize + (totalDataBlocks * optimalECSize);
         }
-        
+
         /// <summary>
-        /// Optimum blok boyutunu hesaplar
+        /// Calculates optimal data and error correction sizes
         /// </summary>
-        private static int CalculateOptimalBlockSize(long dataSize)
+        private (int dataSize, int ecSize) CalculateOptimalBlockSizes()
         {
-            // Küçük dosyalar için daha küçük bloklar kullan
-            if (dataSize < 1024)
-                return 64;
-            if (dataSize < 10 * 1024)
-                return 256;
-            if (dataSize < 100 * 1024)
-                return 1024;
-            if (dataSize < 1024 * 1024)
-                return 4 * 1024;
-            
-            // Büyük dosyalar için maksimum blok boyutu kullan
-            return MaxBlockSize;
+            // Standard Reed-Solomon codes typically have a total length of 255 bytes
+            // For example RS(255,223) -> 223 data + 32 error correction
+
+            // Adjust sizes according to error correction level
+            int ecRatio = CorrectionLevel;
+            int dataRatio = 100 - ecRatio;
+
+            // Safety limits
+            if (dataRatio < 50)
+            {
+                dataRatio = 50; // Minimum 50% data
+            }
+
+            if (dataRatio > 90)
+            {
+                dataRatio = 90; // Maximum 90% data
+            }
+
+            // Maximum block size for Reed-Solomon
+            int maxTotalSize = ReedSolomonAlgorithm.GetMaxBlockSize();
+
+            // Calculate data and EC sizes from ratios, within 254 byte limit
+            int dataSize = maxTotalSize * dataRatio / 100;
+            int ecSize = maxTotalSize - dataSize;
+
+            // Safety check
+            if (dataSize + ecSize > maxTotalSize)
+            {
+                dataSize = maxTotalSize - ecSize;
+            }
+
+            // Minimum size check
+            if (dataSize < 1)
+            {
+                dataSize = 1;
+            }
+
+            if (ecSize < 1)
+            {
+                ecSize = 1;
+            }
+
+            return (dataSize, ecSize);
         }
-        
+
         /// <summary>
-        /// Blok boyutuna göre hata düzeltme verisi boyutunu hesaplar
-        /// </summary>
-        private int CalculateErrorCorrectionSize(int blockSize)
-        {
-            // Hata düzeltme seviyesine göre ek veri boyutu
-            int ecSize = (int)(blockSize * CorrectionLevel / 100.0);
-            
-            // En az 4 bayt, en fazla veri boyutunun yarısı kadar
-            ecSize = Math.Max(4, Math.Min(ecSize, blockSize / 2));
-            
-            return ecSize;
-        }
-        
-        /// <summary>
-        /// Düzeltilen bayt sayısını hesaplar
+        /// Calculates the number of corrected bytes
         /// </summary>
         private static int CountRepairs(byte[] encoded, byte[] decoded, int dataSize, int ecSize)
         {
             int repairedCount = 0;
-            
-            // Orijinal veri kısmını karşılaştır
+
+            // Compare the original data portion
             for (int i = 0; i < Math.Min(dataSize, decoded.Length); i++)
             {
                 if (encoded[i + ecSize] != decoded[i])
@@ -395,82 +427,82 @@ namespace Fragile.ErrorCorrection
                     repairedCount++;
                 }
             }
-            
+
             return repairedCount;
         }
-        
+
         /// <summary>
-        /// Hata düzeltme başlık bilgisini yazar
+        /// Writes error correction header information
         /// </summary>
-        private static async Task WriteHeaderAsync(Stream output, int blockSize, int ecSize, CancellationToken cancellationToken)
+        private static async Task WriteHeaderAsync(Stream output, int dataSize, int ecSize, CancellationToken cancellationToken)
         {
             byte[] header = new byte[8];
-            
-            // Sihirli bayt (RS)
+
+            // Magic bytes (RS)
             header[0] = (byte)'R';
             header[1] = (byte)'S';
-            
-            // Blok boyutu (4 bayt, little-endian)
-            header[2] = (byte)(blockSize & 0xFF);
-            header[3] = (byte)((blockSize >> 8) & 0xFF);
-            header[4] = (byte)((blockSize >> 16) & 0xFF);
-            header[5] = (byte)((blockSize >> 24) & 0xFF);
-            
-            // Hata düzeltme boyutu (2 bayt, little-endian)
+
+            // Data size (4 bytes, little-endian)
+            header[2] = (byte)(dataSize & 0xFF);
+            header[3] = (byte)((dataSize >> 8) & 0xFF);
+            header[4] = (byte)((dataSize >> 16) & 0xFF);
+            header[5] = (byte)((dataSize >> 24) & 0xFF);
+
+            // Error correction size (2 bytes, little-endian)
             header[6] = (byte)(ecSize & 0xFF);
             header[7] = (byte)((ecSize >> 8) & 0xFF);
-            
+
             await output.WriteAsync(header, 0, header.Length, cancellationToken);
         }
-        
+
         /// <summary>
-        /// Hata düzeltme başlık bilgisini okur
+        /// Reads error correction header information
         /// </summary>
-        private static async Task<(int blockSize, int ecSize)> ReadHeaderAsync(Stream input, CancellationToken cancellationToken)
+        private static async Task<(int dataSize, int ecSize)> ReadHeaderAsync(Stream input, CancellationToken cancellationToken)
         {
             byte[] header = new byte[8];
-            
+
             if (await input.ReadAsync(header, 0, header.Length, cancellationToken) != header.Length)
             {
-                throw new EndOfStreamException("Beklenmeyen dosya sonu - başlık okunamadı");
+                throw new EndOfStreamException("Unexpected end of file - header could not be read");
             }
-            
-            // Sihirli baytları kontrol et
+
+            // Check magic bytes
             if (header[0] != 'R' || header[1] != 'S')
             {
-                throw new InvalidDataException("Geçersiz hata düzeltme başlığı");
+                throw new InvalidDataException("Invalid error correction header");
             }
-            
-            // Blok boyutunu oku
-            int blockSize = header[2] | (header[3] << 8) | (header[4] << 16) | (header[5] << 24);
-            
-            // Hata düzeltme boyutunu oku
+
+            // Read data size
+            int dataSize = header[2] | (header[3] << 8) | (header[4] << 16) | (header[5] << 24);
+
+            // Read error correction size
             int ecSize = header[6] | (header[7] << 8);
-            
-            return (blockSize, ecSize);
+
+            return (dataSize, ecSize);
         }
-        
+
         /// <summary>
-        /// Akıştan tam olarak belirtilen sayıda bayt okur
+        /// Reads exactly the specified number of bytes from the stream
         /// </summary>
         private static async Task<int> ReadExactlyAsync(Stream stream, byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
             int totalBytesRead = 0;
-            
+
             while (totalBytesRead < count)
             {
                 int bytesRead = await stream.ReadAsync(buffer, offset + totalBytesRead, count - totalBytesRead, cancellationToken);
-                
+
                 if (bytesRead == 0)
                 {
-                    // Akış sonuna ulaşıldı
+                    // End of stream reached
                     break;
                 }
-                
+
                 totalBytesRead += bytesRead;
             }
-            
+
             return totalBytesRead;
         }
     }
-} 
+}

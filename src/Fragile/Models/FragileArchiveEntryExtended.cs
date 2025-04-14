@@ -14,42 +14,42 @@ namespace Fragile.Models
         /// Metadata for the entry
         /// </summary>
         public EntryMetadata Metadata { get; set; } = new EntryMetadata();
-        
+
         /// <summary>
         /// Checksum of the entry content
         /// </summary>
         public byte[] Checksum { get; set; } = Array.Empty<byte>();
-        
+
         /// <summary>
         /// Encryption method used for this entry
         /// </summary>
         public EncryptionMethod EncryptionMethod { get; set; } = EncryptionMethod.None;
-        
+
         /// <summary>
         /// Compression algorithm used for this entry
         /// </summary>
         public CompressionAlgorithm CompressionAlgorithm { get; set; } = CompressionAlgorithm.Deflate;
-        
+
         /// <summary>
         /// Whether this entry has error correction data
         /// </summary>
         public bool HasErrorCorrection { get; set; }
-        
+
         /// <summary>
         /// The part index if this entry is split across multiple parts
         /// </summary>
         public int PartIndex { get; set; }
-        
+
         /// <summary>
         /// The total parts if this entry is split
         /// </summary>
         public int TotalParts { get; set; } = 1;
-        
+
         /// <summary>
         /// Custom internal flags
         /// </summary>
         public int Flags { get; set; }
-        
+
         /// <summary>
         /// Creates a new extended entry from a basic entry
         /// </summary>
@@ -61,12 +61,12 @@ namespace Fragile.Models
             {
                 throw new ArgumentNullException(nameof(entry));
             }
-            
+
             if (entry is FragileArchiveEntryExtended extendedEntry)
             {
                 return extendedEntry;
             }
-            
+
             return new FragileArchiveEntryExtended
             {
                 Path = entry.Path,
@@ -81,7 +81,7 @@ namespace Fragile.Models
                 PositionOffset = entry.PositionOffset
             };
         }
-        
+
         /// <summary>
         /// Gets a tag value indicating if the entry has special attributes
         /// </summary>
@@ -89,7 +89,7 @@ namespace Fragile.Models
         {
             return (Flags & 0x01) != 0;
         }
-        
+
         /// <summary>
         /// Sets the entry as special
         /// </summary>
@@ -106,4 +106,4 @@ namespace Fragile.Models
             }
         }
     }
-} 
+}

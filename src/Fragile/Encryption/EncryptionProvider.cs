@@ -15,7 +15,7 @@ namespace Fragile.Encryption
         /// The encryption method used by this provider
         /// </summary>
         public abstract EncryptionMethod Method { get; }
-        
+
         /// <summary>
         /// Creates an encryption provider for the specified method
         /// </summary>
@@ -28,7 +28,7 @@ namespace Fragile.Encryption
             {
                 throw new ArgumentException("Password cannot be null or empty for encrypted archives", nameof(password));
             }
-            
+
             return method switch
             {
                 EncryptionMethod.None => new NoneEncryptionProvider(),
@@ -40,7 +40,7 @@ namespace Fragile.Encryption
                 _ => throw new NotSupportedException($"Encryption method {method} is not supported")
             };
         }
-        
+
         /// <summary>
         /// Encrypts the input stream to the output stream
         /// </summary>
@@ -50,7 +50,7 @@ namespace Fragile.Encryption
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>The number of bytes written to the output stream</returns>
         public abstract Task<long> EncryptAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
-        
+
         /// <summary>
         /// Decrypts the input stream to the output stream
         /// </summary>
@@ -60,13 +60,13 @@ namespace Fragile.Encryption
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>The number of bytes written to the output stream</returns>
         public abstract Task<long> DecryptAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
-        
+
         /// <summary>
         /// Gets the storage overhead for the encryption (headers, padding, etc.)
         /// </summary>
         /// <returns>The size of encryption overhead in bytes</returns>
         public abstract int GetOverheadSize();
-        
+
         /// <summary>
         /// Generates a derived key from a password using PBKDF2
         /// </summary>
@@ -77,8 +77,8 @@ namespace Fragile.Encryption
         /// <returns>The derived key</returns>
         protected static byte[] DeriveKeyFromPassword(string password, byte[] salt, int keySize, int iterations = 10000)
         {
-            using var pbkdf2 = new Rfc2898DeriveBytes(password, salt, iterations, HashAlgorithmName.SHA256);
+            using Rfc2898DeriveBytes pbkdf2 = new(password, salt, iterations, HashAlgorithmName.SHA256);
             return pbkdf2.GetBytes(keySize);
         }
     }
-} 
+}

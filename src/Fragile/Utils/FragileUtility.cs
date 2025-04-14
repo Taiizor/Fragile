@@ -2,6 +2,7 @@ using Fragile.Core;
 using Fragile.Models;
 using System;
 using System.IO;
+using System.Text;
 
 namespace Fragile.Utils
 {
@@ -113,7 +114,7 @@ namespace Fragile.Utils
 
                 byte[] signature = new byte[4];
                 stream.Read(signature, 0, 4);
-                return System.Text.Encoding.ASCII.GetString(signature) == "FRGL";
+                return Encoding.ASCII.GetString(signature) == "FRGL";
             }
             catch
             {

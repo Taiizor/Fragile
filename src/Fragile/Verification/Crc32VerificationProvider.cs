@@ -12,7 +12,7 @@ namespace Fragile.Verification
     {
         private const uint Polynomial = 0xEDB88320;
         private static readonly uint[] CrcTable;
-        
+
         /// <summary>
         /// Static constructor to initialize CRC table
         /// </summary>
@@ -20,7 +20,7 @@ namespace Fragile.Verification
         {
             // Initialize CRC table
             CrcTable = new uint[256];
-            
+
             for (uint i = 0; i < 256; i++)
             {
                 uint crc = i;
@@ -31,12 +31,12 @@ namespace Fragile.Verification
                 CrcTable[i] = crc;
             }
         }
-        
+
         /// <summary>
         /// The checksum algorithm used by this provider
         /// </summary>
         public override ChecksumAlgorithm Algorithm => ChecksumAlgorithm.CRC32;
-        
+
         /// <summary>
         /// Calculates CRC32 checksum for the input stream
         /// </summary>
@@ -46,10 +46,10 @@ namespace Fragile.Verification
             bool canReportProgress = input.CanSeek;
             long totalBytes = canReportProgress ? input.Length : 0;
             long totalBytesRead = 0;
-            
+
             uint crc = 0xFFFFFFFF;
             byte[] buffer = new byte[81920]; // 80 KB buffer
-            
+
             int bytesRead;
             while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
             {
@@ -58,7 +58,7 @@ namespace Fragile.Verification
                 {
                     crc = (crc >> 8) ^ CrcTable[(crc & 0xFF) ^ buffer[i]];
                 }
-                
+
                 // Report progress if possible
                 if (canReportProgress && progress != null)
                 {
@@ -66,14 +66,14 @@ namespace Fragile.Verification
                     double progressValue = (double)totalBytesRead / totalBytes;
                     progress.Report(progressValue);
                 }
-                
+
                 // Check for cancellation
                 cancellationToken.ThrowIfCancellationRequested();
             }
-            
+
             // Finalize CRC
             crc ^= 0xFFFFFFFF;
-            
+
             // Convert to byte array (little-endian)
             return new byte[]
             {
@@ -83,7 +83,7 @@ namespace Fragile.Verification
                 (byte)((crc >> 24) & 0xFF)
             };
         }
-        
+
         /// <summary>
         /// Verifies CRC32 checksum against the input stream
         /// </summary>
@@ -93,9 +93,9 @@ namespace Fragile.Verification
             {
                 return false; // Invalid checksum length
             }
-            
+
             byte[] calculatedChecksum = await CalculateChecksumAsync(input, progress, cancellationToken).ConfigureAwait(false);
-            
+
             // Compare checksums
             for (int i = 0; i < 4; i++)
             {
@@ -104,10 +104,10 @@ namespace Fragile.Verification
                     return false;
                 }
             }
-            
+
             return true;
         }
-        
+
         /// <summary>
         /// CRC32 is 4 bytes
         /// </summary>
@@ -116,4 +116,4 @@ namespace Fragile.Verification
             return 4; // 32 bits = 4 bytes
         }
     }
-} 
+}

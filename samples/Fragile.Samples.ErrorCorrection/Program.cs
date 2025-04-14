@@ -110,8 +110,8 @@ namespace Fragile.Samples.ErrorCorrection
                 };
 
                 // Asenkron arşiv oluştur
-                using var archive = await FragileArchive.CreateAsync(archivePath, options);
-                
+                using FragileArchive archive = await FragileArchive.CreateAsync(archivePath, options);
+
                 // Dosyaları ekle
                 int fileCount = await archive.AddDirectoryAsync(sourceDir, "", true);
 
@@ -127,7 +127,7 @@ namespace Fragile.Samples.ErrorCorrection
                 if (errorCorrectionLevel > 0)
                 {
                     // Gerçek arşiv boyutuna göre hata düzeltme verisinin tahmini boyutu
-                    long baseSize = (long)(fileInfo.Length / (1 + errorCorrectionLevel / 100.0));
+                    long baseSize = (long)(fileInfo.Length / (1 + (errorCorrectionLevel / 100.0)));
                     long overheadSize = fileInfo.Length - baseSize;
                     Console.WriteLine($"📊 Hata düzeltme verileri: ~{overheadSize:N0} bayt (toplam boyutun ~%{errorCorrectionLevel})");
                 }
@@ -241,7 +241,7 @@ namespace Fragile.Samples.ErrorCorrection
                 try
                 {
                     // Arşivi aç ve çıkar
-                    using var archive = await FragileArchive.OpenAsync(archivePath, options);
+                    using FragileArchive archive = await FragileArchive.OpenAsync(archivePath, options);
                     await archive.ExtractAllAsync(extractDir);
 
                     Console.WriteLine($"\n📊 Özet: {archive.Entries.Count} dosya, {repairAttempts} onarım denemesi, {repairedFiles} başarılı onarım");
@@ -249,9 +249,9 @@ namespace Fragile.Samples.ErrorCorrection
                 catch (Exception ex)
                 {
                     // Her dosyayı ayrı ayrı çıkarmayı dene
-                    using var archive = await FragileArchive.OpenAsync(archivePath, options);
-                    
-                    foreach (var entry in archive.Entries)
+                    using FragileArchive archive = await FragileArchive.OpenAsync(archivePath, options);
+
+                    foreach (FragileArchiveEntry entry in archive.Entries)
                     {
                         if (entry.IsDirectory)
                         {
@@ -428,14 +428,14 @@ namespace Fragile.Samples.ErrorCorrection
                 // Tekrarlanan desenleri kullan - sıkıştırma için daha iyi
                 int patternIndex = random.Next(0, patterns.Length);
                 byte patternValue = patterns[patternIndex];
-                
+
                 // Desen uzunluğu: 16-128 bayt arası
                 int patternLength = random.Next(16, 129);
                 patternLength = Math.Min(patternLength, remainingBytes);
-                
+
                 byte[] pattern = new byte[patternLength];
                 Array.Fill(pattern, patternValue);
-                
+
                 await fs.WriteAsync(pattern, 0, pattern.Length);
                 remainingBytes -= patternLength;
             }
@@ -448,7 +448,7 @@ namespace Fragile.Samples.ErrorCorrection
         {
             StringBuilder sb = new(length);
             Random random = new();
-            
+
             // Lorem ipsum benzeri metin oluştur
             string[] words = {
                 "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit",
@@ -456,23 +456,23 @@ namespace Fragile.Samples.ErrorCorrection
                 "magna", "aliqua", "enim", "ad", "minim", "veniam", "quis", "nostrud", "exercitation",
                 "ullamco", "laboris", "nisi", "aliquip", "ex", "ea", "commodo", "consequat"
             };
-            
+
             // Paragraflar oluştur
             int chars = 0;
             while (chars < length)
             {
                 // Paragraf (200-800 karakter arası)
                 int paragraphLength = random.Next(200, 801);
-                
+
                 // Cümleler oluştur
                 int sentenceCount = random.Next(3, 8);
                 for (int s = 0; s < sentenceCount && chars < length; s++)
                 {
                     // Cümle başlangıcı büyük harf
                     string firstWord = words[random.Next(words.Length)];
-                    sb.Append(char.ToUpper(firstWord[0]) + firstWord.Substring(1));
+                    sb.Append(char.ToUpper(firstWord[0]) + firstWord[1..]);
                     chars += firstWord.Length;
-                    
+
                     // Kelimeleri ekle (3-15 kelime)
                     int wordCount = random.Next(3, 16);
                     for (int w = 0; w < wordCount && chars < length; w++)
@@ -483,12 +483,12 @@ namespace Fragile.Samples.ErrorCorrection
                         sb.Append(word);
                         chars += word.Length;
                     }
-                    
+
                     // Cümle noktalama işareti
                     string[] punctuation = { ".", ".", ".", "!", "?", ";" };
                     sb.Append(punctuation[random.Next(punctuation.Length)]);
                     chars++;
-                    
+
                     // Boşluk ekle (cümle sonunda)
                     if (s < sentenceCount - 1 && chars < length)
                     {
@@ -496,7 +496,7 @@ namespace Fragile.Samples.ErrorCorrection
                         chars++;
                     }
                 }
-                
+
                 // Paragraf sonu
                 if (chars < length)
                 {
@@ -504,7 +504,7 @@ namespace Fragile.Samples.ErrorCorrection
                     chars += 4;
                 }
             }
-            
+
             return sb.ToString(0, Math.Min(length, sb.Length));
         }
     }

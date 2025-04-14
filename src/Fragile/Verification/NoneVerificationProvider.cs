@@ -14,7 +14,7 @@ namespace Fragile.Verification
         /// The checksum algorithm used by this provider
         /// </summary>
         public override ChecksumAlgorithm Algorithm => ChecksumAlgorithm.None;
-        
+
         /// <summary>
         /// Returns an empty byte array since no checksum is calculated
         /// </summary>
@@ -22,11 +22,11 @@ namespace Fragile.Verification
         {
             // Report 100% progress immediately
             progress?.Report(1.0);
-            
+
             // Return empty array as checksum
             return Task.FromResult(Array.Empty<byte>());
         }
-        
+
         /// <summary>
         /// Always returns true since no verification is performed
         /// </summary>
@@ -34,11 +34,11 @@ namespace Fragile.Verification
         {
             // Report 100% progress immediately
             progress?.Report(1.0);
-            
+
             // Always return true (verification success)
             return Task.FromResult(true);
         }
-        
+
         /// <summary>
         /// Returns 0 since no checksum is used
         /// </summary>
@@ -47,4 +47,4 @@ namespace Fragile.Verification
             return 0;
         }
     }
-} 
+}

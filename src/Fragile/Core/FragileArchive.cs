@@ -1,4 +1,3 @@
-using Fragile.Compression;
 using Fragile.ErrorCorrection;
 using Fragile.Models;
 using System;
@@ -7,7 +6,6 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Fragile.Core
@@ -17,11 +15,11 @@ namespace Fragile.Core
     /// </summary>
     public class FragileArchive : IDisposable
     {
+        private readonly Dictionary<string, FragileArchiveEntry> _entries = new();
         private const string FileSignature = "FRGL";
+        private readonly FragileArchiveMode _mode;
         private const ushort VersionMajor = 1;
         private const ushort VersionMinor = 0;
-        private readonly FragileArchiveMode _mode;
-        private readonly Dictionary<string, FragileArchiveEntry> _entries = new();
         private bool _disposed = false;
         private FileStream? _fileStream;
         private FragileOptions _options;
@@ -95,7 +93,7 @@ namespace Fragile.Core
         public static async Task<FragileArchive> CreateAsync(string archivePath, FragileOptions? options = null)
         {
             options ??= new FragileOptions();
-            var archive = new FragileArchive(archivePath, FragileArchiveMode.Create, options);
+            FragileArchive archive = new(archivePath, FragileArchiveMode.Create, options);
             return archive;
         }
 
@@ -108,7 +106,7 @@ namespace Fragile.Core
         public static async Task<FragileArchive> OpenAsync(string archivePath, FragileOptions? options = null)
         {
             options ??= new FragileOptions();
-            var archive = new FragileArchive(archivePath, FragileArchiveMode.Read, options);
+            FragileArchive archive = new(archivePath, FragileArchiveMode.Read, options);
             return archive;
         }
 
@@ -265,7 +263,7 @@ namespace Fragile.Core
                 // Extract all files and subdirectories in this directory
                 foreach (FragileArchiveEntry? childEntry in _entries.Values.Where(e => e.Path.StartsWith(entryPath + "/")))
                 {
-                    string relativePath = childEntry.Path.Substring(entryPath.Length + 1);
+                    string relativePath = childEntry.Path[(entryPath.Length + 1)..];
                     string childDestPath = Path.Combine(destinationPath, relativePath);
 
                     if (childEntry.IsDirectory)
@@ -312,7 +310,7 @@ namespace Fragile.Core
                 // Extract all files and subdirectories in this directory
                 foreach (FragileArchiveEntry? childEntry in _entries.Values.Where(e => e.Path.StartsWith(entryPath + "/")))
                 {
-                    string relativePath = childEntry.Path.Substring(entryPath.Length + 1);
+                    string relativePath = childEntry.Path[(entryPath.Length + 1)..];
                     string childDestPath = Path.Combine(destinationPath, relativePath);
 
                     if (childEntry.IsDirectory)
@@ -358,7 +356,7 @@ namespace Fragile.Core
                 {
                     // Ensure the directory exists
                     Directory.CreateDirectory(Path.GetDirectoryName(targetPath));
-                    
+
                     // Extract the file
                     ExtractFile(entry, targetPath);
                 }
@@ -393,7 +391,7 @@ namespace Fragile.Core
                 {
                     // Ensure the directory exists
                     Directory.CreateDirectory(Path.GetDirectoryName(targetPath));
-                    
+
                     // Extract the file
                     await ExtractFileAsync(entry, targetPath);
                 }
@@ -515,7 +513,7 @@ namespace Fragile.Core
                             // Compress and write the file
                             using FileStream fileStream = new(entry.SourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
                             using MemoryStream compressStream = new();
-                            
+
                             // Use the appropriate compression level
                             System.IO.Compression.CompressionLevel compressionLevel = _options.CompressionLevel switch
                             {
@@ -526,7 +524,7 @@ namespace Fragile.Core
                                 Compression.CompressionLevel.Ultra => System.IO.Compression.CompressionLevel.Optimal,
                                 _ => System.IO.Compression.CompressionLevel.Optimal
                             };
-                            
+
                             using (DeflateStream deflateStream = new(compressStream, compressionLevel, true))
                             {
                                 await fileStream.CopyToAsync(deflateStream);
@@ -548,7 +546,7 @@ namespace Fragile.Core
                             // Compress and write in-memory data
                             using MemoryStream dataStream = new(entry.Data);
                             using MemoryStream compressStream = new();
-                            
+
                             // Use the appropriate compression level
                             System.IO.Compression.CompressionLevel compressionLevel = _options.CompressionLevel switch
                             {
@@ -559,7 +557,7 @@ namespace Fragile.Core
                                 Compression.CompressionLevel.Ultra => System.IO.Compression.CompressionLevel.Optimal,
                                 _ => System.IO.Compression.CompressionLevel.Optimal
                             };
-                            
+
                             using (DeflateStream deflateStream = new(compressStream, compressionLevel, true))
                             {
                                 await dataStream.CopyToAsync(deflateStream);
@@ -583,18 +581,18 @@ namespace Fragile.Core
                 if (_options.EnableErrorCorrection && _options.ErrorCorrectionLevel > 0)
                 {
                     // Create a error correction provider
-                    var errorCorrection = ErrorCorrectionProvider.Create(_options.ErrorCorrectionLevel);
-                    
+                    ErrorCorrectionProvider errorCorrection = ErrorCorrectionProvider.Create(_options.ErrorCorrectionLevel);
+
                     // Reset the temp file position
                     outputStream.Position = 0;
-                    
+
                     // Reset the archive file
                     _fileStream!.SetLength(0);
                     _fileStream.Position = 0;
-                    
+
                     // Add error correction data
                     await errorCorrection.AddErrorCorrectionAsync(outputStream, _fileStream, _options.Progress);
-                    
+
                     // Cleanup
                     outputStream.Close();
                     File.Delete(tempFilePath);
@@ -612,13 +610,13 @@ namespace Fragile.Core
                     {
                         outputStream.Close();
                     }
-                    
+
                     if (File.Exists(tempFilePath))
                     {
                         File.Delete(tempFilePath);
                     }
                 }
-                
+
                 throw;
             }
         }
@@ -764,24 +762,24 @@ namespace Fragile.Core
         private async Task TryRepairAndExtractFileAsync(FragileArchiveEntry entry, string destinationPath)
         {
             // Create error correction provider
-            var errorCorrection = ErrorCorrectionProvider.Create(_options.ErrorCorrectionLevel);
-            
+            ErrorCorrectionProvider errorCorrection = ErrorCorrectionProvider.Create(_options.ErrorCorrectionLevel);
+
             // Open the archive file for temporary reading
-            using var archiveStream = new FileStream(ArchivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            
+            using FileStream archiveStream = new(ArchivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
             // Create output file
-            using var outputFile = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            
+            using FileStream outputFile = new(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
             // Try to correct errors and extract
-            var (bytesWritten, bytesRepaired) = await errorCorrection.CorrectErrorsAsync(
-                archiveStream, 
-                outputFile, 
-                (position, count) => 
+            (long bytesWritten, int bytesRepaired) = await errorCorrection.CorrectErrorsAsync(
+                archiveStream,
+                outputFile,
+                (position, count) =>
                 {
                     // Report repair progress if needed
                     _options.Progress?.Report(0.5); // Simple progress indication
                 });
-            
+
             // If no bytes repaired, the file is still corrupted
             if (bytesRepaired == 0 && bytesWritten == 0)
             {
@@ -810,7 +808,7 @@ namespace Fragile.Core
             // Remove leading slashes
             while (path.StartsWith('/'))
             {
-                path = path.Substring(1);
+                path = path[1..];
             }
 
             return path;

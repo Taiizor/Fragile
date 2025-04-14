@@ -14,7 +14,7 @@ namespace Fragile.Compression
         /// The compression algorithm used by this provider
         /// </summary>
         public abstract CompressionAlgorithm Algorithm { get; }
-        
+
         /// <summary>
         /// Creates a compression provider for the specified algorithm and level
         /// </summary>
@@ -35,7 +35,7 @@ namespace Fragile.Compression
                 _ => throw new NotSupportedException($"Compression algorithm {algorithm} is not supported")
             };
         }
-        
+
         /// <summary>
         /// Compresses the input stream to the output stream
         /// </summary>
@@ -45,7 +45,7 @@ namespace Fragile.Compression
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>The number of bytes written to the output stream</returns>
         public abstract Task<long> CompressAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
-        
+
         /// <summary>
         /// Decompresses the input stream to the output stream
         /// </summary>
@@ -55,7 +55,7 @@ namespace Fragile.Compression
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>The number of bytes written to the output stream</returns>
         public abstract Task<long> DecompressAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
-        
+
         /// <summary>
         /// Gets the estimated compressed size for the given input size based on the algorithm and compression level
         /// </summary>
@@ -63,4 +63,4 @@ namespace Fragile.Compression
         /// <returns>Estimated compressed size in bytes</returns>
         public abstract long EstimateCompressedSize(long inputSize);
     }
-} 
+}

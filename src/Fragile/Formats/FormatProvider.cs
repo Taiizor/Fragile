@@ -1,6 +1,5 @@
 using Fragile.Models;
 using System;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,7 +14,7 @@ namespace Fragile.Formats
         /// The format compatibility mode provided
         /// </summary>
         public abstract FormatCompatibility Format { get; }
-        
+
         /// <summary>
         /// Creates a format provider for the specified compatibility mode
         /// </summary>
@@ -33,7 +32,7 @@ namespace Fragile.Formats
                 _ => throw new NotSupportedException($"Format compatibility mode {format} is not supported")
             };
         }
-        
+
         /// <summary>
         /// Converts the input archive to the format-compatible output archive
         /// </summary>
@@ -44,7 +43,7 @@ namespace Fragile.Formats
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Task representing the conversion operation</returns>
         public abstract Task ConvertAsync(string inputPath, string outputPath, FragileOptions? options = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
-        
+
         /// <summary>
         /// Imports an external format archive to a Fragile archive
         /// </summary>
@@ -55,7 +54,7 @@ namespace Fragile.Formats
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Task representing the import operation</returns>
         public abstract Task ImportAsync(string inputPath, string outputPath, FragileOptions? options = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
-        
+
         /// <summary>
         /// Exports a Fragile archive to the format-compatible output archive
         /// </summary>
@@ -66,18 +65,18 @@ namespace Fragile.Formats
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Task representing the export operation</returns>
         public abstract Task ExportAsync(string inputPath, string outputPath, FragileOptions? options = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
-        
+
         /// <summary>
         /// Determines if the provider can read the specified archive
         /// </summary>
         /// <param name="archivePath">Path to the archive</param>
         /// <returns>True if the provider can read the archive</returns>
         public abstract bool CanRead(string archivePath);
-        
+
         /// <summary>
         /// Gets the default file extension for the format
         /// </summary>
         /// <returns>Default file extension with leading dot</returns>
         public abstract string GetDefaultExtension();
     }
-} 
+}

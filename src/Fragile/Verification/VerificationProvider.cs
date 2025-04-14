@@ -14,7 +14,7 @@ namespace Fragile.Verification
         /// The checksum algorithm used by this provider
         /// </summary>
         public abstract ChecksumAlgorithm Algorithm { get; }
-        
+
         /// <summary>
         /// Creates a verification provider for the specified algorithm
         /// </summary>
@@ -33,7 +33,7 @@ namespace Fragile.Verification
                 _ => throw new NotSupportedException($"Checksum algorithm {algorithm} is not supported")
             };
         }
-        
+
         /// <summary>
         /// Calculates the checksum for the input stream
         /// </summary>
@@ -42,7 +42,7 @@ namespace Fragile.Verification
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Checksum as byte array</returns>
         public abstract Task<byte[]> CalculateChecksumAsync(Stream input, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
-        
+
         /// <summary>
         /// Verifies the checksum against the input stream
         /// </summary>
@@ -52,11 +52,11 @@ namespace Fragile.Verification
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>True if checksum matches, false otherwise</returns>
         public abstract Task<bool> VerifyChecksumAsync(Stream input, byte[] expectedChecksum, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
-        
+
         /// <summary>
         /// Gets the size of the checksum in bytes
         /// </summary>
         /// <returns>Checksum size in bytes</returns>
         public abstract int GetChecksumSize();
     }
-} 
+}
