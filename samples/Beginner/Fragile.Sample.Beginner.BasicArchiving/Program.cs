@@ -1,9 +1,6 @@
 using Fragile.Core;
 using Fragile.Models;
 using Fragile.Utils;
-using System;
-using System.IO;
-using System.Threading.Tasks;
 
 namespace Fragile.Sample.Beginner.BasicArchiving
 {
@@ -27,8 +24,8 @@ namespace Fragile.Sample.Beginner.BasicArchiving
 
             // Using the utility methods (easiest approach)
             int fileCount = FragileUtility.CreateArchive(
-                sampleDir, 
-                archivePath, 
+                sampleDir,
+                archivePath,
                 recursive: true);
 
             Console.WriteLine($"Added {fileCount} files to the archive.");
@@ -36,7 +33,7 @@ namespace Fragile.Sample.Beginner.BasicArchiving
             // Extract the archive
             string extractDir = Path.Combine(sampleDir, "Extracted");
             Console.WriteLine($"Extracting archive to: {extractDir}");
-            
+
             FragileUtility.ExtractArchive(archivePath, extractDir);
             Console.WriteLine("Archive extracted successfully!");
 
@@ -53,7 +50,7 @@ namespace Fragile.Sample.Beginner.BasicArchiving
             // Create a few text files with sample content
             File.WriteAllText(Path.Combine(directory, "hello.txt"), "Hello, Fragile!");
             File.WriteAllText(Path.Combine(directory, "info.txt"), "This is a sample file for testing Fragile archiving.");
-            
+
             // Create a subdirectory with a file
             string subDir = Path.Combine(directory, "SubFolder");
             Directory.CreateDirectory(subDir);
@@ -64,12 +61,12 @@ namespace Fragile.Sample.Beginner.BasicArchiving
         {
             // Open the archive and list its contents
             using FragileArchive archive = await FragileArchive.OpenAsync(archivePath);
-            
-            foreach (var entry in archive.Entries)
+
+            foreach (FragileArchiveEntry entry in archive.Entries)
             {
                 string entryType = entry.IsDirectory ? "Directory" : "File";
                 Console.WriteLine($"- {entry.Path} ({entryType}, Size: {entry.Size} bytes)");
             }
         }
     }
-} 
+}

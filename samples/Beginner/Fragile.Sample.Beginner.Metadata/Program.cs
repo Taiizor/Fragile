@@ -1,9 +1,6 @@
 using Fragile.Core;
 using Fragile.Metadata;
 using Fragile.Models;
-using System;
-using System.IO;
-using System.Threading.Tasks;
 
 namespace Fragile.Sample.Beginner.Metadata
 {
@@ -35,10 +32,10 @@ namespace Fragile.Sample.Beginner.Metadata
         static void CreateSampleFiles(string directory)
         {
             Console.WriteLine("Creating sample files...");
-            
+
             // Create a few text files
             File.WriteAllText(
-                Path.Combine(directory, "document1.txt"), 
+                Path.Combine(directory, "document1.txt"),
                 "This is the first document."
             );
 
@@ -57,16 +54,16 @@ namespace Fragile.Sample.Beginner.Metadata
         static async Task CreateArchiveWithMetadata(string inputDir, string archivePath)
         {
             Console.WriteLine("\nCreating archive with metadata...");
-            
+
             // Configure options
-            FragileOptions options = new FragileOptions
+            FragileOptions options = new()
             {
                 IncludeMetadata = true // Make sure metadata is enabled
             };
 
             // Create a new archive
             using FragileArchive archive = await FragileArchive.CreateAsync(archivePath, options);
-            
+
             // Set archive-level metadata
             Console.WriteLine("Setting archive-level metadata...");
             archive.Metadata.Title = "Sample Document Collection";
@@ -74,19 +71,19 @@ namespace Fragile.Sample.Beginner.Metadata
             archive.Metadata.Author = "Fragile Library User";
             archive.Metadata.Version = "1.0";
             archive.Metadata.Tags.AddRange(new[] { "sample", "documentation", "metadata" });
-            
+
             // Add custom properties
             archive.Metadata.AddProperty("Category", "Examples");
             archive.Metadata.AddProperty("SecurityLevel", "Public");
-            
+
             // Add files and set file-level metadata
             Console.WriteLine("Adding files with metadata...");
-            
+
             // First document
             string file1Path = Path.Combine(inputDir, "document1.txt");
             await archive.AddFileAsync(file1Path);
-            
-            EntryMetadata file1Metadata = new EntryMetadata
+
+            EntryMetadata file1Metadata = new()
             {
                 CreationTime = DateTime.Now.AddDays(-5),
                 LastAccessTime = DateTime.Now.AddDays(-1),
@@ -95,12 +92,12 @@ namespace Fragile.Sample.Beginner.Metadata
             file1Metadata.Tags.Add("document");
             file1Metadata.Comment = "This is the first sample document";
             archive.SetEntryMetadata(Path.GetFileName(file1Path), file1Metadata);
-            
+
             // Second document
             string file2Path = Path.Combine(inputDir, "document2.txt");
             await archive.AddFileAsync(file2Path);
-            
-            EntryMetadata file2Metadata = new EntryMetadata
+
+            EntryMetadata file2Metadata = new()
             {
                 CreationTime = DateTime.Now.AddDays(-2),
                 LastAccessTime = DateTime.Now,
@@ -110,12 +107,12 @@ namespace Fragile.Sample.Beginner.Metadata
             file2Metadata.Tags.Add("important");
             file2Metadata.Comment = "This is the second sample document";
             archive.SetEntryMetadata(Path.GetFileName(file2Path), file2Metadata);
-            
+
             // Image file
             string imagePath = Path.Combine(inputDir, "image.jpg");
             await archive.AddFileAsync(imagePath);
-            
-            EntryMetadata imageMetadata = new EntryMetadata
+
+            EntryMetadata imageMetadata = new()
             {
                 CreationTime = DateTime.Now.AddDays(-1),
                 LastAccessTime = DateTime.Now,
@@ -127,7 +124,7 @@ namespace Fragile.Sample.Beginner.Metadata
             imageMetadata.AddProperty("Camera", "Sample Camera");
             imageMetadata.Comment = "Sample image file";
             archive.SetEntryMetadata(Path.GetFileName(imagePath), imageMetadata);
-            
+
             // Save the archive
             await archive.SaveAsync();
             Console.WriteLine($"Archive with metadata saved to: {archivePath}");
@@ -136,9 +133,9 @@ namespace Fragile.Sample.Beginner.Metadata
         static async Task ReadArchiveMetadata(string archivePath)
         {
             Console.WriteLine("\nReading metadata from archive...");
-            
+
             using FragileArchive archive = await FragileArchive.OpenAsync(archivePath);
-            
+
             // Display archive-level metadata
             Console.WriteLine("\nArchive Metadata:");
             Console.WriteLine($"Title: {archive.Metadata.Title}");
@@ -147,41 +144,41 @@ namespace Fragile.Sample.Beginner.Metadata
             Console.WriteLine($"Version: {archive.Metadata.Version}");
             Console.WriteLine($"Created: {archive.Metadata.CreationTime}");
             Console.WriteLine($"Tags: {string.Join(", ", archive.Metadata.Tags)}");
-            
+
             Console.WriteLine("\nCustom Properties:");
-            foreach (var prop in archive.Metadata.CustomProperties)
+            foreach (KeyValuePair<string, string> prop in archive.Metadata.CustomProperties)
             {
                 Console.WriteLine($"  {prop.Key}: {prop.Value}");
             }
-            
+
             // Display file-level metadata
             Console.WriteLine("\nFile Metadata:");
-            
-            foreach (var entry in archive.Entries)
+
+            foreach (FragileArchiveEntry entry in archive.Entries)
             {
                 if (!entry.IsDirectory)
                 {
-                    var extendedEntry = archive.GetExtendedEntry(entry.Path);
+                    FragileArchiveEntryExtended extendedEntry = archive.GetExtendedEntry(entry.Path);
                     Console.WriteLine($"\n- {entry.Path}");
                     Console.WriteLine($"  Size: {entry.Size} bytes");
                     Console.WriteLine($"  Last Modified: {entry.LastModified}");
-                    
+
                     if (extendedEntry.Metadata != null)
                     {
                         Console.WriteLine($"  MIME Type: {extendedEntry.Metadata.MimeType}");
                         Console.WriteLine($"  Created: {extendedEntry.Metadata.CreationTime}");
                         Console.WriteLine($"  Last Accessed: {extendedEntry.Metadata.LastAccessTime}");
                         Console.WriteLine($"  Comment: {extendedEntry.Metadata.Comment}");
-                        
+
                         if (extendedEntry.Metadata.Tags.Count > 0)
                         {
                             Console.WriteLine($"  Tags: {string.Join(", ", extendedEntry.Metadata.Tags)}");
                         }
-                        
+
                         if (extendedEntry.Metadata.CustomProperties.Count > 0)
                         {
                             Console.WriteLine("  Custom Properties:");
-                            foreach (var prop in extendedEntry.Metadata.CustomProperties)
+                            foreach (KeyValuePair<string, string> prop in extendedEntry.Metadata.CustomProperties)
                             {
                                 Console.WriteLine($"    {prop.Key}: {prop.Value}");
                             }
@@ -191,4 +188,4 @@ namespace Fragile.Sample.Beginner.Metadata
             }
         }
     }
-} 
+}

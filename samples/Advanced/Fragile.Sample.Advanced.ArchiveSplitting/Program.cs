@@ -1,12 +1,7 @@
 using Fragile.Core;
 using Fragile.Models;
 using Fragile.Utils;
-using System;
-using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Sample.Advanced.ArchiveSplitting
 {
@@ -47,40 +42,40 @@ namespace Fragile.Sample.Advanced.ArchiveSplitting
         static async Task CreateLargeSampleFiles(string directory)
         {
             Console.WriteLine("Creating large sample files...");
-            
+
             // Create a directory for large files
             string largeFilesDir = Path.Combine(directory, "LargeFiles");
             Directory.CreateDirectory(largeFilesDir);
-            
+
             // Generate several files of different sizes
             await CreateRandomFile(Path.Combine(largeFilesDir, "file1.dat"), 1 * 1024 * 1024); // 1 MB
             await CreateRandomFile(Path.Combine(largeFilesDir, "file2.dat"), 2 * 1024 * 1024); // 2 MB
             await CreateRandomFile(Path.Combine(largeFilesDir, "file3.dat"), 3 * 1024 * 1024); // 3 MB
-            
+
             // Also create a text file with some content
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine("This is a text file included in the large archive.");
             sb.AppendLine("It will be split into multiple parts along with the binary files.");
             sb.AppendLine("The splitting process should preserve all content correctly.");
-            
+
             File.WriteAllText(Path.Combine(largeFilesDir, "information.txt"), sb.ToString());
-            
+
             Console.WriteLine("Created sample files:");
             foreach (string file in Directory.GetFiles(largeFilesDir))
             {
-                FileInfo fileInfo = new FileInfo(file);
+                FileInfo fileInfo = new(file);
                 Console.WriteLine($"- {fileInfo.Name}: {fileInfo.Length:N0} bytes");
             }
         }
-        
+
         static async Task CreateRandomFile(string filePath, int sizeInBytes)
         {
             Console.WriteLine($"Creating file: {Path.GetFileName(filePath)} ({sizeInBytes / 1024 / 1024} MB)");
-            
-            using FileStream stream = new FileStream(filePath, FileMode.Create, FileAccess.Write);
-            Random random = new Random();
+
+            using FileStream stream = new(filePath, FileMode.Create, FileAccess.Write);
+            Random random = new();
             byte[] buffer = new byte[64 * 1024]; // 64 KB buffer
-            
+
             int remainingBytes = sizeInBytes;
             while (remainingBytes > 0)
             {
@@ -88,11 +83,11 @@ namespace Fragile.Sample.Advanced.ArchiveSplitting
                 random.NextBytes(buffer);
                 await stream.WriteAsync(buffer, 0, bytesToWrite);
                 remainingBytes -= bytesToWrite;
-                
+
                 // Report progress for larger files
                 if (sizeInBytes > 5 * 1024 * 1024 && remainingBytes % (1024 * 1024) == 0)
                 {
-                    Console.WriteLine($"  Progress: {((sizeInBytes - remainingBytes) * 100.0 / sizeInBytes):F1}%");
+                    Console.WriteLine($"  Progress: {(sizeInBytes - remainingBytes) * 100.0 / sizeInBytes:F1}%");
                 }
             }
         }
@@ -100,27 +95,27 @@ namespace Fragile.Sample.Advanced.ArchiveSplitting
         static async Task CreateLargeArchive(string sourceDir, string archivePath)
         {
             Console.WriteLine($"\nCreating large archive: {archivePath}");
-            
+
             // Configure options
-            FragileOptions options = new FragileOptions
+            FragileOptions options = new()
             {
                 CompressionAlgorithm = Fragile.Compression.CompressionAlgorithm.Store, // No compression for speed
                 EnableChecksumVerification = true,
                 Progress = new Progress<double>(p => Console.WriteLine($"  Archive creation progress: {p:P1}"))
             };
-            
+
             try
             {
                 // Create the archive
                 using FragileArchive archive = await FragileArchive.CreateAsync(archivePath, options);
-                
+
                 // Add all files from the LargeFiles directory
                 string largeFilesDir = Path.Combine(sourceDir, "LargeFiles");
                 int fileCount = await archive.AddDirectoryAsync(largeFilesDir, recursive: true);
-                
+
                 // Save the archive
                 await archive.SaveAsync();
-                
+
                 // Get archive size
                 long archiveSize = new FileInfo(archivePath).Length;
                 Console.WriteLine($"Created archive with {fileCount} files");
@@ -135,32 +130,32 @@ namespace Fragile.Sample.Advanced.ArchiveSplitting
         static async Task SplitArchiveIntoParts(string archivePath, string outputDir)
         {
             Console.WriteLine($"\nSplitting archive into parts...");
-            
+
             // Make sure the output directory exists
             Directory.CreateDirectory(outputDir);
-            
+
             try
             {
                 // Configure options for splitting
-                FragileOptions options = new FragileOptions
+                FragileOptions options = new()
                 {
                     SplitSize = 2 * 1024 * 1024, // 2 MB per part
                     UseParallelProcessing = true, // Use parallel processing for faster splitting
                     Progress = new Progress<double>(p => Console.WriteLine($"  Splitting progress: {p:P1}"))
                 };
-                
+
                 // Split the archive
                 FragileArchivePartCollection parts = await FragileUtility.SplitArchiveAsync(
-                    archivePath, 
-                    outputDir, 
+                    archivePath,
+                    outputDir,
                     options);
-                
+
                 Console.WriteLine($"Successfully split archive into {parts.Count} parts:");
-                
+
                 // List the parts
-                foreach (var part in parts)
+                foreach (FragileArchivePart part in parts)
                 {
-                    FileInfo fileInfo = new FileInfo(part.Path);
+                    FileInfo fileInfo = new(part.Path);
                     Console.WriteLine($"- Part {part.PartIndex}/{part.TotalParts}: {fileInfo.Name} ({fileInfo.Length:N0} bytes)");
                 }
             }
@@ -173,7 +168,7 @@ namespace Fragile.Sample.Advanced.ArchiveSplitting
         static async Task RecombineArchiveParts(string partsDir, string outputPath)
         {
             Console.WriteLine($"\nRecombining archive parts...");
-            
+
             try
             {
                 // Find all part files
@@ -182,21 +177,21 @@ namespace Fragile.Sample.Advanced.ArchiveSplitting
                 {
                     throw new FileNotFoundException("No archive parts found in the specified directory.");
                 }
-                
+
                 // Get the first part file
                 string firstPart = partFiles.OrderBy(f => f).First();
                 Console.WriteLine($"Starting with first part: {Path.GetFileName(firstPart)}");
-                
+
                 // Configure options
-                FragileOptions options = new FragileOptions
+                FragileOptions options = new()
                 {
                     UseParallelProcessing = true,
                     Progress = new Progress<double>(p => Console.WriteLine($"  Combining progress: {p:P1}"))
                 };
-                
+
                 // Combine the parts
                 await FragileUtility.CombinePartsAsync(firstPart, outputPath, options);
-                
+
                 // Report success
                 long combinedSize = new FileInfo(outputPath).Length;
                 Console.WriteLine($"Successfully recombined parts into: {outputPath}");
@@ -211,39 +206,39 @@ namespace Fragile.Sample.Advanced.ArchiveSplitting
         static async Task ExtractAndVerifyArchive(string archivePath, string extractDir)
         {
             Console.WriteLine($"\nExtracting and verifying recombined archive...");
-            
+
             try
             {
                 // Make sure the extraction directory exists
                 Directory.CreateDirectory(extractDir);
-                
+
                 // Configure options
-                FragileOptions options = new FragileOptions
+                FragileOptions options = new()
                 {
                     Progress = new Progress<double>(p => Console.WriteLine($"  Extraction progress: {p:P1}"))
                 };
-                
+
                 // Extract the archive
                 using FragileArchive archive = await FragileArchive.OpenAsync(archivePath, options);
-                
+
                 Console.WriteLine($"Archive contains {archive.Entries.Count} files:");
-                foreach (var entry in archive.Entries)
+                foreach (FragileArchiveEntry entry in archive.Entries)
                 {
                     Console.WriteLine($"- {entry.Path} ({entry.Size:N0} bytes)");
                 }
-                
+
                 // Extract all files
                 await archive.ExtractAllAsync(extractDir);
-                
+
                 Console.WriteLine($"Successfully extracted all files to: {extractDir}");
-                
+
                 // Verify extracted files
                 string largeFilesDir = Path.Combine(extractDir, "LargeFiles");
                 if (Directory.Exists(largeFilesDir))
                 {
                     int extractedFileCount = Directory.GetFiles(largeFilesDir, "*", SearchOption.AllDirectories).Length;
                     Console.WriteLine($"Found {extractedFileCount} extracted files");
-                    
+
                     if (extractedFileCount == archive.Entries.Count)
                     {
                         Console.WriteLine("Verification successful: All files were extracted correctly!");
@@ -264,4 +259,4 @@ namespace Fragile.Sample.Advanced.ArchiveSplitting
             }
         }
     }
-} 
+}

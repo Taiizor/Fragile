@@ -4,21 +4,14 @@ using Fragile.Encryption;
 using Fragile.Metadata;
 using Fragile.Models;
 using Fragile.Utils;
-using Fragile.Verification;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Sample.Mastery.CompleteBackupSolution
 {
     class Program
     {
         // Configuration settings
-        private static readonly BackupSettings _settings = new BackupSettings
+        private static readonly BackupSettings _settings = new()
         {
             SourceDirectory = "Sample/BackupSource",
             BackupDirectory = "Sample/Backups",
@@ -49,7 +42,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             try
             {
                 // Create a cancellation token source with timeout
-                using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(30));
+                using CancellationTokenSource cts = new(TimeSpan.FromMinutes(30));
 
                 // Perform full backup
                 Console.WriteLine("\nPerforming full backup...");
@@ -61,7 +54,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 // Verify the backup
                 Console.WriteLine("\nVerifying backup integrity...");
                 bool verificationResult = await VerifyBackup(backupResult.BackupArchivePath, _settings.Password);
-                
+
                 if (verificationResult)
                 {
                     Console.WriteLine("Backup verification successful!");
@@ -76,7 +69,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 string restoreDir = Path.Combine("Sample", "Restored");
                 Console.WriteLine($"\nRestoring backup to: {restoreDir}");
                 bool restoreResult = await RestoreBackup(backupResult.BackupArchivePath, restoreDir, _settings.Password);
-                
+
                 if (restoreResult)
                 {
                     Console.WriteLine("Restore operation completed successfully!");
@@ -108,7 +101,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             string docsDir = Path.Combine(_settings.SourceDirectory, "Documents");
             string imagesDir = Path.Combine(_settings.SourceDirectory, "Images");
             string configDir = Path.Combine(_settings.SourceDirectory, "Configuration");
-            
+
             Directory.CreateDirectory(docsDir);
             Directory.CreateDirectory(imagesDir);
             Directory.CreateDirectory(configDir);
@@ -118,12 +111,12 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
 
             // Create various text files
             // Documents
-            await CreateTextFile(Path.Combine(docsDir, "readme.txt"), 
+            await CreateTextFile(Path.Combine(docsDir, "readme.txt"),
                 "This is a sample readme file for the backup solution.\n" +
                 "It contains important information about the project.");
-            
-            await CreateTextFile(Path.Combine(docsDir, "report.txt"), 
-                "Annual Report\n" + 
+
+            await CreateTextFile(Path.Combine(docsDir, "report.txt"),
+                "Annual Report\n" +
                 "=============\n\n" +
                 "This report contains confidential financial information.\n" +
                 GenerateRandomText(5000));
@@ -167,7 +160,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             await CreateFakeImageFile(Path.Combine(imagesDir, "Vacation", "mountains.jpg"), 2 * 1024 * 1024);
             await CreateFakeImageFile(Path.Combine(imagesDir, "Work", "conference.jpg"), 1 * 1024 * 1024);
             await CreateFakeImageFile(Path.Combine(imagesDir, "Work", "office.jpg"), 800 * 1024);
-            
+
             // Create a larger file
             await CreateFakeImageFile(Path.Combine(_settings.SourceDirectory, "large_data.bin"), 8 * 1024 * 1024);
 
@@ -175,7 +168,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             int totalFiles = Directory.GetFiles(_settings.SourceDirectory, "*", SearchOption.AllDirectories).Length;
             long totalSize = Directory.GetFiles(_settings.SourceDirectory, "*", SearchOption.AllDirectories)
                 .Sum(f => new FileInfo(f).Length);
-            
+
             Console.WriteLine($"Created {totalFiles} sample files with total size: {totalSize:N0} bytes ({totalSize / (1024 * 1024):F2} MB)");
         }
 
@@ -186,16 +179,16 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
 
         static async Task CreateFakeImageFile(string path, double sizeInBytes)
         {
-            using FileStream stream = new FileStream(path, FileMode.Create, FileAccess.Write);
-            
+            using FileStream stream = new(path, FileMode.Create, FileAccess.Write);
+
             // Start with a fake header to look like an image
             byte[] header = Encoding.ASCII.GetBytes("IMGDATA");
             await stream.WriteAsync(header, 0, header.Length);
-            
+
             // Fill the rest with random data
-            Random random = new Random();
+            Random random = new();
             byte[] buffer = new byte[64 * 1024]; // 64 KB buffer
-            
+
             long remainingBytes = (long)sizeInBytes - header.Length;
             while (remainingBytes > 0)
             {
@@ -209,18 +202,18 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
         static string GenerateRandomText(int length)
         {
             string[] words = {
-                "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit", "sed", "do", 
-                "eiusmod", "tempor", "incididunt", "ut", "labore", "et", "dolore", "magna", "aliqua", "ut", 
-                "enim", "ad", "minim", "veniam", "quis", "nostrud", "exercitation", "ullamco", "laboris", "nisi", 
-                "ut", "aliquip", "ex", "ea", "commodo", "consequat", "duis", "aute", "irure", "dolor", "in", 
-                "reprehenderit", "in", "voluptate", "velit", "esse", "cillum", "dolore", "eu", "fugiat", "nulla", 
+                "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit", "sed", "do",
+                "eiusmod", "tempor", "incididunt", "ut", "labore", "et", "dolore", "magna", "aliqua", "ut",
+                "enim", "ad", "minim", "veniam", "quis", "nostrud", "exercitation", "ullamco", "laboris", "nisi",
+                "ut", "aliquip", "ex", "ea", "commodo", "consequat", "duis", "aute", "irure", "dolor", "in",
+                "reprehenderit", "in", "voluptate", "velit", "esse", "cillum", "dolore", "eu", "fugiat", "nulla",
                 "pariatur", "excepteur", "sint", "occaecat", "cupidatat", "non", "proident", "sunt", "in", "culpa",
                 "qui", "officia", "deserunt", "mollit", "anim", "id", "est", "laborum"
             };
-            
-            Random random = new Random(42);
-            StringBuilder sb = new StringBuilder();
-            
+
+            Random random = new(42);
+            StringBuilder sb = new();
+
             int totalWords = 0;
             while (totalWords < length)
             {
@@ -234,34 +227,34 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 {
                     sb.AppendLine();
                 }
-                
+
                 string word = words[random.Next(words.Length)];
-                
+
                 // Capitalize first word of paragraph or sentence
-                if (totalWords == 0 || 
+                if (totalWords == 0 ||
                     (totalWords > 0 && sb.ToString().EndsWith(". ")))
                 {
-                    word = char.ToUpper(word[0]) + word.Substring(1);
+                    word = char.ToUpper(word[0]) + word[1..];
                 }
-                
+
                 sb.Append(word);
-                
+
                 // Add period at the end of sentences (approx. every 10-15 words)
                 if (random.Next(15) < 1 && !word.EndsWith("."))
                 {
                     sb.Append(".");
                 }
-                
+
                 sb.Append(" ");
                 totalWords++;
-                
+
                 // Add occasional commas
                 if (random.Next(10) < 1 && !word.EndsWith(",") && !word.EndsWith("."))
                 {
                     sb.Append(", ");
                 }
             }
-            
+
             return sb.ToString();
         }
 
@@ -270,23 +263,23 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             string[] firstNames = { "John", "Jane", "Michael", "Emily", "David", "Sarah", "Robert", "Laura", "William", "Elizabeth" };
             string[] lastNames = { "Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Garcia", "Rodriguez", "Wilson" };
             string[] domains = { "gmail.com", "yahoo.com", "outlook.com", "example.com", "company.com" };
-            
-            Random random = new Random(42);
-            StringBuilder sb = new StringBuilder();
-            
+
+            Random random = new(42);
+            StringBuilder sb = new();
+
             for (int i = 0; i < count; i++)
             {
                 string firstName = firstNames[random.Next(firstNames.Length)];
                 string lastName = lastNames[random.Next(lastNames.Length)];
                 string email = $"{firstName.ToLower()}.{lastName.ToLower()}@{domains[random.Next(domains.Length)]}";
                 string phone = $"+1-{random.Next(100, 999)}-{random.Next(100, 999)}-{random.Next(1000, 9999)}";
-                
+
                 sb.AppendLine($"Name: {firstName} {lastName}");
                 sb.AppendLine($"Email: {email}");
                 sb.AppendLine($"Phone: {phone}");
                 sb.AppendLine();
             }
-            
+
             return sb.ToString();
         }
 
@@ -295,9 +288,9 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             // Create a unique backup file name
             string backupFileName = $"{settings.BackupName}.frgl";
             string backupFilePath = Path.Combine(settings.BackupDirectory, backupFileName);
-            
+
             // Configure backup options
-            FragileOptions options = new FragileOptions
+            FragileOptions options = new()
             {
                 CompressionAlgorithm = CompressionAlgorithm.Deflate,
                 CompressionLevel = settings.CompressionLevel,
@@ -314,20 +307,20 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 Progress = new Progress<double>(p => Console.WriteLine($"  Backup progress: {p:P1}"))
             };
 
-            BackupResult result = new BackupResult
+            BackupResult result = new()
             {
                 StartTime = DateTime.Now,
                 SourceDirectory = settings.SourceDirectory,
                 BackupArchivePath = backupFilePath
             };
-            
+
             try
             {
                 Console.WriteLine($"Creating backup archive: {backupFilePath}");
-                
+
                 // Create the archive
                 using FragileArchive archive = await FragileArchive.CreateAsync(backupFilePath, options);
-                
+
                 // Configure archive metadata
                 archive.Metadata.Title = $"Backup of {Path.GetFileName(settings.SourceDirectory)}";
                 archive.Metadata.Description = $"Full backup created by Fragile Backup Solution";
@@ -338,72 +331,72 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 archive.Metadata.AddProperty("SourcePath", settings.SourceDirectory);
                 archive.Metadata.AddProperty("HostName", Environment.MachineName);
                 archive.Metadata.AddProperty("OperatingSystem", Environment.OSVersion.ToString());
-                
+
                 // Add all files from the source directory
                 Console.WriteLine("Adding files to backup...");
                 result.FileCount = await archive.AddDirectoryAsync(settings.SourceDirectory, recursive: true);
-                
+
                 // Add metadata to each file
-                foreach (var entry in archive.Entries)
+                foreach (FragileArchiveEntry entry in archive.Entries)
                 {
                     if (!entry.IsDirectory)
                     {
                         // Get file information
                         string fullPath = Path.Combine(settings.SourceDirectory, entry.Path);
-                        FileInfo fileInfo = new FileInfo(fullPath);
-                        
+                        FileInfo fileInfo = new(fullPath);
+
                         // Create metadata for the file
-                        EntryMetadata metadata = new EntryMetadata
+                        EntryMetadata metadata = new()
                         {
                             CreationTime = fileInfo.CreationTime,
                             LastAccessTime = fileInfo.LastAccessTime
                         };
-                        
+
                         // Add file type as a tag
                         string extension = Path.GetExtension(entry.Path).ToLower();
                         if (!string.IsNullOrEmpty(extension))
                         {
-                            metadata.Tags.Add(extension.Substring(1)); // Remove the dot
+                            metadata.Tags.Add(extension[1..]); // Remove the dot
                         }
-                        
+
                         // Set appropriate MIME type
                         metadata.MimeType = GetMimeType(extension);
-                        
+
                         // Add the metadata to the file
                         archive.SetEntryMetadata(entry.Path, metadata);
                     }
                 }
-                
+
                 // Save the archive
                 Console.WriteLine("Saving backup archive...");
                 await archive.SaveAsync();
-                
+
                 // Get archive size
-                FileInfo archiveInfo = new FileInfo(backupFilePath);
+                FileInfo archiveInfo = new(backupFilePath);
                 result.BackupSize = archiveInfo.Length;
-                
+
                 // Calculate original size
                 result.OriginalSize = archive.Entries
                     .Where(e => !e.IsDirectory)
                     .Sum(e => e.Size);
-                
+
                 // Check if splitting is needed
                 if (result.BackupSize > settings.MaxPartSize)
                 {
                     Console.WriteLine("Backup file exceeds maximum part size. Splitting into parts...");
-                    
+
                     // Split the archive
                     string partsDir = Path.Combine(settings.BackupDirectory, Path.GetFileNameWithoutExtension(backupFileName) + "_parts");
                     Directory.CreateDirectory(partsDir);
-                    
+
                     FragileArchivePartCollection parts = await archive.SplitAsync(partsDir);
                     result.IsMultiPart = true;
                     result.PartCount = parts.Count;
                     result.PartsDirectory = partsDir;
-                    
+
                     Console.WriteLine($"Backup archive split into {parts.Count} parts.");
                 }
-                
+
                 result.EndTime = DateTime.Now;
                 result.Success = true;
                 return result;
@@ -425,7 +418,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 {
                     // Check if this might be a split archive
                     string potentialPartsDir = Path.ChangeExtension(backupPath, null) + "_parts";
-                    
+
                     if (Directory.Exists(potentialPartsDir))
                     {
                         string[] partFiles = Directory.GetFiles(potentialPartsDir, "*.part*");
@@ -435,39 +428,39 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                             return await VerifyBackupPart(partFiles.OrderBy(f => f).First(), password);
                         }
                     }
-                    
+
                     Console.WriteLine($"Backup file not found: {backupPath}");
                     return false;
                 }
-                
+
                 // Open the archive with verification options
-                FragileOptions options = new FragileOptions
+                FragileOptions options = new()
                 {
                     Password = password,
                     EnableChecksumVerification = true
                 };
-                
+
                 // Open the archive (this will perform basic verification)
                 using FragileArchive archive = await FragileArchive.OpenAsync(backupPath, options);
-                
+
                 Console.WriteLine($"Successfully opened archive with {archive.Entries.Count} entries");
                 Console.WriteLine("Reading entry data to verify archive integrity...");
-                
+
                 // Validate all entries
-                foreach (var entry in archive.Entries)
+                foreach (FragileArchiveEntry entry in archive.Entries)
                 {
                     if (!entry.IsDirectory)
                     {
                         // Get extended entry to verify metadata
-                        var extendedEntry = archive.GetExtendedEntry(entry.Path);
-                        
+                        FragileArchiveEntryExtended extendedEntry = archive.GetExtendedEntry(entry.Path);
+
                         if (extendedEntry == null)
                         {
                             Console.WriteLine($"Warning: Could not retrieve extended information for {entry.Path}");
                         }
                     }
                 }
-                
+
                 Console.WriteLine("All entries successfully verified");
                 return true;
             }
@@ -477,7 +470,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 return false;
             }
         }
-        
+
         static async Task<bool> VerifyBackupPart(string partPath, string password)
         {
             try
@@ -487,27 +480,27 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                     Console.WriteLine($"Backup part file not found: {partPath}");
                     return false;
                 }
-                
+
                 // Get all parts in the directory
                 string directory = Path.GetDirectoryName(partPath);
                 string[] allParts = Directory.GetFiles(directory, "*.part*");
-                
+
                 Console.WriteLine($"Found {allParts.Length} parts in {directory}");
-                
+
                 // Open and collect information about each part
-                FragileOptions options = new FragileOptions
+                FragileOptions options = new()
                 {
                     Password = password
                 };
-                
+
                 FragileArchivePartCollection parts = FragileArchivePartCollection.FindParts(partPath, options);
-                
+
                 if (parts.Count == 0)
                 {
                     Console.WriteLine("No valid parts found in the directory");
                     return false;
                 }
-                
+
                 Console.WriteLine($"Successfully identified {parts.Count} valid parts");
                 return true;
             }
@@ -523,12 +516,12 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             try
             {
                 Directory.CreateDirectory(targetDirectory);
-                
+
                 if (!File.Exists(backupPath))
                 {
                     // Check if this might be a split archive
                     string potentialPartsDir = Path.ChangeExtension(backupPath, null) + "_parts";
-                    
+
                     if (Directory.Exists(potentialPartsDir))
                     {
                         string[] partFiles = Directory.GetFiles(potentialPartsDir, "*.part*");
@@ -536,19 +529,19 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                         {
                             // Re-combine the parts first
                             string recombinedArchive = Path.Combine(
-                                Path.GetDirectoryName(backupPath), 
+                                Path.GetDirectoryName(backupPath),
                                 $"recombined_{Path.GetFileName(backupPath)}");
-                            
+
                             Console.WriteLine($"Found split archive parts, recombining to: {recombinedArchive}");
-                            
-                            FragileOptions options1 = new FragileOptions
+
+                            FragileOptions options1 = new()
                             {
                                 Password = password,
                                 Progress = new Progress<double>(p => Console.WriteLine($"  Recombining progress: {p:P1}"))
                             };
-                            
+
                             await FragileUtility.CombinePartsAsync(partFiles.OrderBy(f => f).First(), recombinedArchive, options1);
-                            
+
                             // Use the recombined archive for restoration
                             backupPath = recombinedArchive;
                         }
@@ -564,29 +557,29 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                         return false;
                     }
                 }
-                
+
                 // Configure extraction options
-                FragileOptions options2 = new FragileOptions
+                FragileOptions options2 = new()
                 {
                     Password = password,
                     EnableErrorCorrection = true,
                     Progress = new Progress<double>(p => Console.WriteLine($"  Restore progress: {p:P1}"))
                 };
-                
+
                 Console.WriteLine($"Extracting backup to: {targetDirectory}");
-                
+
                 // Extract the archive
                 using FragileArchive archive = await FragileArchive.OpenAsync(backupPath, options2);
-                
+
                 Console.WriteLine($"Backup contains {archive.Entries.Count} entries");
                 await archive.ExtractAllAsync(targetDirectory);
-                
+
                 // Verify extraction results
                 int extractedFiles = Directory.GetFiles(targetDirectory, "*", SearchOption.AllDirectories).Length;
                 int expectedFiles = archive.Entries.Count(e => !e.IsDirectory);
-                
+
                 Console.WriteLine($"Extracted {extractedFiles} files out of {expectedFiles} expected");
-                
+
                 return extractedFiles == expectedFiles;
             }
             catch (Exception ex)
@@ -599,51 +592,51 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
         static async Task CleanupOldBackups(string backupDirectory, int keepCount)
         {
             Console.WriteLine($"\nCleaning up old backups (keeping the most recent {keepCount})...");
-            
+
             try
             {
                 // Get all backup files
                 string[] backupFiles = Directory.GetFiles(backupDirectory, "*.frgl")
                     .Where(f => !f.Contains("recombined_")) // Skip recombined archives
                     .ToArray();
-                
+
                 // Get backup part directories
                 string[] partDirs = Directory.GetDirectories(backupDirectory, "*_parts");
-                
+
                 if (backupFiles.Length <= keepCount)
                 {
                     Console.WriteLine($"Found {backupFiles.Length} backups, no cleanup needed");
                     return;
                 }
-                
+
                 // Order by creation time (newest first)
-                var orderedBackups = backupFiles
+                List<FileInfo> orderedBackups = backupFiles
                     .Select(f => new FileInfo(f))
                     .OrderByDescending(f => f.CreationTime)
                     .ToList();
-                
+
                 // Keep the specified number of newest backups
-                var backupsToDelete = orderedBackups.Skip(keepCount).ToList();
-                
+                List<FileInfo> backupsToDelete = orderedBackups.Skip(keepCount).ToList();
+
                 Console.WriteLine($"Removing {backupsToDelete.Count} old backups...");
-                
-                foreach (var backup in backupsToDelete)
+
+                foreach (FileInfo? backup in backupsToDelete)
                 {
                     // Delete the backup file
                     File.Delete(backup.FullName);
                     Console.WriteLine($"Deleted: {backup.Name}");
-                    
+
                     // Delete associated part directory if it exists
                     string partDirName = Path.ChangeExtension(backup.Name, null) + "_parts";
                     string partDirPath = Path.Combine(backupDirectory, partDirName);
-                    
+
                     if (Directory.Exists(partDirPath))
                     {
                         Directory.Delete(partDirPath, true);
                         Console.WriteLine($"Deleted part directory: {partDirName}");
                     }
                 }
-                
+
                 Console.WriteLine("Cleanup completed");
             }
             catch (Exception ex)
@@ -714,7 +707,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
         public long BackupSize { get; set; }
         public bool Success { get; set; }
         public string ErrorMessage { get; set; }
-        
+
         public TimeSpan Duration => EndTime - StartTime;
         public double CompressionRatio => OriginalSize / (double)BackupSize;
     }
@@ -730,24 +723,24 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             Console.WriteLine($"Duration: {result.Duration.TotalMinutes:F1} minutes");
             Console.WriteLine($"Source Directory: {result.SourceDirectory}");
             Console.WriteLine($"Backup File: {result.BackupArchivePath}");
-            
+
             if (result.IsMultiPart)
             {
                 Console.WriteLine($"Split into {result.PartCount} parts");
                 Console.WriteLine($"Parts Directory: {result.PartsDirectory}");
             }
-            
+
             Console.WriteLine($"Files Processed: {result.FileCount}");
             Console.WriteLine($"Original Size: {result.OriginalSize:N0} bytes ({result.OriginalSize / (1024.0 * 1024.0):F2} MB)");
             Console.WriteLine($"Backup Size: {result.BackupSize:N0} bytes ({result.BackupSize / (1024.0 * 1024.0):F2} MB)");
             Console.WriteLine($"Compression Ratio: {result.CompressionRatio:F2}x");
-            Console.WriteLine($"Space Saved: {(1.0 - (result.BackupSize / (double)result.OriginalSize)):P2}");
+            Console.WriteLine($"Space Saved: {1.0 - (result.BackupSize / (double)result.OriginalSize):P2}");
             Console.WriteLine($"Status: {(result.Success ? "Success" : "Failed")}");
-            
+
             if (!result.Success)
             {
                 Console.WriteLine($"Error: {result.ErrorMessage}");
             }
         }
     }
-} 
+}

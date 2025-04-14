@@ -1,11 +1,6 @@
 using Fragile.Compression;
 using Fragile.Core;
 using Fragile.Models;
-using Fragile.Utils;
-using System;
-using System.IO;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Fragile.Sample.Beginner.Compression
 {
@@ -43,17 +38,15 @@ namespace Fragile.Sample.Beginner.Compression
         static void CreateLargeTextFile(string filePath, int lineCount)
         {
             Console.WriteLine($"Creating sample text file with {lineCount:N0} lines...");
-            
-            using (StreamWriter writer = new StreamWriter(filePath))
+
+            using StreamWriter writer = new(filePath);
+            for (int i = 0; i < lineCount; i++)
             {
-                for (int i = 0; i < lineCount; i++)
-                {
-                    // Generate a line with repeating patterns (highly compressible)
-                    writer.WriteLine($"Line {i}: This is a sample text with repeating content. " +
-                        $"The quick brown fox jumps over the lazy dog. " +
-                        $"Lorem ipsum dolor sit amet, consectetur adipiscing elit. " +
-                        $"This text is repeated to create a large file that can be compressed efficiently.");
-                }
+                // Generate a line with repeating patterns (highly compressible)
+                writer.WriteLine($"Line {i}: This is a sample text with repeating content. " +
+                    $"The quick brown fox jumps over the lazy dog. " +
+                    $"Lorem ipsum dolor sit amet, consectetur adipiscing elit. " +
+                    $"This text is repeated to create a large file that can be compressed efficiently.");
             }
         }
 
@@ -61,9 +54,9 @@ namespace Fragile.Sample.Beginner.Compression
         {
             Console.WriteLine($"\nCreating archive with {level} compression level...");
             string archivePath = Path.Combine(outputDir, archiveName);
-            
+
             // Configure compression options
-            FragileOptions options = new FragileOptions
+            FragileOptions options = new()
             {
                 CompressionLevel = level,
                 CompressionAlgorithm = CompressionAlgorithm.Deflate // Using Deflate as it's fully implemented
@@ -78,14 +71,14 @@ namespace Fragile.Sample.Beginner.Compression
             long compressedSize = new FileInfo(archivePath).Length;
             double compressionRatio = (double)originalSize / compressedSize;
             Console.WriteLine($"Archive '{archiveName}' size: {compressedSize:N0} bytes");
-            Console.WriteLine($"Compression ratio: {compressionRatio:F2}x (saved {(1 - (double)compressedSize/originalSize):P2})");
+            Console.WriteLine($"Compression ratio: {compressionRatio:F2}x (saved {1 - ((double)compressedSize / originalSize):P2})");
         }
 
         static async Task CompareArchivedFileSizes(string sampleDir)
         {
             Console.WriteLine("\nComparing archive sizes:");
             Console.WriteLine("========================");
-            
+
             string[] archiveFiles = {
                 Path.Combine(sampleDir, "fastest.frgl"),
                 Path.Combine(sampleDir, "normal.frgl"),
@@ -101,13 +94,13 @@ namespace Fragile.Sample.Beginner.Compression
             {
                 if (File.Exists(archivePath))
                 {
-                    FileInfo fileInfo = new FileInfo(archivePath);
+                    FileInfo fileInfo = new(archivePath);
                     string levelName = Path.GetFileNameWithoutExtension(archivePath);
                     double ratio = (double)originalSize / fileInfo.Length;
-                    
+
                     Console.WriteLine($"|  {levelName,-17}  |  {fileInfo.Length,9:N0}  |  {ratio,5:F2}x  |");
                 }
             }
         }
     }
-} 
+}

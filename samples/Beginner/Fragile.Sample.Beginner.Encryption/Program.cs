@@ -1,10 +1,6 @@
 using Fragile.Core;
 using Fragile.Encryption;
 using Fragile.Models;
-using Fragile.Utils;
-using System;
-using System.IO;
-using System.Threading.Tasks;
 
 namespace Fragile.Sample.Beginner.Encryption
 {
@@ -54,10 +50,10 @@ namespace Fragile.Sample.Beginner.Encryption
         static void CreateSampleFiles(string directory)
         {
             Console.WriteLine("Creating sample files...");
-            
+
             // Create a text file with sensitive information
             File.WriteAllText(
-                Path.Combine(directory, "sensitive_data.txt"), 
+                Path.Combine(directory, "sensitive_data.txt"),
                 "This file contains sensitive information that should be encrypted.\n" +
                 "Credit Card: 1234-5678-9012-3456\n" +
                 "SSN: 123-45-6789\n" +
@@ -76,9 +72,9 @@ namespace Fragile.Sample.Beginner.Encryption
         {
             Console.WriteLine($"\nCreating encrypted archive using {method}...");
             string archivePath = Path.Combine(outputDir, archiveName);
-            
+
             // Configure encryption options
-            FragileOptions options = new FragileOptions
+            FragileOptions options = new()
             {
                 EnableEncryption = true,
                 Password = password,
@@ -89,14 +85,14 @@ namespace Fragile.Sample.Beginner.Encryption
             {
                 // Create and save the archive with encryption
                 using FragileArchive archive = await FragileArchive.CreateAsync(archivePath, options);
-                
+
                 // Add files to the archive
                 await archive.AddFileAsync(Path.Combine(outputDir, "sensitive_data.txt"));
                 await archive.AddFileAsync(Path.Combine(outputDir, "confidential.txt"));
-                
+
                 // Save the archive
                 await archive.SaveAsync();
-                
+
                 Console.WriteLine($"Successfully created encrypted archive: {archiveName}");
                 Console.WriteLine($"Archive size: {new FileInfo(archivePath).Length:N0} bytes");
             }
@@ -109,22 +105,22 @@ namespace Fragile.Sample.Beginner.Encryption
         static async Task ExtractEncryptedArchive(string archivePath, string extractDir, string password)
         {
             Console.WriteLine($"Extracting archive to: {extractDir}");
-            
+
             try
             {
                 // Create the extraction directory
                 Directory.CreateDirectory(extractDir);
-                
+
                 // Configure options with the password
-                FragileOptions options = new FragileOptions
+                FragileOptions options = new()
                 {
                     Password = password
                 };
-                
+
                 // Extract the archive
                 using FragileArchive archive = await FragileArchive.OpenAsync(archivePath, options);
                 await archive.ExtractAllAsync(extractDir);
-                
+
                 Console.WriteLine($"Successfully extracted the archive with {archive.Entries.Count} files.");
             }
             catch (Exception ex)
@@ -134,4 +130,4 @@ namespace Fragile.Sample.Beginner.Encryption
             }
         }
     }
-} 
+}
