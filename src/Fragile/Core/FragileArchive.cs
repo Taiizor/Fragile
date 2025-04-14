@@ -737,7 +737,7 @@ namespace Fragile.Core
                 if (_options.EnableErrorCorrection && _options.ErrorCorrectionLevel > 0)
                 {
                     // Create a error correction provider
-                    ErrorCorrectionProvider errorCorrection = ErrorCorrectionProvider.Create(_options.ErrorCorrectionLevel);
+                    ErrorCorrectionProvider errorCorrection = ErrorCorrectionProvider.Create(_options);
 
                     // Reset the temp file position
                     outputStream.Position = 0;
@@ -1152,7 +1152,7 @@ namespace Fragile.Core
         private async Task TryRepairAndExtractFileAsync(FragileArchiveEntry entry, string destinationPath)
         {
             // Create error correction provider
-            ErrorCorrectionProvider errorCorrection = ErrorCorrectionProvider.Create(_options.ErrorCorrectionLevel);
+            ErrorCorrectionProvider errorCorrection = ErrorCorrectionProvider.Create(_options);
 
             // Open the archive file for temporary reading
             using FileStream archiveStream = new(ArchivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -1168,7 +1168,9 @@ namespace Fragile.Core
                 {
                     // Report repair progress if needed
                     _options.Progress?.Report(0.5); // Simple progress indication
-                });
+                },
+                _options.Progress,
+                _options.CancellationToken);
 
             // If no bytes repaired, the file is still corrupted
             if (bytesRepaired == 0 && bytesWritten == 0)
@@ -1346,6 +1348,7 @@ namespace Fragile.Core
 
             // Create SemaphoreSlim to limit concurrent operations
             using SemaphoreSlim semaphore = new(maxThreads);
+            using SemaphoreSlim sourceStreamLock = new(1, 1);
             List<Task> partTasks = new();
             long totalProcessed = 0;
             object lockObj = new();
@@ -1389,11 +1392,16 @@ namespace Fragile.Core
                         // Read part data from source
                         byte[] partData = new byte[size];
 
-                        // Lock source stream for reading
-                        lock (sourceStream)
+                        // Use async read with semaphore
+                        await sourceStreamLock.WaitAsync(_options.CancellationToken);
+                        try
                         {
                             sourceStream.Position = offset;
-                            sourceStream.Read(partData, 0, (int)size);
+                            await sourceStream.ReadAsync(partData, 0, (int)size, _options.CancellationToken);
+                        }
+                        finally
+                        {
+                            sourceStreamLock.Release();
                         }
 
                         // Write to part file
