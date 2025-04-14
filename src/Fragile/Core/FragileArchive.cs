@@ -1110,12 +1110,9 @@ namespace Fragile.Core
                 // Create the destination file
                 using FileStream outputFile = new(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
 
-                // Select the appropriate compression provider based on the stored algorithm
-                byte compressionAlgorithm = (byte)_options.CompressionAlgorithm; // Use the algorithm from options
-
                 // Create an appropriate decompressor
                 CompressionProvider compressionProvider = CompressionProvider.Create(
-                    (CompressionAlgorithm)compressionAlgorithm,
+                    _options.CompressionAlgorithm,
                     _options.CompressionLevel,
                     _options.UseParallelProcessing,
                     _options.MaxThreads);

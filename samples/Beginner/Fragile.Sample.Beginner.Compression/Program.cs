@@ -66,7 +66,7 @@ namespace Fragile.Sample.Beginner.Compression
             FragileOptions options = new()
             {
                 CompressionLevel = level,
-                CompressionAlgorithm = CompressionAlgorithm.Deflate // Using Deflate as it's fully implemented
+                CompressionAlgorithm = CompressionAlgorithm.Deflate // Using Deflate
             };
 
             // Create the archive

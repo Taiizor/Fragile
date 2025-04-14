@@ -61,11 +61,10 @@ namespace Fragile.Compression
             {
                 CompressionAlgorithm.Store => new StoreCompressionProvider(useParallelProcessing, maxThreads),
                 CompressionAlgorithm.Deflate => new DeflateCompressionProvider(level, useParallelProcessing, maxThreads),
-                // These would be implemented with additional libraries
-                // CompressionAlgorithm.LZMA => new LZMACompressionProvider(level, useParallelProcessing, maxThreads),
-                // CompressionAlgorithm.BZip2 => new BZip2CompressionProvider(level, useParallelProcessing, maxThreads),
-                // CompressionAlgorithm.ZStd => new ZStdCompressionProvider(level, useParallelProcessing, maxThreads),
-                // CompressionAlgorithm.LZ4 => new LZ4CompressionProvider(level, useParallelProcessing, maxThreads),
+                CompressionAlgorithm.LZMA => new LZMACompressionProvider(level, useParallelProcessing, maxThreads),
+                CompressionAlgorithm.BZip2 => new BZip2CompressionProvider(level, useParallelProcessing, maxThreads),
+                CompressionAlgorithm.ZStd => new ZStdCompressionProvider(level, useParallelProcessing, maxThreads),
+                CompressionAlgorithm.LZ4 => new LZ4CompressionProvider(level, useParallelProcessing, maxThreads),
                 _ => throw new NotSupportedException($"Compression algorithm {algorithm} is not supported")
             };
         }
