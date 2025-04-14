@@ -1,9 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Fragile.Compression
 {
@@ -20,7 +19,7 @@ namespace Fragile.Compression
         /// <summary>
         /// Creates a new store compression provider
         /// </summary>
-        public StoreCompressionProvider() 
+        public StoreCompressionProvider()
             : this(true, Environment.ProcessorCount)
         {
         }
@@ -99,49 +98,49 @@ namespace Fragile.Compression
         /// <summary>
         /// Copies the input stream to the output stream using parallel processing
         /// </summary>
-        private async Task CopyParallelAsync(Stream input, Stream output, IProgress<double>? progress = null, 
+        private async Task CopyParallelAsync(Stream input, Stream output, IProgress<double>? progress = null,
             CancellationToken cancellationToken = default)
         {
             long fileLength = input.Length;
             long originalPosition = input.Position;
-            
+
             // Calculate chunks
             int threadCount = Math.Min(MaxThreads, Environment.ProcessorCount);
             int chunkCount = threadCount * 2; // Use more chunks than threads for better load balancing
             long chunkSize = Math.Max(1024 * 1024, fileLength / chunkCount); // At least 1MB per chunk
-            
+
             // Prepare buffers
             List<(long Start, byte[] Data)> chunks = new();
             List<Task<(long Start, byte[] Data)>> copyTasks = new();
-            
+
             // Process each chunk in parallel
             for (long position = 0; position < fileLength; position += chunkSize)
             {
                 long start = position;
                 long length = Math.Min(chunkSize, fileLength - position);
-                
+
                 copyTasks.Add(Task.Run(() =>
                 {
                     // Create a buffer for the chunk
                     byte[] chunkBuffer = new byte[length];
-                    
+
                     // Read chunk from input stream
                     lock (input)
                     {
                         input.Position = start;
                         input.Read(chunkBuffer, 0, (int)length);
                     }
-                    
+
                     return (start, chunkBuffer);
                 }, cancellationToken));
-                
+
                 // Periodically wait for some tasks to complete to control memory usage
                 if (copyTasks.Count >= threadCount * 2)
                 {
                     Task<(long, byte[])> completedTask = await Task.WhenAny(copyTasks);
                     chunks.Add(await completedTask);
                     copyTasks.Remove(completedTask);
-                    
+
                     // Report progress
                     if (progress != null)
                     {
@@ -150,14 +149,14 @@ namespace Fragile.Compression
                     }
                 }
             }
-            
+
             // Wait for remaining tasks
             while (copyTasks.Count > 0)
             {
                 Task<(long, byte[])> completedTask = await Task.WhenAny(copyTasks);
                 chunks.Add(await completedTask);
                 copyTasks.Remove(completedTask);
-                
+
                 // Report progress
                 if (progress != null)
                 {
@@ -165,19 +164,19 @@ namespace Fragile.Compression
                     progress.Report(progressValue);
                 }
             }
-            
+
             // Sort chunks by original position
             chunks.Sort((a, b) => a.Start.CompareTo(b.Start));
-            
+
             // Write all chunks to the output stream
-            foreach (var chunk in chunks)
+            foreach ((long Start, byte[] Data) in chunks)
             {
-                await output.WriteAsync(chunk.Data, 0, chunk.Data.Length, cancellationToken);
+                await output.WriteAsync(Data, 0, Data.Length, cancellationToken);
             }
-            
+
             // Restore original position
             input.Position = originalPosition;
-            
+
             // Final progress update
             progress?.Report(1.0);
         }

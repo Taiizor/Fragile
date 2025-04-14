@@ -147,32 +147,32 @@ namespace Fragile.Core
             {
                 // Get current file position to remember the file size
                 long fileSize = outputStream.Length;
-                
+
                 // Reset output stream for reading
                 outputStream.Position = 0;
-                
+
                 // Create a temporary file for encrypted output
                 string tempEncryptedFile = Path.GetTempFileName();
                 using FileStream encryptedOutput = new(tempEncryptedFile, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-                
+
                 try
                 {
                     // Create encryption provider
                     Encryption.EncryptionProvider encryptionProvider = Encryption.EncryptionProvider.Create(
                         _options.EncryptionMethod,
                         _options.Password);
-                    
+
                     // Encrypt the combined file
                     await encryptionProvider.EncryptAsync(
-                        outputStream, 
-                        encryptedOutput, 
-                        progress, 
+                        outputStream,
+                        encryptedOutput,
+                        progress,
                         cancellationToken);
-                    
+
                     // Close streams
                     outputStream.Close();
                     encryptedOutput.Close();
-                    
+
                     // Replace the original file with encrypted one
                     File.Delete(outputPath);
                     File.Move(tempEncryptedFile, outputPath);
@@ -197,27 +197,27 @@ namespace Fragile.Core
             // Prepare part data and offsets
             Dictionary<int, long> partOffsets = new();
             long currentOffset = 0;
-            
+
             // Calculate offsets for each part
             foreach (FragileArchivePart part in _parts)
             {
                 partOffsets[part.PartIndex] = currentOffset;
                 currentOffset += part.Size;
             }
-            
+
             // Set up semaphore to limit concurrent operations
             int maxThreads = Math.Min(_options.MaxThreads, Environment.ProcessorCount);
             using SemaphoreSlim semaphore = new(maxThreads);
-            
+
             // Load parts in parallel
             List<Task> loadTasks = new();
             long totalProcessed = 0;
             object lockObj = new();
-            
+
             foreach (FragileArchivePart part in _parts)
             {
                 await semaphore.WaitAsync(cancellationToken);
-                
+
                 loadTasks.Add(Task.Run(async () =>
                 {
                     try
@@ -227,22 +227,22 @@ namespace Fragile.Core
                         int bytesRead = 0;
                         int totalRead = 0;
                         byte[] buffer = new byte[81920]; // 80 KB buffer
-                        
+
                         // Read part data
-                        while (totalRead < partData.Length && 
+                        while (totalRead < partData.Length &&
                                (bytesRead = await partStream.ReadAsync(buffer, 0, Math.Min(buffer.Length, partData.Length - totalRead), cancellationToken)) > 0)
                         {
                             Buffer.BlockCopy(buffer, 0, partData, totalRead, bytesRead);
                             totalRead += bytesRead;
                         }
-                        
+
                         // Write to output at the correct position
                         lock (outputStream)
                         {
                             outputStream.Position = partOffsets[part.PartIndex];
                             outputStream.Write(partData, 0, partData.Length);
                         }
-                        
+
                         // Update progress
                         lock (lockObj)
                         {
@@ -256,49 +256,49 @@ namespace Fragile.Core
                     }
                 }, cancellationToken));
             }
-            
+
             // Wait for all tasks to complete
             await Task.WhenAll(loadTasks);
-            
+
             // Ensure we report 100% completion
             progress?.Report(1.0);
-            
+
             // After parallel combination is done, if encryption is enabled, encrypt the entire output file
             if (_options.EnableEncryption && !string.IsNullOrEmpty(_options.Password))
             {
                 // Need to close and reopen output stream for reading/writing
                 long fileSize = outputStream.Length;
                 outputStream.Flush();
-                
+
                 // Create a temporary file for encrypted output
                 string tempEncryptedFile = Path.GetTempFileName();
-                
+
                 try
                 {
                     // Reopen output stream for reading
                     outputStream.Position = 0;
-                    
+
                     using FileStream encryptedOutput = new(tempEncryptedFile, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-                    
+
                     // Create encryption provider
                     Encryption.EncryptionProvider encryptionProvider = Encryption.EncryptionProvider.Create(
                         _options.EncryptionMethod,
                         _options.Password);
-                    
+
                     // Encrypt the combined file
                     await encryptionProvider.EncryptAsync(
-                        outputStream, 
-                        encryptedOutput, 
-                        new Progress<double>(p => progress?.Report(0.5 + p * 0.5)), // Scale progress from 50% to 100%
+                        outputStream,
+                        encryptedOutput,
+                        new Progress<double>(p => progress?.Report(0.5 + (p * 0.5))), // Scale progress from 50% to 100%
                         cancellationToken);
-                    
+
                     // Close streams
                     encryptedOutput.Close();
                     outputStream.Close();
-                    
+
                     // Determine the full path of the output
                     string fullOutputPath = (outputStream as FileStream)?.Name;
-                    
+
                     if (!string.IsNullOrEmpty(fullOutputPath))
                     {
                         // Replace the original file with encrypted one

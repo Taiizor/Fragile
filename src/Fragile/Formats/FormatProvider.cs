@@ -22,13 +22,30 @@ namespace Fragile.Formats
         /// <returns>A suitable format provider</returns>
         public static FormatProvider Create(FormatCompatibility format)
         {
+            // Use default options
+            return Create(format, new FragileOptions());
+        }
+
+        /// <summary>
+        /// Creates a format provider for the specified compatibility mode with options
+        /// </summary>
+        /// <param name="format">The format compatibility mode</param>
+        /// <param name="options">The fragile options to use</param>
+        /// <returns>A suitable format provider</returns>
+        public static FormatProvider Create(FormatCompatibility format, FragileOptions options)
+        {
+            if (options == null)
+            {
+                throw new ArgumentNullException(nameof(options));
+            }
+
             return format switch
             {
-                FormatCompatibility.Native => new NativeFormatProvider(),
+                FormatCompatibility.Native => new NativeFormatProvider(options),
                 // These would be implemented with additional format support
-                // FormatCompatibility.Zip => new ZipFormatProvider(),
-                // FormatCompatibility.Tar => new TarFormatProvider(),
-                // FormatCompatibility.SevenZip => new SevenZipFormatProvider(),
+                // FormatCompatibility.Zip => new ZipFormatProvider(options),
+                // FormatCompatibility.Tar => new TarFormatProvider(options),
+                // FormatCompatibility.SevenZip => new SevenZipFormatProvider(options),
                 _ => throw new NotSupportedException($"Format compatibility mode {format} is not supported")
             };
         }

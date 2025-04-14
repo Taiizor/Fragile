@@ -1,10 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Fragile.Compression
 {
@@ -66,30 +66,28 @@ namespace Fragile.Compression
             }
             else
             {
-                using (DeflateStream deflateStream = new(output, compressionLevel, true))
+                using DeflateStream deflateStream = new(output, compressionLevel, true);
+                // If input stream supports seeking, we can report progress
+                bool canReportProgress = input.CanSeek;
+                long totalBytes = canReportProgress ? input.Length : 0;
+                long totalBytesRead = 0;
+                byte[] buffer = new byte[81920]; // 80 KB buffer
+
+                int bytesRead;
+                while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
                 {
-                    // If input stream supports seeking, we can report progress
-                    bool canReportProgress = input.CanSeek;
-                    long totalBytes = canReportProgress ? input.Length : 0;
-                    long totalBytesRead = 0;
-                    byte[] buffer = new byte[81920]; // 80 KB buffer
+                    await deflateStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
 
-                    int bytesRead;
-                    while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+                    // Report progress if possible
+                    if (canReportProgress && progress != null)
                     {
-                        await deflateStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
-
-                        // Report progress if possible
-                        if (canReportProgress && progress != null)
-                        {
-                            totalBytesRead += bytesRead;
-                            double progressValue = (double)totalBytesRead / totalBytes;
-                            progress.Report(progressValue);
-                        }
-
-                        // Check for cancellation
-                        cancellationToken.ThrowIfCancellationRequested();
+                        totalBytesRead += bytesRead;
+                        double progressValue = (double)totalBytesRead / totalBytes;
+                        progress.Report(progressValue);
                     }
+
+                    // Check for cancellation
+                    cancellationToken.ThrowIfCancellationRequested();
                 }
             }
 
@@ -148,56 +146,56 @@ namespace Fragile.Compression
         /// <summary>
         /// Compresses the input stream to the output stream using parallel processing
         /// </summary>
-        private async Task CompressParallelAsync(Stream input, Stream output, System.IO.Compression.CompressionLevel compressionLevel, 
+        private async Task CompressParallelAsync(Stream input, Stream output, System.IO.Compression.CompressionLevel compressionLevel,
             IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             long fileLength = input.Length;
             long originalPosition = input.Position;
-            
+
             // Calculate chunk size based on file size and number of threads
             int threadCount = Math.Min(MaxThreads, Environment.ProcessorCount);
             int chunkCount = threadCount * 2; // Use more chunks than threads for better load balancing
             long chunkSize = Math.Max(1024 * 1024, fileLength / chunkCount); // At least 1MB per chunk
-            
+
             // Prepare tasks and results
             List<(long Start, long Length, byte[] CompressedData)> compressedChunks = new();
             List<Task<(long Start, long Length, byte[] CompressedData)>> compressionTasks = new();
-            
+
             // Process each chunk in parallel
             for (long position = 0; position < fileLength; position += chunkSize)
             {
                 long start = position;
                 long length = Math.Min(chunkSize, fileLength - position);
-                
+
                 compressionTasks.Add(Task.Run(async () =>
                 {
                     // Create a buffer for the chunk
                     byte[] chunkBuffer = new byte[length];
-                    
+
                     // Read chunk from input stream
                     lock (input)
                     {
                         input.Position = start;
                         input.Read(chunkBuffer, 0, (int)length);
                     }
-                    
+
                     // Compress the chunk
                     using MemoryStream chunkOutput = new();
                     using (DeflateStream deflateStream = new(chunkOutput, compressionLevel, true))
                     {
                         await deflateStream.WriteAsync(chunkBuffer, 0, (int)length, cancellationToken);
                     }
-                    
+
                     return (start, length, chunkOutput.ToArray());
                 }, cancellationToken));
-                
+
                 // Periodically wait for some tasks to complete to control memory usage
                 if (compressionTasks.Count >= threadCount * 2)
                 {
                     Task<(long, long, byte[])> completedTask = await Task.WhenAny(compressionTasks);
                     compressedChunks.Add(await completedTask);
                     compressionTasks.Remove(completedTask);
-                    
+
                     // Report progress
                     if (progress != null)
                     {
@@ -206,14 +204,14 @@ namespace Fragile.Compression
                     }
                 }
             }
-            
+
             // Wait for remaining tasks
             while (compressionTasks.Count > 0)
             {
                 Task<(long, long, byte[])> completedTask = await Task.WhenAny(compressionTasks);
                 compressedChunks.Add(await completedTask);
                 compressionTasks.Remove(completedTask);
-                
+
                 // Report progress
                 if (progress != null)
                 {
@@ -221,31 +219,31 @@ namespace Fragile.Compression
                     progress.Report(progressValue);
                 }
             }
-            
+
             // Sort chunks by original position
             compressedChunks.Sort((a, b) => a.Start.CompareTo(b.Start));
-            
+
             // Write compression header - format information about chunks
             using (BinaryWriter writer = new(output, System.Text.Encoding.UTF8, true))
             {
                 writer.Write(compressedChunks.Count);
-                foreach (var chunk in compressedChunks)
+                foreach ((long Start, long Length, byte[] CompressedData) in compressedChunks)
                 {
-                    writer.Write(chunk.Start);
-                    writer.Write(chunk.Length);
-                    writer.Write(chunk.CompressedData.Length);
+                    writer.Write(Start);
+                    writer.Write(Length);
+                    writer.Write(CompressedData.Length);
                 }
             }
-            
+
             // Write compressed data from all chunks
-            foreach (var chunk in compressedChunks)
+            foreach ((long Start, long Length, byte[] CompressedData) in compressedChunks)
             {
-                await output.WriteAsync(chunk.CompressedData, 0, chunk.CompressedData.Length, cancellationToken);
+                await output.WriteAsync(CompressedData, 0, CompressedData.Length, cancellationToken);
             }
-            
+
             // Restore original position
             input.Position = originalPosition;
-            
+
             // Final progress update
             progress?.Report(1.0);
         }

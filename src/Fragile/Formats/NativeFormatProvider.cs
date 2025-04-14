@@ -1,7 +1,9 @@
 using Fragile.Core;
 using Fragile.Models;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,6 +16,7 @@ namespace Fragile.Formats
     internal class NativeFormatProvider : FormatProvider
     {
         private const string DefaultExtension = ".frgl";
+        private readonly FragileOptions _options;
 
         /// <summary>
         /// The format compatibility mode provided
@@ -21,10 +24,31 @@ namespace Fragile.Formats
         public override FormatCompatibility Format => FormatCompatibility.Native;
 
         /// <summary>
+        /// Creates a new native format provider with default options
+        /// </summary>
+        public NativeFormatProvider()
+            : this(new FragileOptions())
+        {
+        }
+
+        /// <summary>
+        /// Creates a new native format provider with specified options
+        /// </summary>
+        /// <param name="options">Archive options</param>
+        public NativeFormatProvider(FragileOptions options)
+        {
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+        }
+
+        /// <summary>
         /// No conversion needed for native format
         /// </summary>
         public override async Task ConvertAsync(string inputPath, string outputPath, FragileOptions? options = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
+            options ??= _options;
+            progress ??= options.Progress;
+            cancellationToken = options.CancellationToken != default ? options.CancellationToken : cancellationToken;
+
             // No conversion needed for native format, just copy the file
             using FileStream source = new(inputPath, FileMode.Open, FileAccess.Read, FileShare.Read);
             using FileStream destination = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
@@ -41,7 +65,9 @@ namespace Fragile.Formats
                 throw new FileNotFoundException($"Input archive not found: {inputPath}");
             }
 
-            options ??= new FragileOptions();
+            options ??= _options;
+            progress ??= options.Progress;
+            cancellationToken = options.CancellationToken != default ? options.CancellationToken : cancellationToken;
 
             // Create a temporary directory for extraction
             string tempDir = Path.Combine(Path.GetTempPath(), "Fragile", Guid.NewGuid().ToString());
@@ -53,23 +79,34 @@ namespace Fragile.Formats
                 // For now, just assume we're dealing with a native format
 
                 // Extract the input archive to the temp directory
-                using (FragileArchive inputArchive = new(inputPath, FragileArchiveMode.Read))
+                using (FragileArchive inputArchive = new(inputPath, FragileArchiveMode.Read, options))
                 {
-                    inputArchive.ExtractAll(tempDir);
-
-                    // Report progress
-                    progress?.Report(0.5);
+                    if (options.UseParallelProcessing)
+                    {
+                        await ExtractParallelAsync(inputArchive, tempDir, options, progress, cancellationToken);
+                    }
+                    else
+                    {
+                        inputArchive.ExtractAll(tempDir);
+                        progress?.Report(0.5);
+                    }
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
 
                 // Create a new archive with the extracted files
-                using FragileArchive outputArchive = new(outputPath, FragileArchiveMode.Create);
-                outputArchive.AddDirectory(tempDir, "", true);
-                outputArchive.Save();
+                using FragileArchive outputArchive = new(outputPath, FragileArchiveMode.Create, options);
 
-                // Report progress
-                progress?.Report(1.0);
+                if (options.UseParallelProcessing)
+                {
+                    await AddDirectoryParallelAsync(outputArchive, tempDir, options, progress, cancellationToken);
+                }
+                else
+                {
+                    outputArchive.AddDirectory(tempDir, "", true);
+                    outputArchive.Save();
+                    progress?.Report(1.0);
+                }
             }
             finally
             {
@@ -86,6 +123,10 @@ namespace Fragile.Formats
         /// </summary>
         public override async Task ExportAsync(string inputPath, string outputPath, FragileOptions? options = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
+            options ??= _options;
+            progress ??= options.Progress;
+            cancellationToken = options.CancellationToken != default ? options.CancellationToken : cancellationToken;
+
             // For native format, this is just a copy operation
             await ConvertAsync(inputPath, outputPath, options, progress, cancellationToken);
         }
@@ -155,6 +196,107 @@ namespace Fragile.Formats
                 // Check for cancellation
                 cancellationToken.ThrowIfCancellationRequested();
             }
+        }
+
+        /// <summary>
+        /// Extracts files from archive in parallel
+        /// </summary>
+        private async Task ExtractParallelAsync(FragileArchive archive, string outputDir, FragileOptions options, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        {
+            List<FragileArchiveEntry> entries = archive.Entries.ToList();
+            int totalEntries = entries.Count;
+            int completedEntries = 0;
+
+            // Create semaphore to limit concurrency based on options
+            int maxThreads = Math.Min(options.MaxThreads, Environment.ProcessorCount);
+            using SemaphoreSlim semaphore = new(maxThreads);
+            List<Task> tasks = new();
+
+            foreach (FragileArchiveEntry? entry in entries)
+            {
+                await semaphore.WaitAsync(cancellationToken);
+
+                tasks.Add(Task.Run(() =>
+                {
+                    try
+                    {
+                        // Get the full path for the extraction destination
+                        string fullPath = Path.Combine(outputDir, entry.Path);
+
+                        // Create directory if it doesn't exist
+                        string? directory = Path.GetDirectoryName(fullPath);
+                        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                        {
+                            Directory.CreateDirectory(directory);
+                        }
+
+                        // Extract the file
+                        if (!entry.IsDirectory)
+                        {
+                            archive.Extract(entry.Path, fullPath);
+                        }
+                        else
+                        {
+                            Directory.CreateDirectory(fullPath);
+                        }
+
+                        // Update progress
+                        int current = Interlocked.Increment(ref completedEntries);
+                        progress?.Report(current / (double)totalEntries * 0.5);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }, cancellationToken));
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
+        /// <summary>
+        /// Adds files to an archive in parallel
+        /// </summary>
+        private async Task AddDirectoryParallelAsync(FragileArchive archive, string sourceDir, FragileOptions options, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        {
+            string[] files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
+            int totalFiles = files.Length;
+            int completedFiles = 0;
+
+            // Create semaphore to limit concurrency based on options
+            int maxThreads = Math.Min(options.MaxThreads, Environment.ProcessorCount);
+            using SemaphoreSlim semaphore = new(maxThreads);
+            List<Task> tasks = new();
+
+            foreach (string? file in files)
+            {
+                await semaphore.WaitAsync(cancellationToken);
+
+                tasks.Add(Task.Run(() =>
+                {
+                    try
+                    {
+                        // Calculate the relative path within the archive
+                        string relativePath = file[sourceDir.Length..].TrimStart(Path.DirectorySeparatorChar);
+
+                        // Add the file to the archive
+                        archive.AddFile(file, relativePath);
+
+                        // Update progress
+                        int current = Interlocked.Increment(ref completedFiles);
+                        progress?.Report(0.5 + (current / (double)totalFiles * 0.5));
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }, cancellationToken));
+            }
+
+            await Task.WhenAll(tasks);
+
+            // Save the archive after all files are added
+            archive.Save();
         }
     }
 }
