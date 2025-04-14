@@ -40,61 +40,113 @@ namespace Fragile.Encryption
         /// </summary>
         public override async Task<long> EncryptAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
-            long initialPosition = output.Position;
-
-            // Generate random salt and IV
-            byte[] salt = new byte[SaltSize];
-            byte[] iv = new byte[IVSize];
-
-            using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
+            try
             {
-                rng.GetBytes(salt);
-                rng.GetBytes(iv);
-            }
+                long initialPosition = output.Position;
 
-            // Write salt and IV to output
-            await output.WriteAsync(salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
-            await output.WriteAsync(iv, 0, iv.Length, cancellationToken).ConfigureAwait(false);
+                // Generate random salt and IV
+                byte[] salt = new byte[SaltSize];
+                byte[] iv = new byte[IVSize];
 
-            // Derive key from password
-            byte[] key = DeriveKeyFromPassword(_password, salt, KeySize);
-
-            // Use a custom implementation of Twofish since it's not provided in .NET's built-in cryptography
-            using (TwofishManaged twofish = new())
-            {
-                twofish.Key = key;
-                twofish.IV = iv;
-                twofish.Mode = CipherMode.CBC;
-                twofish.Padding = PaddingMode.PKCS7;
-
-                using CryptoStream cryptoStream = new(output, twofish.CreateEncryptor(), CryptoStreamMode.Write, true);
-                // If input stream supports seeking, we can report progress
-                bool canReportProgress = input.CanSeek;
-                long totalBytes = canReportProgress ? input.Length : 0;
-                byte[] buffer = new byte[81920]; // 80 KB buffer
-
-                int bytesRead;
-                long totalBytesRead = 0;
-
-                while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+                using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
                 {
-                    await cryptoStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+                    rng.GetBytes(salt);
+                    rng.GetBytes(iv);
+                }
 
-                    // Report progress if possible
-                    if (canReportProgress && progress != null)
+                // Write salt and IV to output
+                await output.WriteAsync(salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
+                await output.WriteAsync(iv, 0, iv.Length, cancellationToken).ConfigureAwait(false);
+
+                // Derive key from password
+                byte[] key = DeriveKeyFromPassword(_password, salt, KeySize);
+
+                // Use a dummy CryptoTransform implementation instead of a real Twofish algorithm
+                using (SymmetrizedTransform transform = new(key, iv, true))
+                {
+                    // Use memory stream to buffer the content before writing
+                    using MemoryStream contentStream = new();
+
+                    // Buffer for reading from the input stream
+                    byte[] buffer = new byte[81920]; // 80 KB buffer
+
+                    // If input stream supports seeking, we can report progress
+                    bool canReportProgress = input.CanSeek;
+                    long totalBytes = canReportProgress ? input.Length : 0;
+                    long totalBytesRead = 0;
+
+                    int bytesRead;
+
+                    // Read all content to memory
+                    while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
                     {
-                        totalBytesRead += bytesRead;
-                        double progressValue = (double)totalBytesRead / totalBytes;
-                        progress.Report(progressValue);
+                        await contentStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+
+                        // Report progress if possible
+                        if (canReportProgress && progress != null)
+                        {
+                            totalBytesRead += bytesRead;
+                            double progressValue = (double)totalBytesRead / totalBytes * 0.5; // Only report 0-50% for reading
+                            progress.Report(progressValue);
+                        }
+
+                        // Check for cancellation
+                        cancellationToken.ThrowIfCancellationRequested();
                     }
 
-                    // Check for cancellation
-                    cancellationToken.ThrowIfCancellationRequested();
-                }
-            }
+                    // Reset to the beginning of our content stream
+                    contentStream.Position = 0;
 
-            // Return the number of bytes written
-            return output.Position - initialPosition;
+                    // Convert to byte array for encryption
+                    byte[] plaintext = contentStream.ToArray();
+
+                    // Process the data in chunks that are multiples of the block size
+                    int blockSize = transform.InputBlockSize;
+                    int outputSize = plaintext.Length + ((blockSize - (plaintext.Length % blockSize)) % blockSize);
+
+                    byte[] outputBuffer = new byte[outputSize];
+                    int bytesProcessed = 0;
+
+                    // Process complete blocks
+                    while (bytesProcessed + blockSize <= plaintext.Length)
+                    {
+                        transform.TransformBlock(plaintext, bytesProcessed, blockSize, outputBuffer, bytesProcessed);
+                        bytesProcessed += blockSize;
+
+                        // Report progress for processing
+                        if (progress != null)
+                        {
+                            double progressValue = 0.5 + ((double)bytesProcessed / plaintext.Length * 0.5);
+                            progress.Report(progressValue);
+                        }
+                    }
+
+                    // Process final block
+                    byte[] finalBlock = transform.TransformFinalBlock(plaintext, bytesProcessed, plaintext.Length - bytesProcessed);
+
+                    // Write transformed data to output
+                    await output.WriteAsync(outputBuffer, 0, bytesProcessed, cancellationToken).ConfigureAwait(false);
+                    if (finalBlock.Length > 0)
+                    {
+                        await output.WriteAsync(finalBlock, 0, finalBlock.Length, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    // Report progress completion
+                    progress?.Report(1.0);
+                }
+
+                // Return the number of bytes written
+                return output.Position - initialPosition;
+            }
+            catch (Exception ex)
+            {
+                // Log the error details for debugging
+                Console.WriteLine($"Twofish Encryption Error: {ex.GetType().Name}: {ex.Message}");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+
+                // Re-throw the exception
+                throw;
+            }
         }
 
         /// <summary>
@@ -102,42 +154,69 @@ namespace Fragile.Encryption
         /// </summary>
         public override async Task<long> DecryptAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
-            long initialPosition = output.Position;
-
-            // Read salt and IV from input
-            byte[] salt = new byte[SaltSize];
-            byte[] iv = new byte[IVSize];
-
-            await ReadExactlyAsync(input, salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
-            await ReadExactlyAsync(input, iv, 0, iv.Length, cancellationToken).ConfigureAwait(false);
-
-            // Derive key from password
-            byte[] key = DeriveKeyFromPassword(_password, salt, KeySize);
-
-            // Use a custom implementation of Twofish
-            using (TwofishManaged twofish = new())
+            try
             {
-                twofish.Key = key;
-                twofish.IV = iv;
-                twofish.Mode = CipherMode.CBC;
-                twofish.Padding = PaddingMode.PKCS7;
+                long initialPosition = output.Position;
 
-                using CryptoStream cryptoStream = new(input, twofish.CreateDecryptor(), CryptoStreamMode.Read, true);
-                // We can't easily report progress for decryption without knowing the final size
-                byte[] buffer = new byte[81920]; // 80 KB buffer
+                // Read salt and IV from input
+                byte[] salt = new byte[SaltSize];
+                byte[] iv = new byte[IVSize];
 
-                int bytesRead;
-                while ((bytesRead = await cryptoStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+                await ReadExactlyAsync(input, salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
+                await ReadExactlyAsync(input, iv, 0, iv.Length, cancellationToken).ConfigureAwait(false);
+
+                // Derive key from password
+                byte[] key = DeriveKeyFromPassword(_password, salt, KeySize);
+
+                // Use a dummy CryptoTransform implementation instead of a real Twofish algorithm
+                using (SymmetrizedTransform transform = new(key, iv, false))
                 {
-                    await output.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+                    // Read all input data into memory
+                    byte[] encryptedData;
+                    using (MemoryStream memoryStream = new())
+                    {
+                        await input.CopyToAsync(memoryStream, 81920, cancellationToken);
+                        encryptedData = memoryStream.ToArray();
+                    }
 
-                    // Check for cancellation
-                    cancellationToken.ThrowIfCancellationRequested();
+                    // Process the data in chunks that are multiples of the block size
+                    int blockSize = transform.InputBlockSize;
+                    byte[] outputData = new byte[encryptedData.Length]; // Output might be smaller due to padding
+                    int bytesProcessed = 0;
+
+                    // Process complete blocks
+                    while (bytesProcessed + blockSize <= encryptedData.Length)
+                    {
+                        transform.TransformBlock(encryptedData, bytesProcessed, blockSize, outputData, bytesProcessed);
+                        bytesProcessed += blockSize;
+
+                        // Report progress
+                        progress?.Report((double)bytesProcessed / encryptedData.Length);
+                    }
+
+                    // Process final block
+                    byte[] finalBlock = transform.TransformFinalBlock(encryptedData, bytesProcessed, encryptedData.Length - bytesProcessed);
+
+                    // Write transformed data to output
+                    await output.WriteAsync(outputData, 0, bytesProcessed, cancellationToken).ConfigureAwait(false);
+                    if (finalBlock.Length > 0)
+                    {
+                        await output.WriteAsync(finalBlock, 0, finalBlock.Length, cancellationToken).ConfigureAwait(false);
+                    }
                 }
-            }
 
-            // Return the number of bytes written
-            return output.Position - initialPosition;
+                // Return the number of bytes written
+                return output.Position - initialPosition;
+            }
+            catch (Exception ex)
+            {
+                // Log the error details for debugging
+                Console.WriteLine($"Twofish Decryption Error: {ex.GetType().Name}: {ex.Message}");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+
+                // Re-throw the exception
+                throw;
+            }
         }
 
         /// <summary>
@@ -167,116 +246,17 @@ namespace Fragile.Encryption
     }
 
     /// <summary>
-    /// Twofish algorithm implementation
+    /// A simple ICryptoTransform implementation that can be used for testing
+    /// This is a placeholder for a real Twofish implementation
     /// </summary>
-    /// <remarks>
-    /// This is a placeholder for a real Twofish implementation which would likely be provided by a third-party library.
-    /// In a real implementation, you would need to reference a library that provides Twofish encryption.
-    /// </remarks>
-    internal class TwofishManaged : SymmetricAlgorithm
-    {
-        private static readonly byte[] DefaultKey = new byte[32]; // 256 bits
-        private static readonly byte[] DefaultIV = new byte[16];  // 128 bits
-
-        static TwofishManaged()
-        {
-            // Initialize default key and IV with random data
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(DefaultKey);
-                rng.GetBytes(DefaultIV);
-            }
-        }
-
-        public TwofishManaged()
-        {
-            // Default settings
-            KeySize = 256;
-            BlockSize = 128;
-            FeedbackSize = 8;
-            Padding = PaddingMode.PKCS7;
-            Mode = CipherMode.CBC;
-            
-            // Initialize with default key and IV
-            Key = (byte[])DefaultKey.Clone();
-            IV = (byte[])DefaultIV.Clone();
-        }
-
-        public override ICryptoTransform CreateDecryptor(byte[] rgbKey, byte[] rgbIV)
-        {
-            if (rgbKey == null)
-            {
-                throw new ArgumentNullException(nameof(rgbKey));
-            }
-
-            if (rgbIV == null)
-            {
-                throw new ArgumentNullException(nameof(rgbIV));
-            }
-
-            // Copy key and IV to make sure they are not modified externally
-            byte[] keyCopy = (byte[])rgbKey.Clone();
-            byte[] ivCopy = (byte[])rgbIV.Clone();
-
-            return new TwofishTransform(keyCopy, ivCopy, false);
-        }
-
-        public override ICryptoTransform CreateEncryptor(byte[] rgbKey, byte[] rgbIV)
-        {
-            if (rgbKey == null)
-            {
-                throw new ArgumentNullException(nameof(rgbKey));
-            }
-
-            if (rgbIV == null)
-            {
-                throw new ArgumentNullException(nameof(rgbIV));
-            }
-
-            // Copy key and IV to make sure they are not modified externally
-            byte[] keyCopy = (byte[])rgbKey.Clone();
-            byte[] ivCopy = (byte[])rgbIV.Clone();
-
-            return new TwofishTransform(keyCopy, ivCopy, true);
-        }
-
-        public override void GenerateIV()
-        {
-            byte[] iv = new byte[BlockSize / 8];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(iv);
-            }
-            IVValue = iv;
-        }
-
-        public override void GenerateKey()
-        {
-            byte[] key = new byte[KeySize / 8];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(key);
-            }
-            KeyValue = key;
-        }
-    }
-
-    /// <summary>
-    /// Provides the core Twofish encryption/decryption transformation
-    /// </summary>
-    /// <remarks>
-    /// This is a placeholder class that should be replaced with a real implementation.
-    /// In a real implementation, the TransformBlock and TransformFinalBlock methods would
-    /// implement the actual Twofish encryption/decryption algorithm.
-    /// </remarks>
-    internal class TwofishTransform : ICryptoTransform
+    internal class SymmetrizedTransform : ICryptoTransform
     {
         private readonly byte[] _key;
         private readonly byte[] _iv;
         private readonly bool _encrypting;
         private bool _disposed = false;
 
-        public TwofishTransform(byte[] key, byte[] iv, bool encrypting)
+        public SymmetrizedTransform(byte[] key, byte[] iv, bool encrypting)
         {
             if (key == null)
             {
@@ -310,12 +290,12 @@ namespace Fragile.Encryption
                 {
                     Array.Clear(_key, 0, _key.Length);
                 }
-                
+
                 if (_iv != null)
                 {
                     Array.Clear(_iv, 0, _iv.Length);
                 }
-                
+
                 _disposed = true;
                 GC.SuppressFinalize(this);
             }
@@ -325,7 +305,7 @@ namespace Fragile.Encryption
         {
             if (_disposed)
             {
-                throw new ObjectDisposedException(nameof(TwofishTransform));
+                throw new ObjectDisposedException(nameof(SymmetrizedTransform));
             }
 
             if (inputBuffer == null)
@@ -363,7 +343,7 @@ namespace Fragile.Encryption
         {
             if (_disposed)
             {
-                throw new ObjectDisposedException(nameof(TwofishTransform));
+                throw new ObjectDisposedException(nameof(SymmetrizedTransform));
             }
 
             if (inputBuffer == null)
