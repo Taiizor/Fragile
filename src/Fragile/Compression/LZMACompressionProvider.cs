@@ -45,7 +45,7 @@ namespace Fragile.Compression
         {
             long initialPosition = output.Position;
 
-            // LZMA sıkıştırma işlemini simüle ediyoruz
+            // Gerçek bir LZMA kütüphanesi olmadan sıkıştırma işlemini simüle ediyoruz
             
             // Önce orijinal stream'i oku
             byte[] inputData;
@@ -55,7 +55,7 @@ namespace Fragile.Compression
                 inputData = memoryStream.ToArray();
             }
 
-            // Sıkıştırma seviyesine göre sıkıştırma oranını belirle
+            // LZMA sıkıştırma seviyesine göre sıkıştırma oranı belirle
             double compressionRatio = _level switch
             {
                 CompressionLevel.Fastest => 0.7,
@@ -66,158 +66,116 @@ namespace Fragile.Compression
                 _ => 0.5
             };
 
-            // LZMA header (5 Byte Properties + 8 Byte Size)
-            byte[] header = new byte[13];
+            // LZMA header'ı oluştur
+            byte[] lzmaHeader = new byte[13];
+            lzmaHeader[0] = (byte)(_level == CompressionLevel.Ultra ? 0x7F : _level == CompressionLevel.High ? 0x5F : 0x5D); // Sıkıştırma seviyesi
+            lzmaHeader[1] = 0x00; // Dictionary size (little endian)
+            lzmaHeader[2] = 0x00;
+            lzmaHeader[3] = 0x00; 
+            lzmaHeader[4] = 0x01; // 1MB dictionary
             
-            // LZMA özelliklerini simüle et (gerçekte 5 byte, dictionary size, lc, lp, pb vs. içerir)
-            // Sadece simülasyon için sıkıştırma seviyesine göre rastgele değerler
-            header[0] = (byte)(_level switch
-            {
-                CompressionLevel.Fastest => 0x5A,
-                CompressionLevel.Fast => 0x5B,
-                CompressionLevel.Normal => 0x5C,
-                CompressionLevel.High => 0x5D,
-                CompressionLevel.Ultra => 0x5E,
-                _ => 0x5C
-            });
-            
-            header[1] = 0x00; // Dictionary size (4 bytes)
-            header[2] = 0x00;
-            header[3] = 0x00;
-            header[4] = 0x01; // 1MB dictionary
-            
-            // Orijinal boyutu 8 byte olarak ekle (LZMA formatında sıkıştırılmamış boyut)
-            BitConverter.TryWriteBytes(new Span<byte>(header, 5, 8), (long)inputData.Length);
+            // Orijinal boyutu header'a ekle
+            BitConverter.TryWriteBytes(new Span<byte>(lzmaHeader, 5, 8), inputData.Length);
             
             // Header'ı yaz
-            await output.WriteAsync(header, 0, header.Length, cancellationToken);
-            
-            // Sıkıştırılmış boyutu hesapla ve bunu da meta veri olarak yaz
+            await output.WriteAsync(lzmaHeader, 0, lzmaHeader.Length, cancellationToken);
+
+            // Sıkıştırılmış boyutu hesapla
             int compressedSize = (int)(inputData.Length * compressionRatio);
             byte[] compressedSizeBytes = BitConverter.GetBytes(compressedSize);
             await output.WriteAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
             
-            // LZMA özel sıkıştırma simülasyonu - LZMA'nın dictionary tabanlı yaklaşımını simüle et
+            byte[] compressedData = null;
+            
+            // Sliding Window tekniğini kullanarak basit LZMA simülasyonu yap
             using (MemoryStream compressedStream = new MemoryStream())
             {
-                // LZMA'nın sliding window yapısını simüle et
-                const int window = 1024 * 1024; // 1 MB window
-                byte[] currentWindow = new byte[window];
-                int windowPos = 0;
-                
-                // İlerleme için toplam işlenen byte sayısı
-                int totalProcessed = 0;
-                
                 using (BinaryWriter writer = new BinaryWriter(compressedStream))
                 {
-                    int i = 0;
-                    while (i < inputData.Length)
+                    const int windowSize = 4096; // 4KB kaydırma penceresi
+                    byte[] window = new byte[windowSize];
+                    int windowPos = 0;
+                    
+                    int position = 0;
+                    while (position < inputData.Length)
                     {
-                        if (i + 3 < inputData.Length)
+                        // Pencere içinde eşleşme ara
+                        int maxMatch = 0;
+                        int matchPos = -1;
+                        
+                        // Minimum 3 bayt eşleşme için ara
+                        for (int i = Math.Max(0, windowPos - windowSize); i < windowPos; i++)
                         {
-                            // 4 byte ve üzeri tekrar eden bölümleri ara
-                            int maxMatchLength = 0;
-                            int matchOffset = -1;
-                            
-                            // Geçmiş pencere içinde tekrar eden bölüm ara
-                            // Gerçek LZMA daha karmaşık arama ve eşleştirme yapar
-                            if (windowPos >= 16) // En az 16 byte window dolmuş olsun
+                            int j = 0;
+                            while (position + j < inputData.Length && 
+                                  j < 255 && // Maksimum eşleşme uzunluğu
+                                  i + j < windowPos && 
+                                  inputData[position + j] == window[(i + j) % windowSize])
                             {
-                                // Son 16 baytın başlangıcından pencere başlangıcına kadar ara
-                                for (int j = Math.Max(0, windowPos - window); j < windowPos - 3; j++)
-                                {
-                                    // Mevcut konum ile geçmiş konumu karşılaştır
-                                    int matchLen = 0;
-                                    while (matchLen < 255 && // Maksimum 255 byte eşleşme
-                                           i + matchLen < inputData.Length && 
-                                           j + matchLen < windowPos &&
-                                           inputData[i + matchLen] == currentWindow[(j + matchLen) % window])
-                                    {
-                                        matchLen++;
-                                    }
-                                    
-                                    if (matchLen > maxMatchLength)
-                                    {
-                                        maxMatchLength = matchLen;
-                                        matchOffset = windowPos - j;
-                                    }
-                                }
+                                j++;
                             }
                             
-                            if (maxMatchLength >= 4) // En az 4 byte eşleşme varsa referans yaz
+                            if (j > maxMatch && j >= 3)
                             {
-                                // LZ77 referansı yaz: <işaret, offset, uzunluk>
-                                writer.Write((byte)0xFF); // Referans işareti
-                                writer.Write((UInt16)matchOffset); // Offset (2 byte)
-                                writer.Write((byte)maxMatchLength); // Uzunluk (1 byte)
-                                
-                                // Window'a ekle
-                                for (int k = 0; k < maxMatchLength; k++)
-                                {
-                                    currentWindow[windowPos % window] = inputData[i + k];
-                                    windowPos++;
-                                }
-                                
-                                i += maxMatchLength;
+                                maxMatch = j;
+                                matchPos = i;
                             }
-                            else // Tekrar yoksa literal olarak yaz
-                            {
-                                // Literal yaz
-                                writer.Write((byte)0x00); // Literal işareti
-                                writer.Write(inputData[i]);
-                                
-                                // Window'a ekle
-                                currentWindow[windowPos % window] = inputData[i];
-                                windowPos++;
-                                
-                                i++;
-                            }
-                        }
-                        else // Son 3 byte için
-                        {
-                            // Basitçe literal olarak yaz
-                            writer.Write((byte)0x00); // Literal işareti
-                            writer.Write(inputData[i]);
-                            
-                            // Window'a ekle
-                            currentWindow[windowPos % window] = inputData[i];
-                            windowPos++;
-                            
-                            i++;
                         }
                         
-                        // İlerlemeyi güncelle (her 8KB'da bir)
-                        totalProcessed++;
-                        if (totalProcessed % 8192 == 0 && progress != null)
+                        if (maxMatch >= 3)
                         {
-                            double progressValue = (double)totalProcessed / inputData.Length;
+                            // Eşleşme bulundu, referans yaz
+                            writer.Write((byte)0xFF); // Referans işareti
+                            writer.Write((UInt16)(windowPos - matchPos)); // Offset
+                            writer.Write((byte)maxMatch); // Uzunluk
+                            
+                            // Eşleşen baytları pencereye ekle
+                            for (int i = 0; i < maxMatch; i++)
+                            {
+                                window[windowPos++ % windowSize] = inputData[position + i];
+                            }
+                            
+                            position += maxMatch;
+                        }
+                        else
+                        {
+                            // Eşleşme bulunamadı, literal bayt yaz
+                            writer.Write((byte)0x00); // Literal işareti
+                            writer.Write(inputData[position]); // Bayt değeri
+                            
+                            // Baytı pencereye ekle
+                            window[windowPos++ % windowSize] = inputData[position];
+                            position++;
+                        }
+                        
+                        // İlerleme durumunu bildir
+                        if (progress != null && position % 8192 == 0)
+                        {
+                            double progressValue = (double)position / inputData.Length;
                             progress.Report(Math.Min(progressValue, 1.0));
                         }
                         
-                        // İptal kontrolü (belirli aralıklarla)
-                        if (totalProcessed % 100000 == 0)
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-                        }
+                        // İptal kontrolü
+                        cancellationToken.ThrowIfCancellationRequested();
                     }
                     
                     // Veri sonu işareti
                     writer.Write((byte)0xFE);
                 }
                 
-                // "Sıkıştırılmış" veriyi hedeflenen boyuta göre yaz
-                compressedStream.Position = 0;
-                byte[] compressedData = compressedStream.ToArray();
-                
-                int bytesToWrite = Math.Min(compressedSize, compressedData.Length);
-                await output.WriteAsync(compressedData, 0, bytesToWrite, cancellationToken);
-                
-                // Hedeflenen boyut daha büyükse, kalan kısmı doldur
-                if (bytesToWrite < compressedSize)
-                {
-                    byte[] padding = new byte[compressedSize - bytesToWrite];
-                    await output.WriteAsync(padding, 0, padding.Length, cancellationToken);
-                }
+                // ÖNEMLİ: Stream'i kapatmadan önce veriyi al
+                compressedData = compressedStream.ToArray();
+            }
+            
+            // "Sıkıştırılmış" veriyi hedeflenen boyuta göre yaz
+            int bytesToWrite = Math.Min(compressedSize, compressedData.Length);
+            await output.WriteAsync(compressedData, 0, bytesToWrite, cancellationToken);
+            
+            // Hedeflenen boyut daha büyükse, kalan kısmı doldur
+            if (bytesToWrite < compressedSize)
+            {
+                byte[] padding = new byte[compressedSize - bytesToWrite];
+                await output.WriteAsync(padding, 0, padding.Length, cancellationToken);
             }
 
             // İlerleme durumunu tamamla
