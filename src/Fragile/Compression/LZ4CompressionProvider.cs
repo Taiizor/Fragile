@@ -198,8 +198,7 @@ namespace Fragile.Compression
                             // Önceki satırdan prefixLength karakteri al ve geri kalan kısmı ekle
                             if (prefixLength <= previousLine.Length)
                             {
-                                string reconstructedLine = previousLine[..prefixLength] +
-                                                        line[(colonIndex + 1)..];
+                                string reconstructedLine = previousLine[..prefixLength] + line[(colonIndex + 1)..];
                                 await writer.WriteLineAsync(reconstructedLine);
                                 previousLine = reconstructedLine;
                                 continue;

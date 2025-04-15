@@ -112,8 +112,13 @@ namespace Fragile.Encryption
         /// <returns>The derived key</returns>
         protected static byte[] DeriveKeyFromPassword(string password, byte[] salt, int keySize, int iterations = 10000)
         {
+#if NETSTANDARD2_0
+            using Rfc2898DeriveBytes pbkdf2 = new(password, salt, iterations);
+            return pbkdf2.GetBytes(keySize);
+#else
             using Rfc2898DeriveBytes pbkdf2 = new(password, salt, iterations, HashAlgorithmName.SHA256);
             return pbkdf2.GetBytes(keySize);
+#endif
         }
     }
 }
