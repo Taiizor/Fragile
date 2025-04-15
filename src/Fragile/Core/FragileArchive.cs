@@ -4,7 +4,6 @@ using Fragile.ErrorCorrection;
 using Fragile.Metadata;
 using Fragile.Models;
 using Fragile.Verification;
-using System;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text;
@@ -933,7 +932,7 @@ namespace Fragile.Core
                     Size = reader.ReadInt64(), // 2. Size
                     LastModified = TryParseDateTime(reader.ReadInt64()), // 3. LastModified
                     IsDirectory = reader.ReadBoolean(), // 4. IsDirectory
-                    
+
                     // Read placeholders for CompressedSize and PositionOffset (these will be updated from Central Directory)
                     CompressedSize = reader.ReadInt64(), // 5. CompressedSize (placeholder)
                     PositionOffset = reader.ReadInt64() // 6. PositionOffset (placeholder)
