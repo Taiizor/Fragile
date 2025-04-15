@@ -48,7 +48,7 @@ namespace Fragile.Encryption
             if (options == null)
             {
                 throw new ArgumentNullException(nameof(options));
-            }   
+            }
 #else
             ArgumentNullException.ThrowIfNull(options);
 #endif

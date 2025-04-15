@@ -284,7 +284,7 @@ namespace Fragile.Compression
                             byte[] valueBytes = Encoding.UTF8.GetBytes(value);
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                            await output.WriteAsync(valueBytes, 0, valueBytes.Length, cancellationToken);   
+                            await output.WriteAsync(valueBytes, 0, valueBytes.Length, cancellationToken);
 #else
                             await output.WriteAsync(valueBytes, cancellationToken);
 #endif
@@ -293,7 +293,7 @@ namespace Fragile.Compression
                     else if (control == 0x0A) // End of line
                     {
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                        await output.WriteAsync([0x0A], 0, 1, cancellationToken); 
+                        await output.WriteAsync([0x0A], 0, 1, cancellationToken);
 #else
                         await output.WriteAsync(new byte[0x0A].AsMemory(0, 1), cancellationToken);
 #endif

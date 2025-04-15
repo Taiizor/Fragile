@@ -272,7 +272,7 @@ namespace Fragile.ErrorCorrection
                             input.Position = startPosition;
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                            await input.ReadAsync(buffer, 0, (int)chunkLength, cancellationToken); 
+                            await input.ReadAsync(buffer, 0, (int)chunkLength, cancellationToken);
 #else
                             await input.ReadAsync(buffer.AsMemory(0, (int)chunkLength), cancellationToken);
 #endif

@@ -315,7 +315,7 @@ namespace Fragile.Compression
 
                 // Write decompressed data
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                await output.WriteAsync(decompressedData, 0, outPosition, cancellationToken);  
+                await output.WriteAsync(decompressedData, 0, outPosition, cancellationToken);
 #else
                 await output.WriteAsync(decompressedData.AsMemory(0, outPosition), cancellationToken);
 #endif
@@ -420,7 +420,7 @@ namespace Fragile.Compression
             }
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
-            return await _baseStream.ReadAsync(buffer, offset, count, cancellationToken);  
+            return await _baseStream.ReadAsync(buffer, offset, count, cancellationToken);
 #else
             return await _baseStream.ReadAsync(buffer.AsMemory(offset, count), cancellationToken);
 #endif
@@ -462,7 +462,7 @@ namespace Fragile.Compression
 
             // Write data to buffer
 #if NET48_OR_GREATER || NETSTANDARD2_0
-            await _buffer.WriteAsync(buffer, offset, count, cancellationToken); 
+            await _buffer.WriteAsync(buffer, offset, count, cancellationToken);
 #else
             await _buffer.WriteAsync(buffer.AsMemory(offset, count), cancellationToken);
 #endif

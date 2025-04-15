@@ -44,7 +44,7 @@ namespace Fragile.Core
             if (part == null)
             {
                 throw new ArgumentNullException(nameof(part));
-            }  
+            }
 #else
             ArgumentNullException.ThrowIfNull(part);
 #endif
@@ -124,7 +124,7 @@ namespace Fragile.Core
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
                     while ((bytesRead = await partStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
-            
+
 #else
                     while ((bytesRead = await partStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
 
@@ -235,7 +235,7 @@ namespace Fragile.Core
                         // Read part data
 #if NET48_OR_GREATER || NETSTANDARD2_0
                         while (totalRead < partData.Length && (bytesRead = await partStream.ReadAsync(buffer, 0, Math.Min(buffer.Length, partData.Length - totalRead), cancellationToken)) > 0)
-            
+
 #else
                         while (totalRead < partData.Length && (bytesRead = await partStream.ReadAsync(buffer.AsMemory(0, Math.Min(buffer.Length, partData.Length - totalRead)), cancellationToken)) > 0)
 

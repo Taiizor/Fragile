@@ -73,7 +73,7 @@ namespace Fragile.Compression
 #endif
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
-            await output.WriteAsync(header, 0, header.Length, cancellationToken);  
+            await output.WriteAsync(header, 0, header.Length, cancellationToken);
 #else
             await output.WriteAsync(header, cancellationToken);
 #endif
@@ -250,7 +250,7 @@ namespace Fragile.Compression
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
             while (totalBytesRead < compressedSize && (bytesRead = await input.ReadAsync(compressedData, totalBytesRead, compressedSize - totalBytesRead, cancellationToken)) > 0)
-            
+
 #else
             while (totalBytesRead < compressedSize && (bytesRead = await input.ReadAsync(compressedData.AsMemory(totalBytesRead, compressedSize - totalBytesRead), cancellationToken)) > 0)
 

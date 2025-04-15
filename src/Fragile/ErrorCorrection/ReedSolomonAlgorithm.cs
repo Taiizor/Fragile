@@ -53,7 +53,7 @@ namespace Fragile.ErrorCorrection
             if (data == null)
             {
                 throw new ArgumentNullException(nameof(data));
-            } 
+            }
 #else
             ArgumentNullException.ThrowIfNull(data);
 #endif

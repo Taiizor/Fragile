@@ -300,7 +300,7 @@ namespace Fragile.Encryption
             if (iv == null)
             {
                 throw new ArgumentNullException(nameof(iv));
-            }   
+            }
 #else
             ArgumentNullException.ThrowIfNull(key);
 
@@ -355,7 +355,7 @@ namespace Fragile.Encryption
             if (inputBuffer == null)
             {
                 throw new ArgumentNullException(nameof(inputBuffer));
-            }   
+            }
 #else
             ArgumentNullException.ThrowIfNull(inputBuffer);
 #endif
@@ -364,7 +364,7 @@ namespace Fragile.Encryption
             if (outputBuffer == null)
             {
                 throw new ArgumentNullException(nameof(outputBuffer));
-            }  
+            }
 #else
             ArgumentNullException.ThrowIfNull(outputBuffer);
 #endif
@@ -405,7 +405,7 @@ namespace Fragile.Encryption
             if (inputBuffer == null)
             {
                 throw new ArgumentNullException(nameof(inputBuffer));
-            }   
+            }
 #else
             ArgumentNullException.ThrowIfNull(inputBuffer);
 #endif

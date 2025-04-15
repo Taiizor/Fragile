@@ -28,13 +28,13 @@ namespace Fragile.Encryption
             int bytesRead;
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
-            while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0) 
+            while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
 #else
             while ((bytesRead = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
 #endif
             {
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                await output.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);  
+                await output.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
 #else
                 await output.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
 #endif

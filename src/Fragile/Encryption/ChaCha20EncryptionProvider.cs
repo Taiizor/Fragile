@@ -82,7 +82,7 @@ namespace Fragile.Encryption
 #endif
                 {
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                    await contentStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false); 
+                    await contentStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
 #else
                     await contentStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
 #endif
@@ -310,7 +310,7 @@ namespace Fragile.Encryption
             if (ciphertext == null)
             {
                 throw new ArgumentNullException(nameof(ciphertext));
-            }  
+            }
 #else
             ArgumentNullException.ThrowIfNull(ciphertext);
 #endif
