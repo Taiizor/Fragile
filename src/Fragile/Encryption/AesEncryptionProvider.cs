@@ -74,36 +74,11 @@ namespace Fragile.Encryption
                 aes.Mode = CipherMode.CBC;
                 aes.Padding = PaddingMode.PKCS7;
 
-#if NET48_OR_GREATER || NETSTANDARD2_0
+#if NETSTANDARD2_0
                 using CryptoStream cryptoStream = new CryptoStream(output, aes.CreateEncryptor(), CryptoStreamMode.Write);
-                // If input stream supports seeking, we can report progress
-                bool canReportProgress = input.CanSeek;
-                long totalBytes = canReportProgress ? input.Length : 0;
-                byte[] buffer = new byte[81920]; // 80 KB buffer
-
-                int bytesRead;
-                long totalBytesRead = 0;
-
-                while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
-                {
-                    await cryptoStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
-
-                    // Report progress if possible
-                    if (canReportProgress && progress != null)
-                    {
-                        totalBytesRead += bytesRead;
-                        double progressValue = (double)totalBytesRead / totalBytes;
-                        progress.Report(progressValue);
-                    }
-
-                    // Check for cancellation
-                    cancellationToken.ThrowIfCancellationRequested();
-                }
-
-                // Ensure all data is flushed to the output stream
-                cryptoStream.FlushFinalBlock();
 #else
                 using CryptoStream cryptoStream = new(output, aes.CreateEncryptor(), CryptoStreamMode.Write, true);
+#endif
                 // If input stream supports seeking, we can report progress
                 bool canReportProgress = input.CanSeek;
                 long totalBytes = canReportProgress ? input.Length : 0;
@@ -127,7 +102,6 @@ namespace Fragile.Encryption
                     // Check for cancellation
                     cancellationToken.ThrowIfCancellationRequested();
                 }
-#endif
             }
 
             // Return the number of bytes written
@@ -159,19 +133,21 @@ namespace Fragile.Encryption
                 aes.Mode = CipherMode.CBC;
                 aes.Padding = PaddingMode.PKCS7;
 
-                using (CryptoStream cryptoStream = new CryptoStream(input, aes.CreateDecryptor(), CryptoStreamMode.Read))
+#if NETSTANDARD2_0
+                using CryptoStream cryptoStream = new(input, aes.CreateDecryptor(), CryptoStreamMode.Read);
+#else
+                using CryptoStream cryptoStream = new(input, aes.CreateDecryptor(), CryptoStreamMode.Read, true);
+#endif
+                // We can't easily report progress for decryption without knowing the final size
+                byte[] buffer = new byte[81920]; // 80 KB buffer
+
+                int bytesRead;
+                while ((bytesRead = await cryptoStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
                 {
-                    // We can't easily report progress for decryption without knowing the final size
-                    byte[] buffer = new byte[81920]; // 80 KB buffer
+                    await output.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
 
-                    int bytesRead;
-                    while ((bytesRead = await cryptoStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
-                    {
-                        await output.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
-
-                        // Check for cancellation
-                        cancellationToken.ThrowIfCancellationRequested();
-                    }
+                    // Check for cancellation
+                    cancellationToken.ThrowIfCancellationRequested();
                 }
             }
 
