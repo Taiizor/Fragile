@@ -369,9 +369,7 @@ namespace Fragile.Core
 
                     // Extract part number from filename
                     // Pattern: [filename].partXXX[extension]
-                    string partIndexStr = partFileName.Substring(
-                        fileNameWithoutExt.Length + ".part".Length,
-                        partFileName.Length - fileNameWithoutExt.Length - ".part".Length - extension.Length
+                    string partIndexStr = partFileName.Substring(fileNameWithoutExt.Length + ".part".Length, partFileName.Length - fileNameWithoutExt.Length - ".part".Length - extension.Length
                     );
 
                     if (int.TryParse(partIndexStr, out int partIndex))
