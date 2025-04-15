@@ -68,8 +68,8 @@ namespace Fragile.Core
         public FragileArchive(string archivePath, FragileArchiveMode mode, FragileOptions options)
         {
             ArchivePath = archivePath ?? throw new ArgumentNullException(nameof(archivePath));
-            _mode = mode;
             _options = options ?? throw new ArgumentNullException(nameof(options));
+            _mode = mode;
 
             if (mode == FragileArchiveMode.Create)
             {
