@@ -37,6 +37,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fragile.Sample.Mastery.Comp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fragile.Sample.Mastery.SecureFileVault", "samples\Mastery\Fragile.Sample.Mastery.SecureFileVault\Fragile.Sample.Mastery.SecureFileVault.csproj", "{A69DB7ED-4A24-8081-4486-1960C0BC2099}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basic", "Basic", "{A47B5D62-C6DB-4607-BAF4-A7EF35A97321}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AC80F682-3D55-C8F8-4895-A4A9EDD49434}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+		global.json = global.json
+		NuGet.Config = NuGet.Config
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -185,6 +194,7 @@ Global
 		{389CED99-F656-F24D-9DBA-A58E10003AA7} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{C7069751-7799-7C8F-E5FA-CA9FA596D447} = {D558C219-A25A-483B-A3E3-7BCDF179920D}
 		{A69DB7ED-4A24-8081-4486-1960C0BC2099} = {D558C219-A25A-483B-A3E3-7BCDF179920D}
+		{A47B5D62-C6DB-4607-BAF4-A7EF35A97321} = {BF8D0A25-F0D3-4462-AEB1-96DE5C3F67D8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {A8859853-9C96-43CF-9E18-538023141544}

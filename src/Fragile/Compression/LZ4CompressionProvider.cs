@@ -40,14 +40,14 @@ namespace Fragile.Compression
         {
             long initialPosition = output.Position;
 
-            // Gerçek bir LZ4 kütüphanesi olmadan sıkıştırma işlemini simüle ediyoruz
+            // Simulating LZ4 compression without a real LZ4 library
 
-            // Önce orijinal stream'i oku
+            // First read the original stream
             byte[] inputData;
             using (MemoryStream memoryStream = new())
             {
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                // 81920 (80KB) standart buffer boyutu olarak kullanılır
+                // 81920 (80KB) is used as standard buffer size
                 await input.CopyToAsync(memoryStream, 81920, cancellationToken);
 #else
                 await input.CopyToAsync(memoryStream, cancellationToken);
@@ -55,11 +55,11 @@ namespace Fragile.Compression
                 inputData = memoryStream.ToArray();
             }
 
-            // İlk 16 byte olarak orijinal boyutu metadata olarak ekle
+            // Add original size as metadata in the first 16 bytes
             byte[] originalSizeBytes = BitConverter.GetBytes(inputData.Length);
             await output.WriteAsync(originalSizeBytes, 0, originalSizeBytes.Length, cancellationToken);
 
-            // LZ4 sıkıştırma seviyesine göre sıkıştırma oranı belirle
+            // Determine compression ratio according to LZ4 compression level
             double compressionRatio = _level switch
             {
                 CompressionLevel.Fastest => 0.65,
@@ -70,17 +70,17 @@ namespace Fragile.Compression
                 _ => 0.55
             };
 
-            // Hesaplanan boyutu ekle
+            // Add calculated size
             int compressedSize = (int)(inputData.Length * compressionRatio);
             byte[] compressedSizeBytes = BitConverter.GetBytes(compressedSize);
             await output.WriteAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
 
-            // Basit bir "sıkıştırma" simülasyonu yap
-            // Burada her bir satırın başındaki tekrarlayan kısmı atlamak için
-            // veriyi işliyoruz. Gerçek bir LZ4 algoritması daha karmaşık olurdu.
+            // Make a simple compression simulation
+            // Here, we process data to skip repeating parts at the beginning of each line
+            // A real LZ4 algorithm would be more complex
             using (MemoryStream compressedStream = new())
             {
-                // Veriyi satırlara böl
+                // Split data into lines
                 using (MemoryStream inputStream = new(inputData))
                 using (StreamReader reader = new(inputStream))
                 using (StreamWriter writer = new(compressedStream))
@@ -93,17 +93,17 @@ namespace Fragile.Compression
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
-                        // Satır sayısını artır
+                        // Increment line count
                         lineCount++;
 
-                        // Basit bir simülasyon: İlk 100 karaktere kadar benzer içerik
-                        // varsa, sadece değişen kısmı sakla
+                        // Simple simulation: If there is similar content up to the first 100 characters
+                        // just store the changed part
                         if (lineCount > 1 && line.Length > 20 && previousLine.Length > 20)
                         {
                             int commonPrefixLength = GetCommonPrefixLength(previousLine, line);
                             if (commonPrefixLength > 20)
                             {
-                                // Ortak prefix uzunluğu ve değişen içeriği yaz
+                                // Write common prefix length and the changed content
 #if NET48_OR_GREATER || NETSTANDARD2_0
                                 writer.WriteLine($"#{commonPrefixLength}:{line.Substring(commonPrefixLength)}");
 #else
@@ -113,33 +113,33 @@ namespace Fragile.Compression
                             }
                         }
 
-                        // Tam satırı yaz
+                        // Write the full line
                         writer.WriteLine(line);
                         previousLine = line;
 
-                        // İlerleme durumunu bildir
+                        // Report progress
                         if (progress != null && input.CanSeek)
                         {
-                            double progressValue = (double)lineCount / (inputData.Length / 150); // Yaklaşık satır sayısı
+                            double progressValue = (double)lineCount / (inputData.Length / 150); // Approximate line count
                             progress.Report(Math.Min(progressValue, 1.0));
                         }
                     }
                 }
 
-                // Önemli: Writer'ı kapattıktan sonra Position'ı 0'a ayarlamak yerine,
-                // stream kapatılmadan önce veriyi alalım
+                // Important: Instead of setting Position to 0 after closing the writer,
+                // let's get the data before the stream is closed
                 byte[] compressedData = compressedStream.ToArray();
 
-                // Sıkıştırılmış veriyi yazarken, sadece hesaplanan boyut kadar yaz
-                // Bu şekilde istenen boyut oranını yakalarız
+                // When writing compressed data, only write as much as the calculated size
+                // This way we achieve the desired size ratio
                 int bytesToWrite = Math.Min(compressedSize, compressedData.Length);
                 await output.WriteAsync(compressedData, 0, bytesToWrite, cancellationToken);
             }
 
-            // İlerleme durumunu tamamla
+            // Complete progress reporting
             progress?.Report(1.0);
 
-            // Yazılan byte sayısını döndür
+            // Return number of bytes written
             return output.Position - initialPosition;
         }
 
@@ -150,7 +150,7 @@ namespace Fragile.Compression
         {
             long initialPosition = output.Position;
 
-            // Meta verileri oku
+            // Read metadata
             byte[] originalSizeBytes = new byte[8];
             await input.ReadAsync(originalSizeBytes, 0, originalSizeBytes.Length, cancellationToken);
             long originalSize = BitConverter.ToInt64(originalSizeBytes, 0);
@@ -159,7 +159,7 @@ namespace Fragile.Compression
             await input.ReadAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
             int compressedSize = BitConverter.ToInt32(compressedSizeBytes, 0);
 
-            // Sıkıştırılmış veriyi oku
+            // Read compressed data
             byte[] compressedData = new byte[compressedSize];
             int totalBytesRead = 0;
             int bytesRead;
@@ -171,15 +171,15 @@ namespace Fragile.Compression
             {
                 totalBytesRead += bytesRead;
 
-                // İlerleme durumunu bildir
+                // Report progress
                 if (progress != null)
                 {
                     double progressValue = (double)totalBytesRead / compressedSize;
-                    progress.Report(progressValue * 0.5); // İlk %50 için ilerleme
+                    progress.Report(progressValue * 0.5); // First %50 for progress
                 }
             }
 
-            // "Sıkıştırılmış" veriyi çöz
+            // Decompress "compressed" data
             using (MemoryStream compressedStream = new(compressedData, 0, totalBytesRead))
             using (StreamReader reader = new(compressedStream))
             using (StreamWriter writer = new(output))
@@ -193,7 +193,7 @@ namespace Fragile.Compression
                     cancellationToken.ThrowIfCancellationRequested();
                     lineCount++;
 
-                    // Sıkıştırılmış satır formatını kontrol et
+                    // Check compressed line format
                     if (line.StartsWith("#") && line.Contains(':'))
                     {
                         int colonIndex = line.IndexOf(':');
@@ -203,7 +203,7 @@ namespace Fragile.Compression
                         if (int.TryParse(line[1..colonIndex], out int prefixLength))
 #endif
                         {
-                            // Önceki satırdan prefixLength karakteri al ve geri kalan kısmı ekle
+                            // Take prefixLength characters from previous line and add the rest
                             if (prefixLength <= previousLine.Length)
                             {
 #if NET48_OR_GREATER || NETSTANDARD2_0
@@ -218,20 +218,20 @@ namespace Fragile.Compression
                         }
                     }
 
-                    // Normal satır
+                    // Normal line
                     await writer.WriteLineAsync(line);
                     previousLine = line;
 
-                    // İlerleme durumunu bildir
+                    // Report progress
                     if (progress != null)
                     {
                         double progressValue = 0.5 + ((double)lineCount / (originalSize / 150) * 0.5);
-                        progress.Report(Math.Min(progressValue, 1.0)); // Son %50 için ilerleme
+                        progress.Report(Math.Min(progressValue, 1.0)); // Last %50 for progress
                     }
                 }
             }
 
-            // Yazılan byte sayısını döndür
+            // Return number of bytes written
             return output.Position - initialPosition;
         }
 
@@ -254,7 +254,7 @@ namespace Fragile.Compression
         }
 
         /// <summary>
-        /// İki string arasındaki ortak önek uzunluğunu bulur
+        /// Finds the length of the common prefix between two strings
         /// </summary>
         private static int GetCommonPrefixLength(string s1, string s2)
         {
@@ -301,28 +301,28 @@ namespace Fragile.Compression
         {
             if (_isCompress && _buffer.Length > 0)
             {
-                // Sıkıştırma oranını belirle
+                // Determine compression ratio
                 double compressionRatio = GetCompressionRatio();
 
-                // Buffer'daki veriyi al
+                // Read data from buffer
                 byte[] originalData = _buffer.ToArray();
 
-                // Sıkıştırılmış boyutu hesapla
+                // Calculate compressed size
                 int compressedSize = (int)(originalData.Length * compressionRatio);
 
-                // Meta veri olarak orijinal boyutu yaz
+                // Write original size as metadata
                 byte[] sizeData = BitConverter.GetBytes(originalData.Length);
                 _baseStream.Write(sizeData, 0, sizeData.Length);
 
-                // Sıkıştırılmış boyutu yaz
+                // Write compressed size
                 byte[] compressedSizeData = BitConverter.GetBytes(compressedSize);
                 _baseStream.Write(compressedSizeData, 0, compressedSizeData.Length);
 
-                // "Sıkıştırılmış" veriyi yaz (aslında orijinal verinin bir kısmı)
+                // Write "compressed" data (actually a part of the original data)
                 int bytesToWrite = Math.Min(compressedSize, originalData.Length);
                 _baseStream.Write(originalData, 0, bytesToWrite);
 
-                // Buffer'ı temizle
+                // Clear buffer
                 _buffer.SetLength(0);
             }
 
@@ -366,10 +366,10 @@ namespace Fragile.Compression
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
 
-            // Sıkıştırırken, önce buffer'a veriyi yazalım
+            // When compressing, first write data to buffer
             _buffer.Write(buffer, offset, count);
 
-            // Eğer buffer belli bir boyutu aşarsa, flush edelim
+            // If buffer exceeds a certain size, flush
             if (_buffer.Length > 1024 * 1024) // 1 MB
             {
                 Flush();
@@ -383,27 +383,27 @@ namespace Fragile.Compression
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
 
-            // Sıkıştırırken, önce buffer'a veriyi yazalım
+            // When compressing, first write data to buffer
             await _buffer.WriteAsync(buffer, offset, count, cancellationToken);
 
-            // Eğer buffer belli bir boyutu aşarsa, flush edelim
+            // If buffer exceeds a certain size, flush
             if (_buffer.Length > 1024 * 1024) // 1 MB
             {
                 Flush();
             }
         }
 
-        // Acceleration faktörüne göre bir sıkıştırma oranı hesapla
+        // Calculate compression ratio based on acceleration factor
         private double GetCompressionRatio()
         {
-            // LZ4 için: acceleration factor arttıkça sıkıştırma oranı azalır (daha hızlı, daha az sıkıştırma)
+            // For LZ4: as acceleration factor increases, compression ratio decreases (faster, less compression)
             return _accelerationFactor switch
             {
-                1 => 0.45, // En iyi sıkıştırma, en yavaş
+                1 => 0.45, // Best compression, slowest
                 2 => 0.5,
                 4 => 0.6,
-                8 => 0.65, // En hızlı, en az sıkıştırma
-                _ => 0.55  // Varsayılan
+                8 => 0.65, // Fastest, least compression
+                _ => 0.55  // Default
             };
         }
 
@@ -415,7 +415,7 @@ namespace Fragile.Compression
                 {
                     if (_isCompress && _buffer.Length > 0)
                     {
-                        // Kalan veriyi flush et
+                        // Flush remaining data
                         Flush();
                     }
 

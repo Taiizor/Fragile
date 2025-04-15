@@ -40,14 +40,14 @@ namespace Fragile.Compression
         {
             long initialPosition = output.Position;
 
-            // Gerçek bir LZMA kütüphanesi olmadan sıkıştırma işlemini simüle ediyoruz
+            // Simulating LZMA compression without a real LZMA library
 
-            // Önce orijinal stream'i oku
+            // First read the original stream
             byte[] inputData;
             using (MemoryStream memoryStream = new())
             {
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                // 81920 (80KB) standart buffer boyutu olarak kullanılır
+                // 81920 (80KB) is used as standard buffer size
                 await input.CopyToAsync(memoryStream, 81920, cancellationToken);
 #else
                 await input.CopyToAsync(memoryStream, cancellationToken);
@@ -55,7 +55,7 @@ namespace Fragile.Compression
                 inputData = memoryStream.ToArray();
             }
 
-            // LZMA sıkıştırma seviyesine göre sıkıştırma oranı belirle
+            // Determine compression ratio according to LZMA compression level
             double compressionRatio = _level switch
             {
                 CompressionLevel.Fastest => 0.7,
@@ -66,15 +66,15 @@ namespace Fragile.Compression
                 _ => 0.5
             };
 
-            // LZMA header'ı oluştur
+            // Create LZMA header
             byte[] lzmaHeader = new byte[13];
-            lzmaHeader[0] = (byte)(_level == CompressionLevel.Ultra ? 0x7F : _level == CompressionLevel.High ? 0x5F : 0x5D); // Sıkıştırma seviyesi
+            lzmaHeader[0] = (byte)(_level == CompressionLevel.Ultra ? 0x7F : _level == CompressionLevel.High ? 0x5F : 0x5D); // Compression level
             lzmaHeader[1] = 0x00; // Dictionary size (little endian)
             lzmaHeader[2] = 0x00;
             lzmaHeader[3] = 0x00;
             lzmaHeader[4] = 0x01; // 1MB dictionary
 
-            // Orijinal boyutu header'a ekle
+            // Add original size to header
 #if NET48_OR_GREATER || NETSTANDARD2_0
             byte[] sizeBytes = BitConverter.GetBytes(inputData.Length);
             Array.Copy(sizeBytes, 0, lzmaHeader, 5, Math.Min(sizeBytes.Length, 8));
@@ -82,38 +82,38 @@ namespace Fragile.Compression
             BitConverter.TryWriteBytes(new Span<byte>(lzmaHeader, 5, 8), inputData.Length);
 #endif
 
-            // Header'ı yaz
+            // Write header
             await output.WriteAsync(lzmaHeader, 0, lzmaHeader.Length, cancellationToken);
 
-            // Sıkıştırılmış boyutu hesapla
+            // Calculate compressed size
             int compressedSize = (int)(inputData.Length * compressionRatio);
             byte[] compressedSizeBytes = BitConverter.GetBytes(compressedSize);
             await output.WriteAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
 
             byte[] compressedData = null;
 
-            // Sliding Window tekniğini kullanarak basit LZMA simülasyonu yap
+            // Simple LZMA simulation using Sliding Window technique
             using (MemoryStream compressedStream = new())
             {
                 using (BinaryWriter writer = new(compressedStream))
                 {
-                    const int windowSize = 4096; // 4KB kaydırma penceresi
+                    const int windowSize = 4096; // 4KB sliding window
                     byte[] window = new byte[windowSize];
                     int windowPos = 0;
 
                     int position = 0;
                     while (position < inputData.Length)
                     {
-                        // Pencere içinde eşleşme ara
+                        // Look for match in window
                         int maxMatch = 0;
                         int matchPos = -1;
 
-                        // Minimum 3 bayt eşleşme için ara
+                        // Search for minimum 3 byte match
                         for (int i = Math.Max(0, windowPos - windowSize); i < windowPos; i++)
                         {
                             int j = 0;
                             while (position + j < inputData.Length &&
-                                  j < 255 && // Maksimum eşleşme uzunluğu
+                                  j < 255 && // Maximum match length
                                   i + j < windowPos &&
                                   inputData[position + j] == window[(i + j) % windowSize])
                             {
@@ -129,12 +129,12 @@ namespace Fragile.Compression
 
                         if (maxMatch >= 3)
                         {
-                            // Eşleşme bulundu, referans yaz
-                            writer.Write((byte)0xFF); // Referans işareti
+                            // Match found, write reference
+                            writer.Write((byte)0xFF); // Reference marker
                             writer.Write((ushort)(windowPos - matchPos)); // Offset
-                            writer.Write((byte)maxMatch); // Uzunluk
+                            writer.Write((byte)maxMatch); // Length
 
-                            // Eşleşen baytları pencereye ekle
+                            // Add matched bytes to window
                             for (int i = 0; i < maxMatch; i++)
                             {
                                 window[windowPos++ % windowSize] = inputData[position + i];
@@ -144,49 +144,49 @@ namespace Fragile.Compression
                         }
                         else
                         {
-                            // Eşleşme bulunamadı, literal bayt yaz
-                            writer.Write((byte)0x00); // Literal işareti
-                            writer.Write(inputData[position]); // Bayt değeri
+                            // No match found, write literal byte
+                            writer.Write((byte)0x00); // Literal marker
+                            writer.Write(inputData[position]); // Byte value
 
-                            // Baytı pencereye ekle
+                            // Add byte to window
                             window[windowPos++ % windowSize] = inputData[position];
                             position++;
                         }
 
-                        // İlerleme durumunu bildir
+                        // Report progress
                         if (progress != null && position % 8192 == 0)
                         {
                             double progressValue = (double)position / inputData.Length;
                             progress.Report(Math.Min(progressValue, 1.0));
                         }
 
-                        // İptal kontrolü
+                        // Check for cancellation
                         cancellationToken.ThrowIfCancellationRequested();
                     }
 
-                    // Veri sonu işareti
+                    // End of data marker
                     writer.Write((byte)0xFE);
                 }
 
-                // ÖNEMLİ: Stream'i kapatmadan önce veriyi al
+                // IMPORTANT: Get data before closing the stream
                 compressedData = compressedStream.ToArray();
             }
 
-            // "Sıkıştırılmış" veriyi hedeflenen boyuta göre yaz
+            // Write "compressed" data according to target size
             int bytesToWrite = Math.Min(compressedSize, compressedData.Length);
             await output.WriteAsync(compressedData, 0, bytesToWrite, cancellationToken);
 
-            // Hedeflenen boyut daha büyükse, kalan kısmı doldur
+            // If target size is larger, fill remaining part
             if (bytesToWrite < compressedSize)
             {
                 byte[] padding = new byte[compressedSize - bytesToWrite];
                 await output.WriteAsync(padding, 0, padding.Length, cancellationToken);
             }
 
-            // İlerleme durumunu tamamla
+            // Complete progress reporting
             progress?.Report(1.0);
 
-            // Yazılan byte sayısını döndür
+            // Return number of bytes written
             return output.Position - initialPosition;
         }
 
@@ -197,19 +197,19 @@ namespace Fragile.Compression
         {
             long initialPosition = output.Position;
 
-            // LZMA header'ı oku
+            // Read LZMA header
             byte[] header = new byte[13];
             await input.ReadAsync(header, 0, header.Length, cancellationToken);
 
-            // Orijinal boyutu al
+            // Get original size
             long originalSize = BitConverter.ToInt64(header, 5);
 
-            // Sıkıştırılmış boyutu oku
+            // Read compressed size
             byte[] compressedSizeBytes = new byte[4];
             await input.ReadAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
             int compressedSize = BitConverter.ToInt32(compressedSizeBytes, 0);
 
-            // Sıkıştırılmış veriyi oku
+            // Read compressed data
             byte[] compressedData = new byte[compressedSize];
             int totalBytesRead = 0;
             int bytesRead;
@@ -221,7 +221,7 @@ namespace Fragile.Compression
             {
                 totalBytesRead += bytesRead;
 
-                // İlerleme durumunu bildir
+                // Report progress
                 if (progress != null)
                 {
                     double progressValue = (double)totalBytesRead / compressedSize * 0.5;
@@ -229,31 +229,31 @@ namespace Fragile.Compression
                 }
             }
 
-            // Veriyi aç
+            // Decompress data
             using (MemoryStream ms = new(compressedData, 0, totalBytesRead))
             using (BinaryReader reader = new(ms))
             {
-                // LZMA sliding window yapısını simüle et
+                // Simulate LZMA sliding window structure
                 const int window = 1024 * 1024; // 1 MB window
                 byte[] currentWindow = new byte[window];
                 int windowPos = 0;
 
-                // Açılan veriyi tutacak dizi
+                // Array to hold decompressed data
                 byte[] decompressedData = new byte[originalSize];
                 int outPosition = 0;
 
                 while (ms.Position < ms.Length && outPosition < decompressedData.Length)
                 {
-                    // Kontrol baytını oku
+                    // Read control byte
                     byte control = reader.ReadByte();
 
                     if (control == 0xFF) // Referans
                     {
-                        // Offset ve uzunluğu oku
+                        // Read offset and length
                         ushort offset = reader.ReadUInt16();
                         byte length = reader.ReadByte();
 
-                        // Referans edilen veriyi window'dan kopyala
+                        // Copy referenced data from window
                         int refPos = (windowPos - offset) % window;
                         if (refPos < 0)
                         {
@@ -265,17 +265,17 @@ namespace Fragile.Compression
                             byte b = currentWindow[(refPos + i) % window];
                             decompressedData[outPosition++] = b;
 
-                            // Açılan veriyi sliding window'a ekle
+                            // Add decompressed data to sliding window
                             currentWindow[windowPos++ % window] = b;
                         }
                     }
                     else if (control == 0x00) // Literal
                     {
-                        // Literal baytı oku
+                        // Read literal byte
                         byte b = reader.ReadByte();
                         decompressedData[outPosition++] = b;
 
-                        // Açılan veriyi sliding window'a ekle
+                        // Add decompressed data to sliding window
                         currentWindow[windowPos++ % window] = b;
                     }
                     else if (control == 0xFE) // Veri sonu
@@ -283,7 +283,7 @@ namespace Fragile.Compression
                         break;
                     }
 
-                    // İlerleme durumunu güncelle
+                    // Update progress
                     if (progress != null && (outPosition % 8192 == 0))
                     {
                         double progressValue = 0.5 + ((double)outPosition / decompressedData.Length * 0.5);
@@ -291,11 +291,11 @@ namespace Fragile.Compression
                     }
                 }
 
-                // Açılan veriyi yaz
+                // Write decompressed data
                 await output.WriteAsync(decompressedData, 0, outPosition, cancellationToken);
             }
 
-            // Yazılan byte sayısını döndür
+            // Return number of bytes written
             return output.Position - initialPosition;
         }
 
@@ -348,15 +348,15 @@ namespace Fragile.Compression
         {
             if (_isCompress && _buffer.Length > 0)
             {
-                // Sıkıştırma oranını belirle
+                // Calculate compression ratio
                 double compressionRatio = GetCompressionRatio();
 
-                // Buffer'daki veriyi al
+                // Read data from buffer
                 byte[] originalData = _buffer.ToArray();
 
-                // LZMA header yaz
+                // Write LZMA header
                 byte[] header = new byte[13];
-                header[0] = (byte)(_compressionLevel + 0x5A); // Sahte LZMA properties
+                header[0] = (byte)(_compressionLevel + 0x5A); // Fake LZMA properties
                 header[1] = 0x00; // Dictionary size
                 header[2] = 0x00;
                 header[3] = 0x00;
@@ -371,16 +371,16 @@ namespace Fragile.Compression
 
                 _baseStream.Write(header, 0, header.Length);
 
-                // Sıkıştırılmış boyutu hesapla
+                // Calculate compressed size
                 int compressedSize = (int)(originalData.Length * compressionRatio);
                 byte[] compressedSizeBytes = BitConverter.GetBytes(compressedSize);
                 _baseStream.Write(compressedSizeBytes, 0, compressedSizeBytes.Length);
 
-                // "Sıkıştırılmış" veriyi yaz
+                // Write "compressed" data
                 int bytesToWrite = Math.Min(compressedSize, originalData.Length);
                 _baseStream.Write(originalData, 0, bytesToWrite);
 
-                // Buffer'ı temizle
+                // Clear buffer
                 _buffer.SetLength(0);
             }
 
@@ -424,10 +424,10 @@ namespace Fragile.Compression
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
 
-            // Veriyi buffer'a yazalım
+            // Write data to buffer
             _buffer.Write(buffer, offset, count);
 
-            // Eğer buffer belli bir boyutu aşarsa, flush edelim
+            // If buffer exceeds a certain size, flush
             if (_buffer.Length > 1024 * 1024) // 1 MB
             {
                 Flush();
@@ -441,17 +441,17 @@ namespace Fragile.Compression
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
 
-            // Veriyi buffer'a yazalım
+            // Write data to buffer
             await _buffer.WriteAsync(buffer, offset, count, cancellationToken);
 
-            // Eğer buffer belli bir boyutu aşarsa, flush edelim
+            // If buffer exceeds a certain size, flush
             if (_buffer.Length > 1024 * 1024) // 1 MB
             {
                 Flush();
             }
         }
 
-        // Sıkıştırma seviyesine göre sıkıştırma oranını hesapla
+        // Calculate compression ratio based on compression level
         private double GetCompressionRatio()
         {
             return _compressionLevel switch
@@ -473,7 +473,7 @@ namespace Fragile.Compression
                 {
                     if (_isCompress && _buffer.Length > 0)
                     {
-                        // Kalan veriyi flush et
+                        // Flush remaining data
                         Flush();
                     }
 

@@ -23,10 +23,10 @@ namespace Fragile.Core
         private FragileOptions _options;
         private bool _disposed = false;
 
-        // Arşiv metadata bilgisini saklayan alan
+        // Archive metadata storage field
         private ArchiveMetadata _archiveMetadata = new();
 
-        // Giriş metadata bilgilerini saklayan koleksiyon
+        // Collection storing entry metadata
         private readonly Dictionary<string, EntryMetadata> _entryMetadata = new();
 
         /// <summary>
@@ -397,7 +397,7 @@ namespace Fragile.Core
                 throw new InvalidOperationException("Cannot extract in create mode");
             }
 
-            // Hedef yol boş veya null ise hata fırlat
+            // If the target path is empty or null, throw an error
             if (string.IsNullOrWhiteSpace(destinationPath))
             {
                 throw new ArgumentException("Destination path cannot be null or empty", nameof(destinationPath));
@@ -409,7 +409,7 @@ namespace Fragile.Core
             // Extract all entries
             foreach (FragileArchiveEntry entry in _entries.Values)
             {
-                // Geçersiz yolları atla
+                // Skip invalid paths
                 if (string.IsNullOrWhiteSpace(entry.Path) || entry.Path.Contains("\0"))
                 {
                     Debug.WriteLine($"Skipping entry with invalid path: '{entry.Path}'");
@@ -1059,7 +1059,7 @@ namespace Fragile.Core
 
             try
             {
-                // Hedef yol geçersiz ise hata fırlat
+                // Throw an error if the destination path is invalid
                 if (string.IsNullOrWhiteSpace(destinationPath) || destinationPath.Contains("\0"))
                 {
                     throw new ArgumentException($"Invalid destination path: '{destinationPath}'", nameof(destinationPath));
@@ -1238,10 +1238,10 @@ namespace Fragile.Core
                 return string.Empty;
             }
 
-            // Null karakterleri temizle
+            // Remove null characters
             path = path.Replace("\0", string.Empty);
 
-            // Geçersiz karakterleri temizle
+            // Remove invalid characters
             char[] invalidChars = Path.GetInvalidPathChars();
             foreach (char c in invalidChars)
             {

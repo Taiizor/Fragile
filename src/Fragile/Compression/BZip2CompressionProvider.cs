@@ -40,14 +40,14 @@ namespace Fragile.Compression
         {
             long initialPosition = output.Position;
 
-            // BZip2 sıkıştırma işlemini simüle ediyoruz
+            // Simulating BZip2 compression process
 
-            // Önce orijinal stream'i oku
+            // First read the original stream
             byte[] inputData;
             using (MemoryStream memoryStream = new())
             {
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                // 81920 (80KB) standart buffer boyutu olarak kullanılır
+                // 81920 (80KB) is used as standard buffer size
                 await input.CopyToAsync(memoryStream, 81920, cancellationToken);
 #else
                 await input.CopyToAsync(memoryStream, cancellationToken);
@@ -55,7 +55,7 @@ namespace Fragile.Compression
                 inputData = memoryStream.ToArray();
             }
 
-            // Sıkıştırma seviyesine göre sıkıştırma oranını belirle
+            // Determine compression ratio based on compression level
             double compressionRatio = _level switch
             {
                 CompressionLevel.Fastest => 0.65,
@@ -66,14 +66,14 @@ namespace Fragile.Compression
                 _ => 0.45
             };
 
-            // BZip2 header'ı (simüle edilmiş)
+            // BZip2 header (simulated)
             byte[] header = new byte[10];
             header[0] = (byte)'B';
             header[1] = (byte)'Z';
             header[2] = (byte)'h';
             header[3] = (byte)'9';  // BZip2 blocksize (900k)
 
-            // Orijinal boyutu ekle
+            // Add original size
 #if NET48_OR_GREATER || NETSTANDARD2_0
             byte[] sizeBytes = BitConverter.GetBytes((uint)inputData.Length);
             Array.Copy(sizeBytes, 0, header, 4, Math.Min(sizeBytes.Length, 6));
@@ -83,44 +83,44 @@ namespace Fragile.Compression
 
             await output.WriteAsync(header, 0, header.Length, cancellationToken);
 
-            // Hedeflenen sıkıştırılmış boyutu hesapla
+            // Calculate the target compressed size
             int compressedSize = (int)(inputData.Length * compressionRatio);
             byte[] compressedSizeBytes = BitConverter.GetBytes(compressedSize);
             await output.WriteAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
 
-            // BZip2 Burrows-Wheeler Transform işlemini simüle et
-            // Gerçekte, BZip2 sıkıştırma algoritması şu adımları içerir:
-            // 1. Run-Length Encoding (RLE) ile tekrarlanan baytları kodla
-            // 2. Burrows-Wheeler Transform (BWT) uygula
-            // 3. Move-to-Front Transform (MTF) uygula
-            // 4. Huffman kodlaması uygula
+            // Simulate BZip2 Burrows-Wheeler Transform process
+            // In reality, the BZip2 compression algorithm includes these steps:
+            // 1. Run-Length Encoding (RLE) to encode repeated bytes
+            // 2. Apply Burrows-Wheeler Transform (BWT)
+            // 3. Apply Move-to-Front Transform (MTF)
+            // 4. Apply Huffman coding
 
-            // Biz burada basitleştirilmiş bir simülasyon yapıyoruz
+            // We are making a simplified simulation here
             byte[] compressedData = null;
 
             using (MemoryStream compressedStream = new())
             {
                 using (BinaryWriter writer = new(compressedStream))
                 {
-                    // 900kb blok boyutunu simüle et (gerçek BZip2 100k-900k arası blok boyutu kullanır)
+                    // Simulate 900kb block size (real BZip2 uses block sizes between 100k-900k)
                     int blockSize = 900 * 1024;
                     int blockStart = 0;
                     int totalProcessed = 0;
 
                     while (blockStart < inputData.Length)
                     {
-                        // Blok başlangıcı işareti
+                        // Block start marker
                         writer.Write((byte)0x31);
 
-                        // Blok boyutunu belirle
+                        // Determine block size
                         int currentBlockSize = Math.Min(blockSize, inputData.Length - blockStart);
                         writer.Write((ushort)currentBlockSize);
 
-                        // RLE (Run-Length Encoding) sıkıştırma simülasyonu
+                        // RLE (Run-Length Encoding) compression simulation
                         int i = blockStart;
                         while (i < blockStart + currentBlockSize)
                         {
-                            // Tekrar eden baytları ara
+                            // Look for repeating bytes
                             byte currentByte = inputData[i];
                             int runLength = 1;
 
@@ -131,16 +131,16 @@ namespace Fragile.Compression
                                 runLength++;
                             }
 
-                            if (runLength >= 4) // En az 4 tekrar için RLE kullan
+                            if (runLength >= 4) // Use RLE for at least 4 repetitions
                             {
-                                // RLE kodu: 0 değer uzunluk
+                                // RLE code: 0 value length
                                 writer.Write((byte)0);
                                 writer.Write(currentByte);
                                 writer.Write((byte)runLength);
 
                                 i += runLength;
                             }
-                            else // Tekrar etmeyen veriler için doğrudan yaz
+                            else // Write directly for non-repeating data
                             {
                                 writer.Write(currentByte);
                                 i++;
@@ -149,24 +149,24 @@ namespace Fragile.Compression
                             totalProcessed++;
                         }
 
-                        // Blok sonu işareti
+                        // Block end marker
                         writer.Write((byte)0x17);
 
-                        // Bir sonraki bloğa geç
+                        // Move to next block
                         blockStart += currentBlockSize;
                     }
 
-                    // İlerleme durumunu bildir
+                    // Report progress
                     if (progress != null)
                     {
                         double progressValue = (double)totalProcessed / inputData.Length;
                         progress.Report(Math.Min(progressValue, 1.0));
                     }
 
-                    // İptal kontrolü
+                    // Check for cancellation
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    // Veri sonu işaretini aynı writer üzerinden yaz
+                    // Write end of data marker through the same writer
                     writer.Write((byte)0x17);
                     writer.Write((byte)0x72);
                     writer.Write((byte)0x45);
@@ -175,25 +175,25 @@ namespace Fragile.Compression
                     writer.Write((byte)0x90);
                 }
 
-                // Stream'i kapatmadan önce veriyi al
+                // Get the data before closing the stream
                 compressedData = compressedStream.ToArray();
             }
 
-            // "Sıkıştırılmış" veriyi hedeflenen boyuta göre yaz
+            // Write "compressed" data according to target size
             int bytesToWrite = Math.Min(compressedSize, compressedData.Length);
             await output.WriteAsync(compressedData, 0, bytesToWrite, cancellationToken);
 
-            // Eğer hedeflenen boyut daha büyükse, kalan kısmı doldur
+            // If target size is larger, fill the remaining part
             if (bytesToWrite < compressedSize)
             {
                 byte[] padding = new byte[compressedSize - bytesToWrite];
                 await output.WriteAsync(padding, 0, padding.Length, cancellationToken);
             }
 
-            // İlerleme durumunu tamamla
+            // Complete progress reporting
             progress?.Report(1.0);
 
-            // Yazılan byte sayısını döndür
+            // Return number of bytes written
             return output.Position - initialPosition;
         }
 
@@ -204,25 +204,25 @@ namespace Fragile.Compression
         {
             long initialPosition = output.Position;
 
-            // Header'ı oku
+            // Read the header
             byte[] header = new byte[10];
             await input.ReadAsync(header, 0, header.Length, cancellationToken);
 
-            // Header doğrulama (BZ)
+            // Header validation (BZ)
             if (header[0] != 'B' || header[1] != 'Z')
             {
                 throw new InvalidDataException("Invalid BZip2 header");
             }
 
-            // Orijinal boyutu al
+            // Read original size
             uint originalSize = BitConverter.ToUInt32(header, 4);
 
-            // Sıkıştırılmış boyutu oku
+            // Read compressed size
             byte[] compressedSizeBytes = new byte[4];
             await input.ReadAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
             int compressedSize = BitConverter.ToInt32(compressedSizeBytes, 0);
 
-            // Sıkıştırılmış veriyi oku
+            // Read compressed data
             byte[] compressedData = new byte[compressedSize];
             int totalBytesRead = 0;
             int bytesRead;
@@ -234,7 +234,7 @@ namespace Fragile.Compression
             {
                 totalBytesRead += bytesRead;
 
-                // İlerleme durumunu bildir
+                // Report progress
                 if (progress != null)
                 {
                     double progressValue = (double)totalBytesRead / compressedSize * 0.5;
@@ -242,7 +242,7 @@ namespace Fragile.Compression
                 }
             }
 
-            // Sıkıştırılmış veriyi çöz
+            // Decompress compressed data
             using (MemoryStream ms = new(compressedData, 0, totalBytesRead))
             using (BinaryReader reader = new(ms))
             {
@@ -251,19 +251,19 @@ namespace Fragile.Compression
 
                 while (ms.Position < ms.Length && outPosition < uncompressedData.Length)
                 {
-                    // Blok başlangıcını kontrol et
+                    // Check block start
                     byte blockMarker = reader.ReadByte();
-                    if (blockMarker == 0x17) // Veri sonu işareti
+                    if (blockMarker == 0x17) // End of data marker
                     {
                         break;
                     }
 
-                    if (blockMarker != 0x31) // Blok başlangıç işareti değilse atla
+                    if (blockMarker != 0x31) // If not block start marker, skip
                     {
                         continue;
                     }
 
-                    // Blok boyutunu oku
+                    // Read block size
                     ushort blockSize = reader.ReadUInt16();
 
                     int blockEnd = Math.Min(outPosition + blockSize, uncompressedData.Length);
@@ -272,7 +272,7 @@ namespace Fragile.Compression
                     {
                         byte control = reader.ReadByte();
 
-                        if (control == 0) // RLE işareti
+                        if (control == 0) // RLE marker
                         {
                             byte value = reader.ReadByte();
                             byte runLength = reader.ReadByte();
@@ -282,17 +282,17 @@ namespace Fragile.Compression
                                 uncompressedData[outPosition++] = value;
                             }
                         }
-                        else if (control == 0x17) // Blok sonu işareti
+                        else if (control == 0x17) // Block end marker
                         {
                             break;
                         }
-                        else // Normal veri
+                        else // Normal data
                         {
                             uncompressedData[outPosition++] = control;
                         }
                     }
 
-                    // İlerleme durumunu güncelle
+                    // Update progress
                     if (progress != null)
                     {
                         double progressValue = 0.5 + ((double)outPosition / uncompressedData.Length * 0.5);
@@ -300,11 +300,11 @@ namespace Fragile.Compression
                     }
                 }
 
-                // Açılan veriyi yaz
+                // Write decompressed data
                 await output.WriteAsync(uncompressedData, 0, outPosition, cancellationToken);
             }
 
-            // Yazılan byte sayısını döndür
+            // Return number of bytes written
             return output.Position - initialPosition;
         }
 
@@ -357,13 +357,13 @@ namespace Fragile.Compression
         {
             if (_isCompress && _buffer.Length > 0)
             {
-                // Sıkıştırma oranını belirle
+                // Determine compression ratio
                 double compressionRatio = GetCompressionRatio();
 
-                // Buffer'daki veriyi al
+                // Read data from buffer
                 byte[] originalData = _buffer.ToArray();
 
-                // Header yaz
+                // Write header
                 byte[] header = new byte[10];
                 header[0] = (byte)'B';
                 header[1] = (byte)'Z';
@@ -379,16 +379,16 @@ namespace Fragile.Compression
 
                 _baseStream.Write(header, 0, header.Length);
 
-                // Sıkıştırılmış boyutu hesapla
+                // Calculate compressed size
                 int compressedSize = (int)(originalData.Length * compressionRatio);
                 byte[] compressedSizeBytes = BitConverter.GetBytes(compressedSize);
                 _baseStream.Write(compressedSizeBytes, 0, compressedSizeBytes.Length);
 
-                // "Sıkıştırılmış" veriyi yaz
+                // Write "compressed" data
                 int bytesToWrite = Math.Min(compressedSize, originalData.Length);
                 _baseStream.Write(originalData, 0, bytesToWrite);
 
-                // Buffer'ı temizle
+                // Clear buffer
                 _buffer.SetLength(0);
             }
 
@@ -432,11 +432,11 @@ namespace Fragile.Compression
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
 
-            // Veriyi buffer'a yazalım
+            // Write data to buffer
             _buffer.Write(buffer, offset, count);
 
-            // Eğer buffer belli bir boyutu aşarsa, flush edelim
-            if (_buffer.Length > 900 * 1024) // 900 KB (BZip2 tipik blok boyutu)
+            // If buffer exceeds a certain size, flush
+            if (_buffer.Length > 900 * 1024) // 900 KB (typical BZip2 block size)
             {
                 Flush();
             }
@@ -449,17 +449,17 @@ namespace Fragile.Compression
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
 
-            // Veriyi buffer'a yazalım
+            // Write data to buffer
             await _buffer.WriteAsync(buffer, offset, count, cancellationToken);
 
-            // Eğer buffer belli bir boyutu aşarsa, flush edelim
+            // If buffer exceeds a certain size, flush
             if (_buffer.Length > 900 * 1024) // 900 KB
             {
                 Flush();
             }
         }
 
-        // Sıkıştırma oranını hesapla
+        // Calculate compression ratio
         private double GetCompressionRatio()
         {
             return _blockSize switch
@@ -481,7 +481,7 @@ namespace Fragile.Compression
                 {
                     if (_isCompress && _buffer.Length > 0)
                     {
-                        // Kalan veriyi flush et
+                        // Flush remaining data
                         Flush();
                     }
 
