@@ -80,7 +80,12 @@ namespace Fragile.Compression
             header[3] = (byte)'9';  // BZip2 blocksize (900k)
 
             // Orijinal boyutu ekle
+#if NET48_OR_GREATER || NETSTANDARD2_0
+            byte[] sizeBytes = BitConverter.GetBytes((uint)inputData.Length);
+            Array.Copy(sizeBytes, 0, header, 4, Math.Min(sizeBytes.Length, 6));
+#else
             BitConverter.TryWriteBytes(new Span<byte>(header, 4, 6), (uint)inputData.Length);
+#endif
             await output.WriteAsync(header, 0, header.Length, cancellationToken);
 
             // Hedeflenen sıkıştırılmış boyutu hesapla
@@ -369,7 +374,13 @@ namespace Fragile.Compression
                 header[1] = (byte)'Z';
                 header[2] = (byte)'h';
                 header[3] = (byte)(48 + _blockSize); // BZip2 blocksize
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                byte[] sizeBytes = BitConverter.GetBytes((uint)originalData.Length);
+                Array.Copy(sizeBytes, 0, header, 4, Math.Min(sizeBytes.Length, 6));
+#else
                 BitConverter.TryWriteBytes(new Span<byte>(header, 4, 6), (uint)originalData.Length);
+#endif
                 _baseStream.Write(header, 0, header.Length);
 
                 // Sıkıştırılmış boyutu hesapla
