@@ -49,8 +49,13 @@ namespace Fragile.Encryption
             }
 
             // Write salt and nonce to output
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await output.WriteAsync(salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
             await output.WriteAsync(nonce, 0, nonce.Length, cancellationToken).ConfigureAwait(false);
+#else
+            await output.WriteAsync(salt, cancellationToken).ConfigureAwait(false);
+            await output.WriteAsync(nonce, cancellationToken).ConfigureAwait(false);
+#endif
 
             // Derive key from password
             byte[] key = DeriveKeyFromPassword(_password, salt, KeySize);
@@ -70,9 +75,17 @@ namespace Fragile.Encryption
                 int bytesRead;
 
                 // Read and copy all content to memory first to encrypt it as one piece
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+#else
+                while ((bytesRead = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+#endif
                 {
-                    await contentStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                    await contentStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false); 
+#else
+                    await contentStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+#endif
 
                     // Report progress if possible
                     if (canReportProgress && progress != null)
@@ -96,10 +109,18 @@ namespace Fragile.Encryption
                 byte[] ciphertext = chacha20.Encrypt(nonce, plaintext, null);
 
                 // Write ciphertext length to output (for decryption)
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 await output.WriteAsync(BitConverter.GetBytes(ciphertext.Length), 0, sizeof(int), cancellationToken).ConfigureAwait(false);
+#else
+                await output.WriteAsync(BitConverter.GetBytes(ciphertext.Length).AsMemory(0, sizeof(int)), cancellationToken).ConfigureAwait(false);
+#endif
 
                 // Write encrypted data to output
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 await output.WriteAsync(ciphertext, 0, ciphertext.Length, cancellationToken).ConfigureAwait(false);
+#else
+                await output.WriteAsync(ciphertext, cancellationToken).ConfigureAwait(false);
+#endif
 
                 // Report progress completion
                 progress?.Report(1.0);
@@ -141,7 +162,11 @@ namespace Fragile.Encryption
                 byte[] plaintext = chacha20.Decrypt(nonce, ciphertext, null);
 
                 // Write decrypted data to output
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 await output.WriteAsync(plaintext, 0, plaintext.Length, cancellationToken).ConfigureAwait(false);
+#else
+                await output.WriteAsync(plaintext, cancellationToken).ConfigureAwait(false);
+#endif
 
                 // Report progress
                 progress?.Report(1.0);
@@ -167,11 +192,17 @@ namespace Fragile.Encryption
             int bytesRead = 0;
             while (bytesRead < count)
             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 int read = await stream.ReadAsync(buffer, offset + bytesRead, count - bytesRead, cancellationToken).ConfigureAwait(false);
+#else
+                int read = await stream.ReadAsync(buffer.AsMemory(offset + bytesRead, count - bytesRead), cancellationToken).ConfigureAwait(false);
+#endif
+
                 if (read == 0)
                 {
                     throw new EndOfStreamException("Unexpected end of stream");
                 }
+
                 bytesRead += read;
             }
         }
@@ -213,20 +244,28 @@ namespace Fragile.Encryption
         /// <returns>Ciphertext with authentication tag</returns>
         public byte[] Encrypt(byte[] nonce, byte[] plaintext, byte[]? associatedData)
         {
+#if NET7_0_OR_GREATER
+            ObjectDisposedException.ThrowIf(_disposed, nameof(ChaCha20Poly1305Managed));
+#else
             if (_disposed)
             {
                 throw new ObjectDisposedException(nameof(ChaCha20Poly1305Managed));
             }
+#endif
 
             if (nonce == null || nonce.Length != 12)
             {
                 throw new ArgumentException("Nonce must be 12 bytes (96 bits)", nameof(nonce));
             }
 
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (plaintext == null)
             {
                 throw new ArgumentNullException(nameof(plaintext));
             }
+#else
+            ArgumentNullException.ThrowIfNull(plaintext);
+#endif
 
             // In a real implementation, this would call into a native or managed ChaCha20-Poly1305 implementation
             // This is just a placeholder that simulates encryption by copying the plaintext
@@ -253,20 +292,28 @@ namespace Fragile.Encryption
         /// <returns>Decrypted plaintext</returns>
         public byte[] Decrypt(byte[] nonce, byte[] ciphertext, byte[]? associatedData)
         {
+#if NET7_0_OR_GREATER
+            ObjectDisposedException.ThrowIf(_disposed, nameof(ChaCha20Poly1305Managed));
+#else
             if (_disposed)
             {
                 throw new ObjectDisposedException(nameof(ChaCha20Poly1305Managed));
             }
+#endif
 
             if (nonce == null || nonce.Length != 12)
             {
                 throw new ArgumentException("Nonce must be 12 bytes (96 bits)", nameof(nonce));
             }
 
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (ciphertext == null)
             {
                 throw new ArgumentNullException(nameof(ciphertext));
-            }
+            }  
+#else
+            ArgumentNullException.ThrowIfNull(ciphertext);
+#endif
 
             if (ciphertext.Length < TagSize)
             {

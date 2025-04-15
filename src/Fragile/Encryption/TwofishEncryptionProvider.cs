@@ -51,8 +51,13 @@ namespace Fragile.Encryption
                 }
 
                 // Write salt and IV to output
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 await output.WriteAsync(salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
                 await output.WriteAsync(iv, 0, iv.Length, cancellationToken).ConfigureAwait(false);
+#else
+                await output.WriteAsync(salt, cancellationToken).ConfigureAwait(false);
+                await output.WriteAsync(iv, cancellationToken).ConfigureAwait(false);
+#endif
 
                 // Derive key from password
                 byte[] key = DeriveKeyFromPassword(_password, salt, KeySize);
@@ -74,9 +79,17 @@ namespace Fragile.Encryption
                     int bytesRead;
 
                     // Read all content to memory
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+#else
+                    while ((bytesRead = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+#endif
                     {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                         await contentStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+#else
+                        await contentStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+#endif
 
                         // Report progress if possible
                         if (canReportProgress && progress != null)
@@ -121,10 +134,19 @@ namespace Fragile.Encryption
                     byte[] finalBlock = transform.TransformFinalBlock(plaintext, bytesProcessed, plaintext.Length - bytesProcessed);
 
                     // Write transformed data to output
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     await output.WriteAsync(outputBuffer, 0, bytesProcessed, cancellationToken).ConfigureAwait(false);
+#else
+                    await output.WriteAsync(outputBuffer.AsMemory(0, bytesProcessed), cancellationToken).ConfigureAwait(false);
+#endif
+
                     if (finalBlock.Length > 0)
                     {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                         await output.WriteAsync(finalBlock, 0, finalBlock.Length, cancellationToken).ConfigureAwait(false);
+#else
+                        await output.WriteAsync(finalBlock, cancellationToken).ConfigureAwait(false);
+#endif
                     }
 
                     // Report progress completion
@@ -194,10 +216,19 @@ namespace Fragile.Encryption
                     byte[] finalBlock = transform.TransformFinalBlock(encryptedData, bytesProcessed, encryptedData.Length - bytesProcessed);
 
                     // Write transformed data to output
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     await output.WriteAsync(outputData, 0, bytesProcessed, cancellationToken).ConfigureAwait(false);
+#else
+                    await output.WriteAsync(outputData.AsMemory(0, bytesProcessed), cancellationToken).ConfigureAwait(false);
+#endif
+
                     if (finalBlock.Length > 0)
                     {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                         await output.WriteAsync(finalBlock, 0, finalBlock.Length, cancellationToken).ConfigureAwait(false);
+#else
+                        await output.WriteAsync(finalBlock, cancellationToken).ConfigureAwait(false);
+#endif
                     }
                 }
 
@@ -231,11 +262,17 @@ namespace Fragile.Encryption
             int bytesRead = 0;
             while (bytesRead < count)
             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 int read = await stream.ReadAsync(buffer, offset + bytesRead, count - bytesRead, cancellationToken).ConfigureAwait(false);
+#else
+                int read = await stream.ReadAsync(buffer.AsMemory(offset + bytesRead, count - bytesRead), cancellationToken).ConfigureAwait(false);
+#endif
+
                 if (read == 0)
                 {
                     throw new EndOfStreamException("Unexpected end of stream");
                 }
+
                 bytesRead += read;
             }
         }
@@ -254,6 +291,7 @@ namespace Fragile.Encryption
 
         public SymmetrizedTransform(byte[] key, byte[] iv, bool encrypting)
         {
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (key == null)
             {
                 throw new ArgumentNullException(nameof(key));
@@ -262,7 +300,12 @@ namespace Fragile.Encryption
             if (iv == null)
             {
                 throw new ArgumentNullException(nameof(iv));
-            }
+            }   
+#else
+            ArgumentNullException.ThrowIfNull(key);
+
+            ArgumentNullException.ThrowIfNull(iv);
+#endif
 
             _key = (byte[])key.Clone();
             _iv = (byte[])iv.Clone();
@@ -299,20 +342,32 @@ namespace Fragile.Encryption
 
         public int TransformBlock(byte[] inputBuffer, int inputOffset, int inputCount, byte[] outputBuffer, int outputOffset)
         {
+#if NET7_0_OR_GREATER
+            ObjectDisposedException.ThrowIf(_disposed, nameof(SymmetrizedTransform));
+#else
             if (_disposed)
             {
                 throw new ObjectDisposedException(nameof(SymmetrizedTransform));
             }
+#endif
 
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (inputBuffer == null)
             {
                 throw new ArgumentNullException(nameof(inputBuffer));
-            }
+            }   
+#else
+            ArgumentNullException.ThrowIfNull(inputBuffer);
+#endif
 
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (outputBuffer == null)
             {
                 throw new ArgumentNullException(nameof(outputBuffer));
-            }
+            }  
+#else
+            ArgumentNullException.ThrowIfNull(outputBuffer);
+#endif
 
             if (inputOffset < 0 || inputOffset > inputBuffer.Length)
             {
@@ -337,15 +392,23 @@ namespace Fragile.Encryption
 
         public byte[] TransformFinalBlock(byte[] inputBuffer, int inputOffset, int inputCount)
         {
+#if NET7_0_OR_GREATER
+            ObjectDisposedException.ThrowIf(_disposed, nameof(SymmetrizedTransform));
+#else
             if (_disposed)
             {
                 throw new ObjectDisposedException(nameof(SymmetrizedTransform));
             }
+#endif
 
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (inputBuffer == null)
             {
                 throw new ArgumentNullException(nameof(inputBuffer));
-            }
+            }   
+#else
+            ArgumentNullException.ThrowIfNull(inputBuffer);
+#endif
 
             if (inputOffset < 0 || inputOffset > inputBuffer.Length)
             {

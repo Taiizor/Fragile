@@ -3,10 +3,14 @@ namespace Fragile.Compression
     /// <summary>
     /// Compression provider implementation using LZ4 algorithm
     /// </summary>
-    internal class LZ4CompressionProvider : CompressionProvider
+    /// <remarks>
+    /// Creates a new LZ4 compression provider with the specified level and parallel processing options
+    /// </remarks>
+    /// <param name="level">Compression level</param>
+    /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+    /// <param name="maxThreads">Maximum number of threads to use for parallel operations</param>
+    internal class LZ4CompressionProvider(CompressionLevel level, bool useParallelProcessing, int maxThreads) : CompressionProvider(useParallelProcessing, maxThreads)
     {
-        private readonly CompressionLevel _level;
-
         /// <summary>
         /// Gets the compression algorithm used by this provider
         /// </summary>
@@ -16,21 +20,8 @@ namespace Fragile.Compression
         /// Creates a new LZ4 compression provider with the specified level
         /// </summary>
         /// <param name="level">Compression level</param>
-        public LZ4CompressionProvider(CompressionLevel level)
-            : this(level, true, Environment.ProcessorCount)
+        public LZ4CompressionProvider(CompressionLevel level) : this(level, true, Environment.ProcessorCount)
         {
-        }
-
-        /// <summary>
-        /// Creates a new LZ4 compression provider with the specified level and parallel processing options
-        /// </summary>
-        /// <param name="level">Compression level</param>
-        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
-        /// <param name="maxThreads">Maximum number of threads to use for parallel operations</param>
-        public LZ4CompressionProvider(CompressionLevel level, bool useParallelProcessing, int maxThreads)
-            : base(useParallelProcessing, maxThreads)
-        {
-            _level = level;
         }
 
         /// <summary>
@@ -57,10 +48,15 @@ namespace Fragile.Compression
 
             // Add original size as metadata in the first 16 bytes
             byte[] originalSizeBytes = BitConverter.GetBytes(inputData.Length);
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await output.WriteAsync(originalSizeBytes, 0, originalSizeBytes.Length, cancellationToken);
+#else
+            await output.WriteAsync(originalSizeBytes, cancellationToken);
+#endif
 
             // Determine compression ratio according to LZ4 compression level
-            double compressionRatio = _level switch
+            double compressionRatio = level switch
             {
                 CompressionLevel.Fastest => 0.65,
                 CompressionLevel.Fast => 0.6,
@@ -73,7 +69,12 @@ namespace Fragile.Compression
             // Add calculated size
             int compressedSize = (int)(inputData.Length * compressionRatio);
             byte[] compressedSizeBytes = BitConverter.GetBytes(compressedSize);
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await output.WriteAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
+#else
+            await output.WriteAsync(compressedSizeBytes, cancellationToken);
+#endif
 
             // Make a simple compression simulation
             // Here, we process data to skip repeating parts at the beginning of each line
@@ -133,7 +134,12 @@ namespace Fragile.Compression
                 // When writing compressed data, only write as much as the calculated size
                 // This way we achieve the desired size ratio
                 int bytesToWrite = Math.Min(compressedSize, compressedData.Length);
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 await output.WriteAsync(compressedData, 0, bytesToWrite, cancellationToken);
+#else
+                await output.WriteAsync(compressedData.AsMemory(0, bytesToWrite), cancellationToken);
+#endif
             }
 
             // Complete progress reporting
@@ -152,11 +158,23 @@ namespace Fragile.Compression
 
             // Read metadata
             byte[] originalSizeBytes = new byte[8];
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await input.ReadAsync(originalSizeBytes, 0, originalSizeBytes.Length, cancellationToken);
+#else
+            await input.ReadAsync(originalSizeBytes, cancellationToken);
+#endif
+
             long originalSize = BitConverter.ToInt64(originalSizeBytes, 0);
 
             byte[] compressedSizeBytes = new byte[4];
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await input.ReadAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
+#else
+            await input.ReadAsync(compressedSizeBytes, cancellationToken);
+#endif
+
             int compressedSize = BitConverter.ToInt32(compressedSizeBytes, 0);
 
             // Read compressed data
@@ -164,10 +182,11 @@ namespace Fragile.Compression
             int totalBytesRead = 0;
             int bytesRead;
 
-            while (totalBytesRead < compressedSize &&
-                  (bytesRead = await input.ReadAsync(compressedData, totalBytesRead,
-                                                   compressedSize - totalBytesRead,
-                                                   cancellationToken)) > 0)
+#if NET48_OR_GREATER || NETSTANDARD2_0
+            while (totalBytesRead < compressedSize && (bytesRead = await input.ReadAsync(compressedData, totalBytesRead, compressedSize - totalBytesRead, cancellationToken)) > 0)
+#else
+            while (totalBytesRead < compressedSize && (bytesRead = await input.ReadAsync(compressedData.AsMemory(totalBytesRead, compressedSize - totalBytesRead), cancellationToken)) > 0)
+#endif
             {
                 totalBytesRead += bytesRead;
 
@@ -185,8 +204,8 @@ namespace Fragile.Compression
             using (StreamWriter writer = new(output))
             {
                 string? line;
-                string previousLine = "";
                 int lineCount = 0;
+                string previousLine = "";
 
                 while ((line = await reader.ReadLineAsync()) != null)
                 {
@@ -242,7 +261,7 @@ namespace Fragile.Compression
         {
             // LZ4 typically prioritizes speed over compression ratio
             // HC mode (Ultra) offers better compression but slower speed
-            return _level switch
+            return level switch
             {
                 CompressionLevel.Fastest => (long)(inputSize * 0.65),
                 CompressionLevel.Fast => (long)(inputSize * 0.6),
@@ -274,32 +293,21 @@ namespace Fragile.Compression
     /// Simulated LZ4 stream for placeholder implementation
     /// In a real implementation, this would be replaced with a proper LZ4 library binding
     /// </summary>
-    internal class LZ4SimulatedStream : Stream
+    internal class LZ4SimulatedStream(Stream baseStream, int accelerationFactor, bool isCompress) : Stream
     {
-        private readonly Stream _baseStream;
-        private readonly bool _isCompress;
-        private readonly int _accelerationFactor;
-        private bool _disposed;
-        private MemoryStream _buffer;
+        private readonly Stream _baseStream = baseStream ?? throw new ArgumentNullException(nameof(baseStream));
+        private MemoryStream _buffer = new();
+        private bool _disposed = false;
 
-        public LZ4SimulatedStream(Stream baseStream, int accelerationFactor, bool isCompress)
-        {
-            _baseStream = baseStream ?? throw new ArgumentNullException(nameof(baseStream));
-            _accelerationFactor = accelerationFactor;
-            _isCompress = isCompress;
-            _disposed = false;
-            _buffer = new MemoryStream();
-        }
-
-        public override bool CanRead => !_isCompress && _baseStream.CanRead;
+        public override bool CanRead => !isCompress && _baseStream.CanRead;
         public override bool CanSeek => false;
-        public override bool CanWrite => _isCompress && _baseStream.CanWrite;
+        public override bool CanWrite => isCompress && _baseStream.CanWrite;
         public override long Length => throw new NotSupportedException();
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
 
         public override void Flush()
         {
-            if (_isCompress && _buffer.Length > 0)
+            if (isCompress && _buffer.Length > 0)
             {
                 // Determine compression ratio
                 double compressionRatio = GetCompressionRatio();
@@ -331,7 +339,7 @@ namespace Fragile.Compression
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            if (_isCompress)
+            if (isCompress)
             {
                 throw new NotSupportedException("Cannot read from a compression stream");
             }
@@ -341,12 +349,16 @@ namespace Fragile.Compression
 
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            if (_isCompress)
+            if (isCompress)
             {
                 throw new NotSupportedException("Cannot read from a compression stream");
             }
 
+#if NET48_OR_GREATER || NETSTANDARD2_0
             return await _baseStream.ReadAsync(buffer, offset, count, cancellationToken);
+#else
+            return await _baseStream.ReadAsync(buffer.AsMemory(offset, count), cancellationToken);
+#endif
         }
 
         public override long Seek(long offset, SeekOrigin origin)
@@ -361,7 +373,7 @@ namespace Fragile.Compression
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            if (!_isCompress)
+            if (!isCompress)
             {
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
@@ -378,13 +390,17 @@ namespace Fragile.Compression
 
         public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            if (!_isCompress)
+            if (!isCompress)
             {
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
 
             // When compressing, first write data to buffer
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await _buffer.WriteAsync(buffer, offset, count, cancellationToken);
+#else
+            await _buffer.WriteAsync(buffer.AsMemory(offset, count), cancellationToken);
+#endif
 
             // If buffer exceeds a certain size, flush
             if (_buffer.Length > 1024 * 1024) // 1 MB
@@ -397,7 +413,7 @@ namespace Fragile.Compression
         private double GetCompressionRatio()
         {
             // For LZ4: as acceleration factor increases, compression ratio decreases (faster, less compression)
-            return _accelerationFactor switch
+            return accelerationFactor switch
             {
                 1 => 0.45, // Best compression, slowest
                 2 => 0.5,
@@ -413,7 +429,7 @@ namespace Fragile.Compression
             {
                 if (disposing)
                 {
-                    if (_isCompress && _buffer.Length > 0)
+                    if (isCompress && _buffer.Length > 0)
                     {
                         // Flush remaining data
                         Flush();

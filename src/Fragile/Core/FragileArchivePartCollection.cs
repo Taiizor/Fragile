@@ -6,10 +6,15 @@ namespace Fragile.Core
     /// <summary>
     /// Represents a collection of split archive parts
     /// </summary>
-    public class FragileArchivePartCollection : IReadOnlyCollection<FragileArchivePart>
+    /// <remarks>
+    /// Creates a new empty part collection with specified options
+    /// </remarks>
+    /// <param name="options">Archive options</param>
+    public class FragileArchivePartCollection(FragileOptions options) : IReadOnlyCollection<FragileArchivePart>
     {
-        private readonly List<FragileArchivePart> _parts = new();
-        private FragileOptions _options;
+        private FragileOptions _options = options ?? throw new ArgumentNullException(nameof(options));
+
+        private readonly List<FragileArchivePart> _parts = [];
 
         /// <summary>
         /// Gets the number of parts in the collection
@@ -30,24 +35,19 @@ namespace Fragile.Core
         }
 
         /// <summary>
-        /// Creates a new empty part collection with specified options
-        /// </summary>
-        /// <param name="options">Archive options</param>
-        public FragileArchivePartCollection(FragileOptions options)
-        {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
-        }
-
-        /// <summary>
         /// Adds a part to the collection
         /// </summary>
         /// <param name="part">The part to add</param>
         public void Add(FragileArchivePart part)
         {
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (part == null)
             {
                 throw new ArgumentNullException(nameof(part));
-            }
+            }  
+#else
+            ArgumentNullException.ThrowIfNull(part);
+#endif
 
             _parts.Add(part);
 
@@ -122,9 +122,19 @@ namespace Fragile.Core
                     byte[] buffer = new byte[81920]; // 80 KB buffer
                     int bytesRead;
 
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     while ((bytesRead = await partStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+            
+#else
+                    while ((bytesRead = await partStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+
+#endif
                     {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                         await outputStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+#else
+                        await outputStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+#endif
 
                         // Update progress
                         processedSize += bytesRead;
@@ -189,7 +199,7 @@ namespace Fragile.Core
         private async Task CombinePartsParallelAsync(FileStream outputStream, long totalSize, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             // Prepare part data and offsets
-            Dictionary<int, long> partOffsets = new();
+            Dictionary<int, long> partOffsets = [];
             long currentOffset = 0;
 
             // Calculate offsets for each part
@@ -204,7 +214,7 @@ namespace Fragile.Core
             using SemaphoreSlim semaphore = new(maxThreads);
 
             // Load parts in parallel
-            List<Task> loadTasks = new();
+            List<Task> loadTasks = [];
             long totalProcessed = 0;
             object lockObj = new();
 
@@ -223,8 +233,13 @@ namespace Fragile.Core
                         byte[] buffer = new byte[81920]; // 80 KB buffer
 
                         // Read part data
-                        while (totalRead < partData.Length &&
-                               (bytesRead = await partStream.ReadAsync(buffer, 0, Math.Min(buffer.Length, partData.Length - totalRead), cancellationToken)) > 0)
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                        while (totalRead < partData.Length && (bytesRead = await partStream.ReadAsync(buffer, 0, Math.Min(buffer.Length, partData.Length - totalRead), cancellationToken)) > 0)
+            
+#else
+                        while (totalRead < partData.Length && (bytesRead = await partStream.ReadAsync(buffer.AsMemory(0, Math.Min(buffer.Length, partData.Length - totalRead)), cancellationToken)) > 0)
+
+#endif
                         {
                             Buffer.BlockCopy(buffer, 0, partData, totalRead, bytesRead);
                             totalRead += bytesRead;
@@ -337,10 +352,10 @@ namespace Fragile.Core
                 return result;
             }
 
-            string directory = Path.GetDirectoryName(basePath) ?? "";
-            string fileName = Path.GetFileName(basePath);
             string fileNameWithoutExt = Path.GetFileNameWithoutExtension(basePath);
+            string directory = Path.GetDirectoryName(basePath) ?? "";
             string extension = Path.GetExtension(basePath);
+            string fileName = Path.GetFileName(basePath);
 
             // Search for part files matching the pattern [filename].partXXX[extension]
             if (Directory.Exists(directory))

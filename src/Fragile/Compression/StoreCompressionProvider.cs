@@ -3,7 +3,12 @@ namespace Fragile.Compression
     /// <summary>
     /// Compression provider that stores files without compression
     /// </summary>
-    internal class StoreCompressionProvider : CompressionProvider
+    /// <remarks>
+    /// Creates a new store compression provider with specified parallel processing options
+    /// </remarks>
+    /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+    /// <param name="maxThreads">Maximum number of threads to use for parallel operations</param>
+    internal class StoreCompressionProvider(bool useParallelProcessing, int maxThreads) : CompressionProvider(useParallelProcessing, maxThreads)
     {
         /// <summary>
         /// Gets the compression algorithm used by this provider
@@ -13,18 +18,7 @@ namespace Fragile.Compression
         /// <summary>
         /// Creates a new store compression provider
         /// </summary>
-        public StoreCompressionProvider()
-            : this(true, Environment.ProcessorCount)
-        {
-        }
-
-        /// <summary>
-        /// Creates a new store compression provider with specified parallel processing options
-        /// </summary>
-        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
-        /// <param name="maxThreads">Maximum number of threads to use for parallel operations</param>
-        public StoreCompressionProvider(bool useParallelProcessing, int maxThreads)
-            : base(useParallelProcessing, maxThreads)
+        public StoreCompressionProvider() : this(true, Environment.ProcessorCount)
         {
         }
 
@@ -51,9 +45,18 @@ namespace Fragile.Compression
                 long totalBytesRead = 0;
 
                 int bytesRead;
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+#else
+                while ((bytesRead = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+#endif
                 {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     await output.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+#else
+                    await output.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+#endif
 
                     // Report progress if possible
                     if (canReportProgress && progress != null)
@@ -104,8 +107,8 @@ namespace Fragile.Compression
             long chunkSize = Math.Max(1024 * 1024, fileLength / chunkCount); // At least 1MB per chunk
 
             // Prepare buffers
-            List<(long Start, byte[] Data)> chunks = new();
-            List<Task<(long Start, byte[] Data)>> copyTasks = new();
+            List<(long Start, byte[] Data)> chunks = [];
+            List<Task<(long Start, byte[] Data)>> copyTasks = [];
 
             // Process each chunk in parallel
             for (long position = 0; position < fileLength; position += chunkSize)
@@ -165,7 +168,11 @@ namespace Fragile.Compression
             // Write all chunks to the output stream
             foreach ((long Start, byte[] Data) in chunks)
             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 await output.WriteAsync(Data, 0, Data.Length, cancellationToken);
+#else
+                await output.WriteAsync(Data, cancellationToken);
+#endif
             }
 
             // Restore original position

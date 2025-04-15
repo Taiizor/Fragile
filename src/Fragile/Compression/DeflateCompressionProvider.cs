@@ -1,14 +1,19 @@
 using System.IO.Compression;
+using System.Text;
 
 namespace Fragile.Compression
 {
     /// <summary>
     /// Compression provider implementation using Deflate algorithm
     /// </summary>
-    internal class DeflateCompressionProvider : CompressionProvider
+    /// <remarks>
+    /// Creates a new Deflate compression provider with the specified level and parallel processing options
+    /// </remarks>
+    /// <param name="level">Compression level</param>
+    /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+    /// <param name="maxThreads">Maximum number of threads to use for parallel operations</param>
+    internal class DeflateCompressionProvider(CompressionLevel level, bool useParallelProcessing, int maxThreads) : CompressionProvider(useParallelProcessing, maxThreads)
     {
-        private readonly CompressionLevel _level;
-
         /// <summary>
         /// Gets the compression algorithm used by this provider
         /// </summary>
@@ -18,21 +23,8 @@ namespace Fragile.Compression
         /// Creates a new Deflate compression provider with the specified level
         /// </summary>
         /// <param name="level">Compression level</param>
-        public DeflateCompressionProvider(CompressionLevel level)
-            : this(level, true, Environment.ProcessorCount)
+        public DeflateCompressionProvider(CompressionLevel level) : this(level, true, Environment.ProcessorCount)
         {
-        }
-
-        /// <summary>
-        /// Creates a new Deflate compression provider with the specified level and parallel processing options
-        /// </summary>
-        /// <param name="level">Compression level</param>
-        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
-        /// <param name="maxThreads">Maximum number of threads to use for parallel operations</param>
-        public DeflateCompressionProvider(CompressionLevel level, bool useParallelProcessing, int maxThreads)
-            : base(useParallelProcessing, maxThreads)
-        {
-            _level = level;
         }
 
         /// <summary>
@@ -43,7 +35,7 @@ namespace Fragile.Compression
             long initialPosition = output.Position;
 
             // Map our compression level to System.IO.Compression level
-            System.IO.Compression.CompressionLevel compressionLevel = _level switch
+            System.IO.Compression.CompressionLevel compressionLevel = level switch
             {
                 CompressionLevel.Fastest => System.IO.Compression.CompressionLevel.NoCompression,
                 CompressionLevel.Fast => System.IO.Compression.CompressionLevel.NoCompression,
@@ -68,9 +60,18 @@ namespace Fragile.Compression
                 byte[] buffer = new byte[81920]; // 80 KB buffer
 
                 int bytesRead;
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+#else
+                while ((bytesRead = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+#endif
                 {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     await deflateStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+#else
+                    await deflateStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+#endif
 
                     // Report progress if possible
                     if (canReportProgress && progress != null)
@@ -113,7 +114,7 @@ namespace Fragile.Compression
                             if (chunkCount is > 0 and < 1000) // Sanity check
                             {
                                 // Read chunk information
-                                List<(long Start, long Length, int CompressedLength)> chunks = new();
+                                List<(long Start, long Length, int CompressedLength)> chunks = [];
                                 for (int i = 0; i < chunkCount; i++)
                                 {
                                     long start = reader.ReadInt64();
@@ -147,10 +148,17 @@ namespace Fragile.Compression
                                         int bytesRead;
                                         long totalBytesRead = 0;
 
-                                        while (totalBytesRead < length &&
-                                              (bytesRead = await deflateStream.ReadAsync(buffer, 0, (int)Math.Min(buffer.Length, length - totalBytesRead), cancellationToken)) > 0)
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                                        while (totalBytesRead < length && (bytesRead = await deflateStream.ReadAsync(buffer, 0, (int)Math.Min(buffer.Length, length - totalBytesRead), cancellationToken)) > 0)
+#else
+                                        while (totalBytesRead < length && (bytesRead = await deflateStream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, length - totalBytesRead)), cancellationToken)) > 0)
+#endif
                                         {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                                             await fullDecompressedData.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+#else
+                                            await fullDecompressedData.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+#endif
                                             totalBytesRead += bytesRead;
                                         }
                                     }
@@ -195,12 +203,20 @@ namespace Fragile.Compression
                 using (DeflateStream deflateStream = new(input, CompressionMode.Decompress, true))
                 {
                     byte[] buffer = new byte[81920]; // 80 KB buffer
-                    int bytesRead;
                     long totalBytes = 0;
+                    int bytesRead;
 
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     while ((bytesRead = await deflateStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+#else
+                    while ((bytesRead = await deflateStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+#endif
                     {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                         await tempBuffer.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+#else
+                        await tempBuffer.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+#endif
                         totalBytes += bytesRead;
 
                         // Report approximate progress if possible
@@ -239,7 +255,7 @@ namespace Fragile.Compression
         {
             // Deflate typically achieves a compression ratio of about 2:1 to 3:1 for text
             // The ratio depends on the input data and compression level
-            double ratio = _level switch
+            double ratio = level switch
             {
                 CompressionLevel.Fastest => 0.7,  // 30% reduction
                 CompressionLevel.Fast => 0.6,     // 40% reduction
@@ -267,8 +283,8 @@ namespace Fragile.Compression
             long chunkSize = Math.Max(1024 * 1024, fileLength / chunkCount); // At least 1MB per chunk
 
             // Prepare tasks and results
-            List<(long Start, long Length, byte[] CompressedData)> compressedChunks = new();
-            List<Task<(long Start, long Length, byte[] CompressedData)>> compressionTasks = new();
+            List<(long Start, long Length, byte[] CompressedData)> compressedChunks = [];
+            List<Task<(long Start, long Length, byte[] CompressedData)>> compressionTasks = [];
 
             // Process each chunk in parallel
             for (long position = 0; position < fileLength; position += chunkSize)
@@ -292,7 +308,11 @@ namespace Fragile.Compression
                     using MemoryStream chunkOutput = new();
                     using (DeflateStream deflateStream = new(chunkOutput, compressionLevel, true))
                     {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                         await deflateStream.WriteAsync(chunkBuffer, 0, (int)length, cancellationToken);
+#else
+                        await deflateStream.WriteAsync(chunkBuffer.AsMemory(0, (int)length), cancellationToken);
+#endif
                     }
 
                     return (start, length, chunkOutput.ToArray());
@@ -333,7 +353,7 @@ namespace Fragile.Compression
             compressedChunks.Sort((a, b) => a.Start.CompareTo(b.Start));
 
             // Write compression header - format information about chunks
-            using (BinaryWriter writer = new(output, System.Text.Encoding.UTF8, true))
+            using (BinaryWriter writer = new(output, Encoding.UTF8, true))
             {
                 writer.Write(compressedChunks.Count);
                 foreach ((long Start, long Length, byte[] CompressedData) in compressedChunks)
@@ -347,7 +367,11 @@ namespace Fragile.Compression
             // Write compressed data from all chunks
             foreach ((long Start, long Length, byte[] CompressedData) in compressedChunks)
             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 await output.WriteAsync(CompressedData, 0, CompressedData.Length, cancellationToken);
+#else
+                await output.WriteAsync(CompressedData, cancellationToken);
+#endif
             }
 
             // Restore original position

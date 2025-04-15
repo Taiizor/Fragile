@@ -56,8 +56,13 @@ namespace Fragile.Encryption
             }
 
             // Write salt and IV to output
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await output.WriteAsync(salt, 0, salt.Length, cancellationToken).ConfigureAwait(false);
             await output.WriteAsync(iv, 0, iv.Length, cancellationToken).ConfigureAwait(false);
+#else
+            await output.WriteAsync(salt, cancellationToken).ConfigureAwait(false);
+            await output.WriteAsync(iv, cancellationToken).ConfigureAwait(false);
+#endif
 
             // Derive key from password
             byte[] key = DeriveKeyFromPassword(_password, salt, _keySize / 8);
@@ -83,9 +88,17 @@ namespace Fragile.Encryption
                 int bytesRead;
                 long totalBytesRead = 0;
 
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+#else
+                while ((bytesRead = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+#endif
                 {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     await cryptoStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+#else
+                    await cryptoStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+#endif
 
                     // Report progress if possible
                     if (canReportProgress && progress != null)
@@ -138,9 +151,18 @@ namespace Fragile.Encryption
                 byte[] buffer = new byte[81920]; // 80 KB buffer
 
                 int bytesRead;
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 while ((bytesRead = await cryptoStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+#else
+                while ((bytesRead = await cryptoStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+#endif
                 {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     await output.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+#else
+                    await output.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+#endif
 
                     // Check for cancellation
                     cancellationToken.ThrowIfCancellationRequested();
@@ -167,11 +189,17 @@ namespace Fragile.Encryption
             int bytesRead = 0;
             while (bytesRead < count)
             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 int read = await stream.ReadAsync(buffer, offset + bytesRead, count - bytesRead, cancellationToken).ConfigureAwait(false);
+#else
+                int read = await stream.ReadAsync(buffer.AsMemory(offset + bytesRead, count - bytesRead), cancellationToken).ConfigureAwait(false);
+#endif
+
                 if (read == 0)
                 {
                     throw new EndOfStreamException("Unexpected end of stream");
                 }
+
                 bytesRead += read;
             }
         }

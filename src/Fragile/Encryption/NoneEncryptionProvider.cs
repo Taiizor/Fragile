@@ -26,9 +26,18 @@ namespace Fragile.Encryption
             long totalBytesRead = 0;
 
             int bytesRead;
-            while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
+            while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0) 
+#else
+            while ((bytesRead = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+#endif
             {
-                await output.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                await output.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);  
+#else
+                await output.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+#endif
 
                 // Report progress if possible
                 if (canReportProgress && progress != null)

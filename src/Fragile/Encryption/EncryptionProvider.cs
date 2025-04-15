@@ -44,10 +44,14 @@ namespace Fragile.Encryption
         /// <returns>A suitable encryption provider</returns>
         public static EncryptionProvider Create(FragileOptions options)
         {
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (options == null)
             {
                 throw new ArgumentNullException(nameof(options));
-            }
+            }   
+#else
+            ArgumentNullException.ThrowIfNull(options);
+#endif
 
             // If encryption is disabled, use the None provider
             if (!options.EnableEncryption)

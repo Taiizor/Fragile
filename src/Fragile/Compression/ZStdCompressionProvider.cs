@@ -1,12 +1,18 @@
+using System.Text;
+
 namespace Fragile.Compression
 {
     /// <summary>
     /// Compression provider implementation using Zstandard (ZStd) algorithm
     /// </summary>
-    internal class ZStdCompressionProvider : CompressionProvider
+    /// <remarks>
+    /// Creates a new ZStd compression provider with the specified level and parallel processing options
+    /// </remarks>
+    /// <param name="level">Compression level</param>
+    /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+    /// <param name="maxThreads">Maximum number of threads to use for parallel operations</param>
+    internal class ZStdCompressionProvider(CompressionLevel level, bool useParallelProcessing, int maxThreads) : CompressionProvider(useParallelProcessing, maxThreads)
     {
-        private readonly CompressionLevel _level;
-
         /// <summary>
         /// Gets the compression algorithm used by this provider
         /// </summary>
@@ -16,21 +22,8 @@ namespace Fragile.Compression
         /// Creates a new ZStd compression provider with the specified level
         /// </summary>
         /// <param name="level">Compression level</param>
-        public ZStdCompressionProvider(CompressionLevel level)
-            : this(level, true, Environment.ProcessorCount)
+        public ZStdCompressionProvider(CompressionLevel level) : this(level, true, Environment.ProcessorCount)
         {
-        }
-
-        /// <summary>
-        /// Creates a new ZStd compression provider with the specified level and parallel processing options
-        /// </summary>
-        /// <param name="level">Compression level</param>
-        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
-        /// <param name="maxThreads">Maximum number of threads to use for parallel operations</param>
-        public ZStdCompressionProvider(CompressionLevel level, bool useParallelProcessing, int maxThreads)
-            : base(useParallelProcessing, maxThreads)
-        {
-            _level = level;
         }
 
         /// <summary>
@@ -56,7 +49,7 @@ namespace Fragile.Compression
             }
 
             // Determine compression ratio according to ZStd compression level
-            double compressionRatio = _level switch
+            double compressionRatio = level switch
             {
                 CompressionLevel.Fastest => 0.7,
                 CompressionLevel.Fast => 0.6,
@@ -83,14 +76,23 @@ namespace Fragile.Compression
 #endif
 
             // Write header
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await output.WriteAsync(zstdHeader, 0, zstdHeader.Length, cancellationToken);
+#else
+            await output.WriteAsync(zstdHeader, cancellationToken);
+#endif
 
             // Calculate "compressed" data
             int compressedSize = (int)(inputData.Length * compressionRatio);
 
             // Write compressed size of content
             byte[] compressedSizeBytes = BitConverter.GetBytes(compressedSize);
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await output.WriteAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
+#else
+            await output.WriteAsync(compressedSizeBytes, cancellationToken);
+#endif
 
             // Make a simple dictionary-based compression simulation
             using (MemoryStream compressedStream = new())
@@ -100,7 +102,7 @@ namespace Fragile.Compression
                 using (StreamReader reader = new(inputStream))
                 {
                     // Create a cache for repeated dictionary entries
-                    Dictionary<string, int> dictionary = new();
+                    Dictionary<string, int> dictionary = [];
                     int nextDictionaryId = 1;
                     int processedBytes = 0;
 
@@ -170,13 +172,23 @@ namespace Fragile.Compression
                 // Write compressed data to reach target ratio
                 byte[] compressedData = compressedStream.ToArray();
                 int bytesToWrite = Math.Min(compressedSize, compressedData.Length);
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 await output.WriteAsync(compressedData, 0, bytesToWrite, cancellationToken);
+#else
+                await output.WriteAsync(compressedData.AsMemory(0, bytesToWrite), cancellationToken);
+#endif
 
                 // If desired compression ratio is smaller than actual data, fill the rest
                 if (bytesToWrite < compressedSize)
                 {
                     byte[] padding = new byte[compressedSize - bytesToWrite];
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     await output.WriteAsync(padding, 0, padding.Length, cancellationToken);
+#else
+                    await output.WriteAsync(padding, cancellationToken);
+#endif
                 }
             }
 
@@ -196,14 +208,25 @@ namespace Fragile.Compression
 
             // Read metadata (header)
             byte[] zstdHeader = new byte[12];
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await input.ReadAsync(zstdHeader, 0, zstdHeader.Length, cancellationToken);
+#else
+            await input.ReadAsync(zstdHeader, cancellationToken);
+#endif
 
             // Read original size
             long originalSize = BitConverter.ToInt64(zstdHeader, 4);
 
             // Read compressed size
             byte[] compressedSizeBytes = new byte[4];
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await input.ReadAsync(compressedSizeBytes, 0, compressedSizeBytes.Length, cancellationToken);
+#else
+            await input.ReadAsync(compressedSizeBytes, cancellationToken);
+#endif
+
             int compressedSize = BitConverter.ToInt32(compressedSizeBytes, 0);
 
             // Read compressed data
@@ -211,10 +234,11 @@ namespace Fragile.Compression
             int bytesRead = 0;
             int chunkSize;
 
-            while (bytesRead < compressedSize &&
-                  (chunkSize = await input.ReadAsync(compressedData, bytesRead,
-                                                   compressedSize - bytesRead,
-                                                   cancellationToken)) > 0)
+#if NET48_OR_GREATER || NETSTANDARD2_0
+            while (bytesRead < compressedSize && (chunkSize = await input.ReadAsync(compressedData, bytesRead, compressedSize - bytesRead, cancellationToken)) > 0)
+#else
+            while (bytesRead < compressedSize && (chunkSize = await input.ReadAsync(compressedData.AsMemory(bytesRead, compressedSize - bytesRead), cancellationToken)) > 0)
+#endif
             {
                 bytesRead += chunkSize;
 
@@ -230,7 +254,7 @@ namespace Fragile.Compression
             using (MemoryStream ms = new(compressedData, 0, bytesRead))
             {
                 // Recreate dictionary
-                Dictionary<int, string> dictionary = new();
+                Dictionary<int, string> dictionary = [];
                 int position = 0;
 
                 while (position < ms.Length)
@@ -257,13 +281,22 @@ namespace Fragile.Compression
                         int dictionaryId = BitConverter.ToInt16(idBytes, 0);
                         if (dictionary.TryGetValue(dictionaryId, out string? value))
                         {
-                            byte[] valueBytes = System.Text.Encoding.UTF8.GetBytes(value);
-                            await output.WriteAsync(valueBytes, 0, valueBytes.Length, cancellationToken);
+                            byte[] valueBytes = Encoding.UTF8.GetBytes(value);
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                            await output.WriteAsync(valueBytes, 0, valueBytes.Length, cancellationToken);   
+#else
+                            await output.WriteAsync(valueBytes, cancellationToken);
+#endif
                         }
                     }
                     else if (control == 0x0A) // End of line
                     {
-                        await output.WriteAsync(new byte[] { 0x0A }, 0, 1, cancellationToken);
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                        await output.WriteAsync([0x0A], 0, 1, cancellationToken); 
+#else
+                        await output.WriteAsync(new byte[0x0A].AsMemory(0, 1), cancellationToken);
+#endif
                     }
                     else // Literal
                     {
@@ -277,7 +310,7 @@ namespace Fragile.Compression
                         ms.Read(blockBytes, 0, blockLength);
                         position += blockLength;
 
-                        string block = System.Text.Encoding.UTF8.GetString(blockBytes);
+                        string block = Encoding.UTF8.GetString(blockBytes);
 
                         // Add to dictionary
                         int nextId = dictionary.Count + 1;
@@ -286,7 +319,11 @@ namespace Fragile.Compression
                             dictionary[nextId] = block;
                         }
 
+#if NET48_OR_GREATER || NETSTANDARD2_0
                         await output.WriteAsync(blockBytes, 0, blockBytes.Length, cancellationToken);
+#else
+                        await output.WriteAsync(blockBytes, cancellationToken);
+#endif
                     }
 
                     // Update progress
@@ -308,7 +345,7 @@ namespace Fragile.Compression
         public override long EstimateCompressedSize(long inputSize)
         {
             // ZStd typically achieves good compression ratios with fast compression/decompression
-            return _level switch
+            return level switch
             {
                 CompressionLevel.Fastest => (long)(inputSize * 0.7),
                 CompressionLevel.Fast => (long)(inputSize * 0.6),
@@ -324,32 +361,21 @@ namespace Fragile.Compression
     /// Simulated ZStd stream for placeholder implementation
     /// In a real implementation, this would be replaced with a proper ZStd library binding
     /// </summary>
-    internal class ZStdSimulatedStream : Stream
+    internal class ZStdSimulatedStream(Stream baseStream, int compressionLevel, bool isCompress) : Stream
     {
-        private readonly Stream _baseStream;
-        private readonly bool _isCompress;
-        private readonly int _compressionLevel;
-        private bool _disposed;
-        private MemoryStream _buffer;
+        private readonly Stream _baseStream = baseStream ?? throw new ArgumentNullException(nameof(baseStream));
+        private MemoryStream _buffer = new();
+        private bool _disposed = false;
 
-        public ZStdSimulatedStream(Stream baseStream, int compressionLevel, bool isCompress)
-        {
-            _baseStream = baseStream ?? throw new ArgumentNullException(nameof(baseStream));
-            _compressionLevel = compressionLevel;
-            _isCompress = isCompress;
-            _disposed = false;
-            _buffer = new MemoryStream();
-        }
-
-        public override bool CanRead => !_isCompress && _baseStream.CanRead;
+        public override bool CanRead => !isCompress && _baseStream.CanRead;
         public override bool CanSeek => false;
-        public override bool CanWrite => _isCompress && _baseStream.CanWrite;
+        public override bool CanWrite => isCompress && _baseStream.CanWrite;
         public override long Length => throw new NotSupportedException();
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
 
         public override void Flush()
         {
-            if (_isCompress && _buffer.Length > 0)
+            if (isCompress && _buffer.Length > 0)
             {
                 // Calculate compression ratio
                 double compressionRatio = GetCompressionRatio();
@@ -391,7 +417,7 @@ namespace Fragile.Compression
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            if (_isCompress)
+            if (isCompress)
             {
                 throw new NotSupportedException("Cannot read from a compression stream");
             }
@@ -401,12 +427,16 @@ namespace Fragile.Compression
 
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            if (_isCompress)
+            if (isCompress)
             {
                 throw new NotSupportedException("Cannot read from a compression stream");
             }
 
+#if NET48_OR_GREATER || NETSTANDARD2_0
             return await _baseStream.ReadAsync(buffer, offset, count, cancellationToken);
+#else
+            return await _baseStream.ReadAsync(buffer.AsMemory(offset, count), cancellationToken);
+#endif
         }
 
         public override long Seek(long offset, SeekOrigin origin)
@@ -421,7 +451,7 @@ namespace Fragile.Compression
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            if (!_isCompress)
+            if (!isCompress)
             {
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
@@ -438,13 +468,17 @@ namespace Fragile.Compression
 
         public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            if (!_isCompress)
+            if (!isCompress)
             {
                 throw new NotSupportedException("Cannot write to a decompression stream");
             }
 
             // Write data to buffer
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await _buffer.WriteAsync(buffer, offset, count, cancellationToken);
+#else
+            await _buffer.WriteAsync(buffer.AsMemory(offset, count), cancellationToken);
+#endif
 
             // If buffer exceeds a certain size, flush
             if (_buffer.Length > 1024 * 1024) // 1 MB
@@ -456,7 +490,7 @@ namespace Fragile.Compression
         // Sıkıştırma oranını hesapla
         private double GetCompressionRatio()
         {
-            return _compressionLevel switch
+            return compressionLevel switch
             {
                 1 => 0.7, // Fastest
                 3 => 0.6, // Fast
@@ -473,7 +507,7 @@ namespace Fragile.Compression
             {
                 if (disposing)
                 {
-                    if (_isCompress && _buffer.Length > 0)
+                    if (isCompress && _buffer.Length > 0)
                     {
                         // Flush remaining data
                         Flush();
