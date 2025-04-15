@@ -41,11 +41,8 @@ namespace Fragile.Utils
                 throw new ArgumentException("Source path cannot be empty", nameof(sourcePath));
             }
 
-            if (archivePath == null)
-            {
-                // Source file/directory name + .frgl extension
-                archivePath = Path.ChangeExtension(sourcePath, DefaultExtension);
-            }
+            // Source file/directory name + .frgl extension
+            archivePath ??= Path.ChangeExtension(sourcePath, DefaultExtension);
 
             options ??= new FragileOptions();
 
@@ -85,11 +82,8 @@ namespace Fragile.Utils
                 throw new ArgumentException("Source path cannot be empty", nameof(sourcePath));
             }
 
-            if (archivePath == null)
-            {
-                // Source file/directory name + .frgl extension
-                archivePath = Path.ChangeExtension(sourcePath, DefaultExtension);
-            }
+            // Source file/directory name + .frgl extension
+            archivePath ??= Path.ChangeExtension(sourcePath, DefaultExtension);
 
             options ??= new FragileOptions();
 

@@ -3,6 +3,8 @@ using Fragile.Encryption;
 using Fragile.ErrorCorrection;
 using Fragile.Metadata;
 using Fragile.Models;
+using Fragile.Verification;
+using System;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text;
@@ -14,7 +16,7 @@ namespace Fragile.Core
     /// </summary>
     public class FragileArchive : IDisposable
     {
-        private readonly Dictionary<string, FragileArchiveEntry> _entries = new();
+        private readonly Dictionary<string, FragileArchiveEntry> _entries = [];
         private const string FileSignature = "FRGL";
         private readonly FragileArchiveMode _mode;
         private const ushort VersionMajor = 1;
@@ -27,7 +29,7 @@ namespace Fragile.Core
         private ArchiveMetadata _archiveMetadata = new();
 
         // Collection storing entry metadata
-        private readonly Dictionary<string, EntryMetadata> _entryMetadata = new();
+        private readonly Dictionary<string, EntryMetadata> _entryMetadata = [];
 
         /// <summary>
         /// List of all files in the archive
@@ -601,7 +603,11 @@ namespace Fragile.Core
                         {
                             // Write data from memory
                             entry.CompressedSize = entry.Data.Length; // Assume data in memory is already compressed/processed
+#if NET48_OR_GREATER || NETSTANDARD2_0
                             await outputStream.WriteAsync(entry.Data, 0, entry.Data.Length);
+#else
+                            await outputStream.WriteAsync(entry.Data.AsMemory(0, entry.Data.Length));
+#endif
                         }
                         else if (!string.IsNullOrEmpty(entry.SourcePath) && File.Exists(entry.SourcePath))
                         {
@@ -680,7 +686,7 @@ namespace Fragile.Core
                         if (_options.EnableChecksumVerification)
                         {
                             long positionAfterData = outputStream.Position;
-                            Verification.VerificationProvider verificationProvider = Verification.VerificationProvider.Create(_options.ChecksumAlgorithm);
+                            VerificationProvider verificationProvider = VerificationProvider.Create(_options.ChecksumAlgorithm);
                             byte[] dataForChecksum = new byte[entry.CompressedSize];
                             outputStream.Position = entry.PositionOffset;
                             // Use ReadExactlyAsync to ensure all bytes are read
@@ -688,7 +694,11 @@ namespace Fragile.Core
                             using MemoryStream checksumStream = new(dataForChecksum);
                             byte[] checksumBytes = await verificationProvider.CalculateChecksumAsync(checksumStream, _options.Progress, _options.CancellationToken);
                             outputStream.Position = positionAfterData; // Seek back to end
+#if NET48_OR_GREATER || NETSTANDARD2_0
                             await outputStream.WriteAsync(checksumBytes, 0, checksumBytes.Length);
+#else
+                            await outputStream.WriteAsync(checksumBytes);
+#endif
                         }
                     }
 
@@ -922,12 +932,12 @@ namespace Fragile.Core
                     Path = entryPath, // 1. Path
                     Size = reader.ReadInt64(), // 2. Size
                     LastModified = TryParseDateTime(reader.ReadInt64()), // 3. LastModified
-                    IsDirectory = reader.ReadBoolean() // 4. IsDirectory
+                    IsDirectory = reader.ReadBoolean(), // 4. IsDirectory
+                    
+                    // Read placeholders for CompressedSize and PositionOffset (these will be updated from Central Directory)
+                    CompressedSize = reader.ReadInt64(), // 5. CompressedSize (placeholder)
+                    PositionOffset = reader.ReadInt64() // 6. PositionOffset (placeholder)
                 };
-
-                // Read placeholders for CompressedSize and PositionOffset (these will be updated from Central Directory)
-                entry.CompressedSize = reader.ReadInt64(); // 5. CompressedSize (placeholder)
-                entry.PositionOffset = reader.ReadInt64(); // 6. PositionOffset (placeholder)
 
                 _entries[entryPath] = entry;
             }
@@ -1087,11 +1097,15 @@ namespace Fragile.Core
                 if (_options.EnableChecksumVerification)
                 {
                     // Verify the integrity of the compressed data
-                    Verification.VerificationProvider verificationProvider = Verification.VerificationProvider.Create(_options.ChecksumAlgorithm);
+                    VerificationProvider verificationProvider = VerificationProvider.Create(_options.ChecksumAlgorithm);
 
                     // Read the stored checksum (assuming it's stored right after the compressed data)
                     byte[] storedChecksum = new byte[verificationProvider.GetChecksumSize()];
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     await _fileStream.ReadAsync(storedChecksum, 0, storedChecksum.Length);
+#else
+                    await _fileStream.ReadAsync(storedChecksum);
+#endif
 
                     // Verify the checksum
                     bool isValid = await verificationProvider.VerifyChecksumAsync(
@@ -1378,14 +1392,23 @@ namespace Fragile.Core
                 while (bytesRemaining > 0)
                 {
                     int bytesToRead = (int)Math.Min(buffer.Length, bytesRemaining);
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     int bytesRead = await sourceStream.ReadAsync(buffer, 0, bytesToRead, _options.CancellationToken);
+#else
+                    int bytesRead = await sourceStream.ReadAsync(buffer.AsMemory(0, bytesToRead), _options.CancellationToken);
+#endif
 
                     if (bytesRead == 0)
                     {
                         break; // End of stream
                     }
 
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     await partStream.WriteAsync(buffer, 0, bytesRead, _options.CancellationToken);
+#else
+                    await partStream.WriteAsync(buffer.AsMemory(0, bytesRead), _options.CancellationToken);
+#endif
+
                     bytesRemaining -= bytesRead;
                     totalProcessed += bytesRead;
 
@@ -1407,7 +1430,7 @@ namespace Fragile.Core
             // Create SemaphoreSlim to limit concurrent operations
             using SemaphoreSlim semaphore = new(maxThreads);
             using SemaphoreSlim sourceStreamLock = new(1, 1);
-            List<Task> partTasks = new();
+            List<Task> partTasks = [];
             long totalProcessed = 0;
             object lockObj = new();
 
@@ -1455,7 +1478,11 @@ namespace Fragile.Core
                         try
                         {
                             sourceStream.Position = offset;
+#if NET48_OR_GREATER || NETSTANDARD2_0
                             await sourceStream.ReadAsync(partData, 0, (int)size, _options.CancellationToken);
+#else
+                            await sourceStream.ReadAsync(partData.AsMemory(0, (int)size), _options.CancellationToken);
+#endif
                         }
                         finally
                         {
@@ -1464,7 +1491,12 @@ namespace Fragile.Core
 
                         // Write to part file
                         using FileStream partStream = new(partPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
                         await partStream.WriteAsync(partData, 0, partData.Length, _options.CancellationToken);
+#else
+                        await partStream.WriteAsync(partData, _options.CancellationToken);
+#endif
 
                         // Update progress
                         lock (lockObj)
@@ -1563,10 +1595,14 @@ namespace Fragile.Core
         /// <param name="extendedEntry">Extended entry with metadata</param>
         public void UpdateExtendedEntry(FragileArchiveEntryExtended extendedEntry)
         {
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (extendedEntry == null)
             {
                 throw new ArgumentNullException(nameof(extendedEntry));
             }
+#else
+            ArgumentNullException.ThrowIfNull(extendedEntry);
+#endif
 
             string entryPath = NormalizePath(extendedEntry.Path);
 
@@ -1634,11 +1670,17 @@ namespace Fragile.Core
             int bytesRead = 0;
             while (bytesRead < count)
             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 int read = await stream.ReadAsync(buffer, offset + bytesRead, count - bytesRead, cancellationToken);
+#else
+                int read = await stream.ReadAsync(buffer.AsMemory(offset + bytesRead, count - bytesRead), cancellationToken);
+#endif
+
                 if (read == 0)
                 {
                     throw new EndOfStreamException("Unable to read exactly specified number of bytes.");
                 }
+
                 bytesRead += read;
             }
         }
