@@ -11,28 +11,33 @@ namespace Fragile.Compression
         Store = 0,
 
         /// <summary>
+        /// Brotli compression algorithm
+        /// </summary>
+        Brotli = 1,
+
+        /// <summary>
         /// Standard Deflate algorithm (compatible with ZIP)
         /// </summary>
-        Deflate = 1,
+        Deflate = 2,
 
         /// <summary>
         /// LZMA compression algorithm
         /// </summary>
-        LZMA = 2,
+        LZMA = 3,
 
         /// <summary>
         /// BZIP2 compression algorithm
         /// </summary>
-        BZip2 = 3,
+        BZip2 = 4,
 
         /// <summary>
         /// Zstandard compression algorithm
         /// </summary>
-        ZStd = 4,
+        ZStd = 5,
 
         /// <summary>
         /// LZ4 fast compression algorithm
         /// </summary>
-        LZ4 = 5
+        LZ4 = 6
     }
 }

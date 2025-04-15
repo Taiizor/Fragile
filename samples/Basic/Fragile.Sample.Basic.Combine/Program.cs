@@ -1,6 +1,3 @@
-using Fragile.Core;
-using Fragile.Metadata;
-using Fragile.Models;
 using System.Text;
 
 namespace Fragile.Sample.Basic.Combine
@@ -19,7 +16,7 @@ namespace Fragile.Sample.Basic.Combine
             string sampleDir = "Sample";
             Directory.CreateDirectory(sampleDir);
 
-            ...
+            //
 
             Console.WriteLine("Press any key to exit...");
             Console.ReadKey();

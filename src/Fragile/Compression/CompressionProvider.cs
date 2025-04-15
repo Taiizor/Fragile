@@ -49,6 +49,7 @@ namespace Fragile.Compression
             return algorithm switch
             {
                 CompressionAlgorithm.Store => new StoreCompressionProvider(useParallelProcessing, maxThreads),
+                CompressionAlgorithm.Brotli => new BrotliCompressionProvider(level, useParallelProcessing, maxThreads),
                 CompressionAlgorithm.Deflate => new DeflateCompressionProvider(level, useParallelProcessing, maxThreads),
                 CompressionAlgorithm.LZMA => new LZMACompressionProvider(level, useParallelProcessing, maxThreads),
                 CompressionAlgorithm.BZip2 => new BZip2CompressionProvider(level, useParallelProcessing, maxThreads),

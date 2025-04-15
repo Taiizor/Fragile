@@ -29,17 +29,18 @@ namespace Fragile.Sample.Beginner.Compression
 
             // Test farklı algoritmaları Normal sıkıştırma seviyesi ile
             Console.WriteLine("\nFarklı algoritmaları Normal sıkıştırma seviyesi ile test ediliyor...");
+            await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Brotli, "brotli");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Deflate, "deflate");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.LZMA, "lzma");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.BZip2, "bzip2");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.ZStd, "zstd");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.LZ4, "lz4");
 
-            // Ayrıca Deflate ile farklı sıkıştırma seviyelerini test edelim
-            Console.WriteLine("\nDeflate algoritmasında farklı sıkıştırma seviyelerini test ediliyor...");
-            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Deflate, CompressionLevel.Fastest, "deflate_fastest");
-            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Deflate, CompressionLevel.Normal, "deflate_normal");
-            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Deflate, CompressionLevel.Ultra, "deflate_ultra");
+            // Ayrıca Brotli ile farklı sıkıştırma seviyelerini test edelim
+            Console.WriteLine("\nBrotli algoritmasında farklı sıkıştırma seviyelerini test ediliyor...");
+            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Brotli, CompressionLevel.Fastest, "brotli_fastest");
+            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Brotli, CompressionLevel.Normal, "brotli_normal");
+            await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Brotli, CompressionLevel.Ultra, "brotli_ultra");
 
             // Karşılaştırma tablosu
             await CompareAlgorithms(sampleDir, originalSize);
@@ -126,7 +127,7 @@ namespace Fragile.Sample.Beginner.Compression
             Console.WriteLine("\nAlgoritma karşılaştırması:");
             Console.WriteLine("=========================");
 
-            string[] algorithms = { "deflate", "lzma", "bzip2", "zstd", "lz4" };
+            string[] algorithms = { "brotli", "deflate", "lzma", "bzip2", "zstd", "lz4" };
 
             Console.WriteLine("|  Algoritma   |   Dosya Boyutu   |   Oran   |   Kazanç   |");
             Console.WriteLine("|--------------|------------------|----------|------------|");
@@ -147,10 +148,10 @@ namespace Fragile.Sample.Beginner.Compression
 
         static async Task CompareLevels(string sampleDir, long originalSize)
         {
-            Console.WriteLine("\nDeflate sıkıştırma seviyeleri karşılaştırması:");
+            Console.WriteLine("\nBrotli sıkıştırma seviyeleri karşılaştırması:");
             Console.WriteLine("=======================================");
 
-            string[] levels = { "deflate_fastest", "deflate_normal", "deflate_ultra" };
+            string[] levels = { "brotli_fastest", "brotli_normal", "brotli_ultra" };
 
             Console.WriteLine("|  Seviye      |   Dosya Boyutu   |   Oran   |   Kazanç   |");
             Console.WriteLine("|--------------|------------------|----------|------------|");
@@ -165,7 +166,7 @@ namespace Fragile.Sample.Beginner.Compression
                     double savings = 1 - ((double)fileInfo.Length / originalSize);
 
                     // Extract level name for display
-                    string levelName = level.Replace("deflate_", "");
+                    string levelName = level.Replace("brotli_", "");
 
                     Console.WriteLine($"|  {levelName,-10}  |  {fileInfo.Length,14:N0}  |  {ratio,6:F2}x  |  {savings,8:P2}  |");
                 }

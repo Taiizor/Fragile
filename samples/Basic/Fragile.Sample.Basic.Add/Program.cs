@@ -22,33 +22,33 @@ namespace Fragile.Sample.Basic.Add
             // Create sample files
             string textFilePath = Path.Combine(sampleDir, "example.txt");
             File.WriteAllText(textFilePath, "This is a sample text file for Fragile.");
-            
+
             string imageFilePath = Path.Combine(sampleDir, "subfolder");
             Directory.CreateDirectory(imageFilePath);
             File.WriteAllText(Path.Combine(imageFilePath, "readme.txt"), "This is a file in subfolder.");
-            
+
             string archivePath = "example.frgl";
 
             try
             {
                 // Create a new archive and add files
                 Console.WriteLine("\nCreating a new archive and adding files...");
-                using (var archive = new FragileArchive(archivePath, FragileArchiveMode.Create))
+                using (FragileArchive archive = new(archivePath, FragileArchiveMode.Create))
                 {
                     // Add a file to the archive
                     Console.WriteLine($"Adding file: {textFilePath}");
-                    var entry = archive.AddFile(textFilePath);
+                    FragileArchiveEntry entry = archive.AddFile(textFilePath);
                     Console.WriteLine($"Added entry: {entry.Path}, Size: {entry.Size} bytes");
 
                     // Add the same file with a different name in the archive
                     Console.WriteLine($"Adding file with custom entry name");
-                    var customEntry = archive.AddFile(textFilePath, "documents/readme.txt");
+                    FragileArchiveEntry customEntry = archive.AddFile(textFilePath, "documents/readme.txt");
                     Console.WriteLine($"Added entry: {customEntry.Path}, Size: {customEntry.Size} bytes");
-                    
+
                     // Add a directory
                     Console.WriteLine($"Adding directory: {imageFilePath}");
                     archive.AddDirectory(imageFilePath, recursive: true);
-                    
+
                     // Save the archive with files
                     Console.WriteLine("\nSaving the archive...");
                     await archive.SaveAsync();
@@ -57,9 +57,9 @@ namespace Fragile.Sample.Basic.Add
 
                 // Show the archive contents
                 Console.WriteLine("\nArchive contents:");
-                using (var archive = new FragileArchive(archivePath, FragileArchiveMode.Read))
+                using (FragileArchive archive = new(archivePath, FragileArchiveMode.Read))
                 {
-                    foreach (var entry in archive.Entries)
+                    foreach (FragileArchiveEntry entry in archive.Entries)
                     {
                         Console.WriteLine($" - {entry.Path} ({entry.Size} bytes)");
                     }
