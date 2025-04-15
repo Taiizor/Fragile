@@ -283,7 +283,11 @@ namespace Fragile.Core
                 // Extract all files and subdirectories in this directory
                 foreach (FragileArchiveEntry? childEntry in _entries.Values.Where(e => e.Path.StartsWith(entryPath + "/")))
                 {
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                    string relativePath = childEntry.Path.Substring(entryPath.Length + 1);
+#else
                     string relativePath = childEntry.Path[(entryPath.Length + 1)..];
+#endif
                     string childDestPath = Path.Combine(destinationPath, relativePath);
 
                     if (childEntry.IsDirectory)
@@ -330,7 +334,11 @@ namespace Fragile.Core
                 // Extract all files and subdirectories in this directory
                 foreach (FragileArchiveEntry? childEntry in _entries.Values.Where(e => e.Path.StartsWith(entryPath + "/")))
                 {
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                    string relativePath = childEntry.Path.Substring(entryPath.Length + 1);
+#else
                     string relativePath = childEntry.Path[(entryPath.Length + 1)..];
+#endif
                     string childDestPath = Path.Combine(destinationPath, relativePath);
 
                     if (childEntry.IsDirectory)
@@ -1250,9 +1258,13 @@ namespace Fragile.Core
             path = path.Replace('\\', '/');
 
             // Remove leading slashes
-            while (path.StartsWith('/'))
+            while (path.StartsWith("/"))
             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                path = path.Substring(1);
+#else
                 path = path[1..];
+#endif
             }
 
             return path;
