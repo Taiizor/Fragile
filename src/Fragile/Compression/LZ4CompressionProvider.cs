@@ -51,7 +51,12 @@ namespace Fragile.Compression
             byte[] inputData;
             using (MemoryStream memoryStream = new())
             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                // 81920 (80KB) standart buffer boyutu olarak kullanılır
+                await input.CopyToAsync(memoryStream, 81920, cancellationToken);
+#else
                 await input.CopyToAsync(memoryStream, cancellationToken);
+#endif
                 inputData = memoryStream.ToArray();
             }
 
