@@ -1,5 +1,5 @@
 name: Documentation Improvement
-description: Suggest improvements to Fragile library documentation
+description: Suggest improvements to Fragile archiving library documentation
 labels: ["documentation"]
 body:
   - type: markdown
@@ -18,6 +18,10 @@ body:
         - "Getting Started Guide"
         - "README"
         - "Installation Instructions"
+        - "Compression Algorithms"
+        - "Encryption Methods"
+        - "Error Correction Features"
+        - "Archive Format Specification"
         - "Performance Guidelines"
         - "Other (specify below)"
     validations:
@@ -54,7 +58,7 @@ body:
       label: Example Content
       description: |
         If you're suggesting new content, provide an example of what you'd like to see.
-        This could be code examples, explanatory text, or both.
+        This could be code examples, explanatory text, diagrams of how the archiving process works, etc.
       render: markdown
   - type: checkboxes
     id: checks

@@ -1,5 +1,5 @@
 name: Feature Request
-description: Suggest an idea or enhancement for Fragile library
+description: Suggest an idea or enhancement for Fragile archiving library
 labels: ["enhancement"]
 body:
   - type: markdown
@@ -12,7 +12,7 @@ body:
     attributes:
       label: Problem Description
       description: Is your feature request related to a problem? Please describe.
-      placeholder: I'm always frustrated when trying to [...]
+      placeholder: I'm always frustrated when trying to archive files with specific requirements...
     validations:
       required: true
   - type: textarea
@@ -22,7 +22,25 @@ body:
       description: |
         Describe the solution you'd like to see implemented.
         Be specific about the functionality you want.
-      placeholder: I would like Fragile to [...]
+      placeholder: I would like Fragile to support a new compression algorithm / encryption method / archive feature...
+    validations:
+      required: true
+  - type: dropdown
+    id: feature-category
+    attributes:
+      label: Feature Category
+      description: What area of the library would this feature enhance?
+      options:
+        - "Compression"
+        - "Encryption"
+        - "Error Correction"
+        - "Archive Format"
+        - "File Handling"
+        - "Metadata"
+        - "Performance"
+        - "Cross-platform Support"
+        - "API Design"
+        - "Other (specify in description)"
     validations:
       required: true
   - type: textarea
@@ -30,7 +48,7 @@ body:
     attributes:
       label: Use Case
       description: Describe a concrete use case for this feature
-      placeholder: This feature would be useful when [...]
+      placeholder: This feature would be useful when backing up important files that need extra security/compression/integrity...
     validations:
       required: true
   - type: dropdown
@@ -49,7 +67,7 @@ body:
     attributes:
       label: Alternative Solutions
       description: Describe any alternative solutions or features you've considered
-      placeholder: I've also thought about [...]
+      placeholder: I've also thought about implementing this by...
   - type: checkboxes
     id: considerations
     attributes:

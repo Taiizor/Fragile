@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug in Fragile library
+description: Report a bug in Fragile archiving library
 labels: ["bug", "triage"]
 body:
   - type: markdown
@@ -21,9 +21,10 @@ body:
       label: Steps to Reproduce
       description: |
         Please provide detailed steps to reproduce the issue:
-        1. Implementation code...
-        2. Fragile generation method used...
-        3. Error received...
+        1. Archive creation/extraction code...
+        2. Files being archived/extracted...
+        3. Options used (compression, encryption, error correction)...
+        4. Error received...
       placeholder: List the steps to reproduce the issue...
     validations:
       required: true
@@ -32,7 +33,7 @@ body:
     attributes:
       label: Fragile Version
       description: What version of Fragile are you using?
-      placeholder: "Example: 1.2.3"
+      placeholder: "Example: 1.0.1"
     validations:
       required: true
   - type: dropdown
@@ -41,12 +42,31 @@ body:
       label: .NET Version
       description: Which .NET version are you using?
       options:
+        - ".NET Framework 4.8.1"
         - ".NET Framework 4.8"
+        - ".NET Standard 2.1"
         - ".NET Standard 2.0"
-        - ".NET 6.0"
-        - ".NET 7.0"
+        - ".NET 10.0"
+        - ".NET 9.0"
         - ".NET 8.0"
+        - ".NET 7.0"
+        - ".NET 6.0"
         - "Other (specify in additional context)"
+    validations:
+      required: true
+  - type: dropdown
+    id: operation-type
+    attributes:
+      label: Operation Type
+      description: What operation were you performing?
+      options:
+        - "Archive creation"
+        - "File extraction"
+        - "Archive splitting"
+        - "Error correction/recovery"
+        - "Encryption/decryption"
+        - "Metadata handling"
+        - "Other (specify in code example)"
     validations:
       required: true
   - type: textarea
@@ -57,11 +77,15 @@ body:
         Please provide a minimal code example that demonstrates the issue.
         ```csharp
         // Your code here
+        using Fragile.Core;
+        using Fragile.Models;
+        
+        // Example code that reproduces the issue
         ```
       render: csharp
   - type: textarea
     id: additional-context
     attributes:
       label: Additional Context
-      description: Add any other context about the problem here (environment, special configurations, etc.)
+      description: Add any other context about the problem here (file sizes, special configurations, compression or encryption settings, etc.)
       placeholder: Any additional information that might be helpful...
