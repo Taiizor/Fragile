@@ -75,7 +75,7 @@ namespace Fragile.Encryption
                 aes.Padding = PaddingMode.PKCS7;
 
 #if NETSTANDARD2_0
-                using CryptoStream cryptoStream = new CryptoStream(output, aes.CreateEncryptor(), CryptoStreamMode.Write);
+                using CryptoStream cryptoStream = new(output, aes.CreateEncryptor(), CryptoStreamMode.Write);
 #else
                 using CryptoStream cryptoStream = new(output, aes.CreateEncryptor(), CryptoStreamMode.Write, true);
 #endif
