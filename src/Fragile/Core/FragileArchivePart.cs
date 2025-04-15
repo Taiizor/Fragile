@@ -67,12 +67,75 @@ namespace Fragile.Core
 
             // Handle file with extension
             string extension = System.IO.Path.GetExtension(basePath);
-            string nameWithoutExtension = System.IO.Path.Combine(
-                System.IO.Path.GetDirectoryName(basePath) ?? "",
-                System.IO.Path.GetFileNameWithoutExtension(basePath)
-            );
+            string nameWithoutExtension = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(basePath) ?? "", System.IO.Path.GetFileNameWithoutExtension(basePath));
 
             return nameWithoutExtension + partSuffix + extension;
+        }
+
+        /// <summary>
+        /// Creates a FragileArchivePart from a file name
+        /// </summary>
+        /// <param name="fileName">Path to the part file</param>
+        /// <returns>A new FragileArchivePart instance</returns>
+        public static FragileArchivePart FromFileName(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName))
+            {
+                throw new ArgumentException("File name cannot be null or empty", nameof(fileName));
+            }
+
+            if (!File.Exists(fileName))
+            {
+                throw new FileNotFoundException($"Part file not found: {fileName}");
+            }
+
+            // Get file info
+            FileInfo fileInfo = new(fileName);
+
+            // Extract the part index from the file name
+            // Expected format: baseFileName.partXXX.extension
+            string fileNameWithoutPath = System.IO.Path.GetFileName(fileName);
+            int partStartIndex = fileNameWithoutPath.IndexOf(".part", StringComparison.OrdinalIgnoreCase);
+
+            if (partStartIndex < 0)
+            {
+                throw new FormatException($"Invalid part file name format: {fileName}");
+            }
+
+            // Extract part number
+            string extension = System.IO.Path.GetExtension(fileName);
+            int extensionIndex = fileNameWithoutPath.LastIndexOf(extension, StringComparison.OrdinalIgnoreCase);
+
+            // If no extension or ".part" appears after the extension, it's invalid
+            if (extensionIndex < 0 || extensionIndex < partStartIndex)
+            {
+                throw new FormatException($"Invalid part file name format: {fileName}");
+            }
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
+            // Extract the part number
+            string partNumberStr = fileNameWithoutPath.Substring(partStartIndex + ".part".Length, extensionIndex - (partStartIndex + ".part".Length));
+#else
+            // Extract the part number
+            string partNumberStr = fileNameWithoutPath[(partStartIndex + ".part".Length)..extensionIndex];
+#endif
+
+            if (!int.TryParse(partNumberStr, out int partIndex))
+            {
+                throw new FormatException($"Invalid part number in file name: {fileName}");
+            }
+
+            // Create the part
+            FragileArchivePart part = new()
+            {
+                PartIndex = partIndex,
+                Path = fileName,
+                Size = fileInfo.Length,
+                // TotalParts and Offset will be set later when all parts are processed
+                TotalParts = 1 // Default value until updated
+            };
+
+            return part;
         }
     }
 }

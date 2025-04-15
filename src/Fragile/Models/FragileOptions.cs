@@ -61,6 +61,11 @@ namespace Fragile.Models
         public bool EnableChecksumVerification { get; set; } = true;
 
         /// <summary>
+        /// Directory for storing temporary files and operations
+        /// </summary>
+        public string TempDirectory { get; set; } = Path.GetTempPath();
+
+        /// <summary>
         /// Maximum number of threads to use for parallel operations
         /// </summary>
         public int MaxThreads { get; set; } = Environment.ProcessorCount;

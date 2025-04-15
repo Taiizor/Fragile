@@ -1,5 +1,6 @@
 using Fragile.Core;
 using Fragile.Models;
+using System.Diagnostics;
 using System.Text;
 
 namespace Fragile.Utils
@@ -45,6 +46,12 @@ namespace Fragile.Utils
             archivePath ??= Path.ChangeExtension(sourcePath, DefaultExtension);
 
             options ??= new FragileOptions();
+
+            // If split size is greater than 0, create a split archive directly
+            if (options.SplitSize > 0)
+            {
+                return CreateArchiveAsync(sourcePath, archivePath, recursive, options).GetAwaiter().GetResult();
+            }
 
             using FragileArchive archive = new(archivePath, FragileArchiveMode.Create, options);
             int count = 0;
@@ -105,6 +112,19 @@ namespace Fragile.Utils
             }
 
             await archive.SaveAsync();
+
+            // If split size is greater than 0, split the archive after creation
+            if (options.SplitSize > 0)
+            {
+                string? outputDirectory = Path.GetDirectoryName(archivePath);
+                FragileArchivePartCollection parts = await archive.SplitAsync(outputDirectory);
+
+                // Optionally delete the original archive file if it was split
+                if (parts.Count > 0 && File.Exists(archivePath))
+                {
+                    File.Delete(archivePath);
+                }
+            }
 
             return count;
         }
@@ -314,6 +334,108 @@ namespace Fragile.Utils
 
             // Combine parts
             await parts.CombinePartsAsync(outputPath, options.Progress, options.CancellationToken);
+        }
+
+        /// <summary>
+        /// Creates a Fragile archive directly split into multiple parts
+        /// </summary>
+        /// <param name="sourcePath">Path to the file or directory to archive</param>
+        /// <param name="archivePath">Path to the archive file to create (if null, source name + .frgl is used)</param>
+        /// <param name="recursive">If archiving a directory, include subdirectories?</param>
+        /// <param name="options">Archive options including SplitSize (must be greater than 0)</param>
+        /// <returns>Collection of archive parts</returns>
+        public static async Task<FragileArchivePartCollection> CreateArchiveDirectSplitAsync(string sourcePath, string? archivePath = null, bool recursive = true, FragileOptions? options = null)
+        {
+            if (string.IsNullOrEmpty(sourcePath))
+            {
+                throw new ArgumentException("Source path cannot be empty", nameof(sourcePath));
+            }
+
+            options ??= new FragileOptions { SplitSize = 100 * 1024 * 1024 }; // Default to 100MB
+
+            // Validate split size
+            if (options.SplitSize <= 0)
+            {
+                throw new ArgumentException("Split size must be greater than zero", nameof(options.SplitSize));
+            }
+
+            // Source file/directory name + .frgl extension
+            archivePath ??= Path.ChangeExtension(sourcePath, DefaultExtension);
+
+            // Create temp directory for the original archive
+            string tempDirectory = Path.Combine(options.TempDirectory, $"Fragile_{Guid.NewGuid()}");
+            Directory.CreateDirectory(tempDirectory);
+
+            try
+            {
+                // Create the temporary archive
+                string tempArchivePath = Path.Combine(tempDirectory, Path.GetFileName(archivePath));
+
+                // Create the archive
+                await CreateArchiveAsync(sourcePath, tempArchivePath, recursive, options);
+
+                // Split it with provided options
+                string outputDirectory = Path.GetDirectoryName(archivePath) ?? "";
+
+                // Check if the temporary archive was already split (and deleted)
+                if (!File.Exists(tempArchivePath))
+                {
+                    // The archive was already split during creation
+                    // We need to find the generated parts and move them to the output directory
+                    string tempSearchPattern = Path.GetFileNameWithoutExtension(tempArchivePath) + "*.part*";
+                    string[] partFiles = Directory.GetFiles(tempDirectory, tempSearchPattern);
+
+                    if (partFiles.Length == 0)
+                    {
+                        throw new InvalidOperationException("Failed to find split archive parts in temporary directory");
+                    }
+
+                    // Create the output directory if it doesn't exist
+                    Directory.CreateDirectory(outputDirectory);
+
+                    // Create a part collection to return
+                    FragileArchivePartCollection partCollection = new(options);
+
+                    // Move and add the parts
+                    foreach (string partFile in partFiles)
+                    {
+                        string partFileName = Path.GetFileName(partFile);
+                        string destPartFile = Path.Combine(outputDirectory, partFileName);
+
+                        // Move the part
+                        File.Move(partFile, destPartFile);
+
+                        // Create and add the part to the collection
+                        // We need to parse the part details from the filename
+                        FragileArchivePart part = FragileArchivePart.FromFileName(destPartFile);
+                        partCollection.Add(part);
+                    }
+
+                    return partCollection;
+                }
+                else
+                {
+                    // The archive was created but not split yet
+                    using FragileArchive archive = await FragileArchive.OpenAsync(tempArchivePath, options);
+                    return await archive.SplitAsync(outputDirectory);
+                }
+            }
+            finally
+            {
+                // Clean up temp directory 
+                try
+                {
+                    if (Directory.Exists(tempDirectory))
+                    {
+                        Directory.Delete(tempDirectory, true);
+                    }
+                }
+                catch (IOException ex)
+                {
+                    // Log but don't throw - this is cleanup code
+                    Debug.WriteLine($"Error cleaning up temporary directory: {ex.Message}");
+                }
+            }
         }
     }
 }

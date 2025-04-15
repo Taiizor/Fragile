@@ -477,7 +477,7 @@ namespace Fragile.Core
 
             if (_options.EnableErrorCorrection && _options.ErrorCorrectionLevel > 0)
             {
-                tempFilePath = Path.GetTempFileName();
+                tempFilePath = $"Fragile_{Guid.NewGuid()}";
                 outputStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
             }
             else
@@ -1304,7 +1304,7 @@ namespace Fragile.Core
 
             if (useTemporaryFile)
             {
-                tempArchivePath = Path.Combine(Path.GetTempPath(), $"fragile_temp_{Guid.NewGuid()}.frgl");
+                tempArchivePath = Path.Combine(_options.TempDirectory, $"Fragile_{Guid.NewGuid()}.frgl");
                 await SaveAsync(); // Make sure the current state is saved
                 File.Copy(ArchivePath, tempArchivePath);
             }

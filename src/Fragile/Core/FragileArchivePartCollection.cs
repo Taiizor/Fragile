@@ -156,7 +156,7 @@ namespace Fragile.Core
                 outputStream.Position = 0;
 
                 // Create a temporary file for encrypted output
-                string tempEncryptedFile = Path.GetTempFileName();
+                string tempEncryptedFile = $"Fragile_{Guid.NewGuid()}";
                 using FileStream encryptedOutput = new(tempEncryptedFile, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
 
                 try
@@ -280,7 +280,7 @@ namespace Fragile.Core
                 outputStream.Flush();
 
                 // Create a temporary file for encrypted output
-                string tempEncryptedFile = Path.GetTempFileName();
+                string tempEncryptedFile = $"Fragile_{Guid.NewGuid()}";
 
                 try
                 {

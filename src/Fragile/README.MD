@@ -176,6 +176,63 @@ await archive.ExtractAllAsync("output_directory");
 await archive.SaveAsync();
 ```
 
+## Split Archive Creation
+
+Fragile has the ability to automatically split large files into multiple parts when archiving. You can do this in two ways:
+
+### 1. Splitting an existing archive:
+
+```csharp
+// Split an existing archive into 100 MB parts
+FragileArchivePartCollection parts = await FragileUtility.SplitArchiveAsync("C:/Data/large-archive.frgl");
+
+// List the parts
+foreach (var part in parts)
+{
+    Console.WriteLine($"Part {part.PartIndex}/{part.TotalParts}: {part.Path} ({part.Size} bytes)");
+}
+```
+
+### 2. Creating a directly split archive:
+
+```csharp
+// Split the archive directly during creation (each part will be 50 MB)
+FragileOptions options = new FragileOptions
+{
+    SplitSize = 50 * 1024 * 1024, // 50 MB parts
+    CompressionAlgorithm = CompressionAlgorithm.Deflate,
+    CompressionLevel = CompressionLevel.Fastest
+};
+
+// Archive a file or folder and directly split it into parts
+FragileArchivePartCollection parts = await FragileUtility.CreateArchiveDirectSplitAsync(
+    "C:/Data/LargeFolder", 
+    "C:/Backup/archive.frgl", 
+    options);
+
+Console.WriteLine($"Archive split into {parts.Count} parts.");
+```
+
+### Combining Parts:
+
+```csharp
+// Combine all parts by specifying the first part
+await FragileUtility.CombinePartsAsync(
+    "C:/Backup/archive.part001.frgl", 
+    "C:/Restore/archive.frgl");
+    
+// For password-protected parts:
+FragileOptions options = new FragileOptions 
+{
+    Password = "my-secure-password"
+};
+
+await FragileUtility.CombinePartsAsync(
+    "C:/Backup/archive.part001.frgl", 
+    "C:/Restore/archive.frgl",
+    options);
+```
+
 ## License
 
 This project is licensed under the terms of the LICENSE file included in the repository.
