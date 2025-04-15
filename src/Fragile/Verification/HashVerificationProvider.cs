@@ -83,7 +83,11 @@ namespace Fragile.Verification
             byte[] buffer = new byte[81920]; // 80 KB buffer
             int bytesRead;
 
+#if NET48_OR_GREATER || NETSTANDARD2_0
             while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+#else
+            while ((bytesRead = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+#endif
             {
                 // Update hash
                 hashAlgorithm.TransformBlock(buffer, 0, bytesRead, null, 0);
@@ -101,7 +105,7 @@ namespace Fragile.Verification
             }
 
             // Finalize hash
-            hashAlgorithm.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+            hashAlgorithm.TransformFinalBlock([], 0, 0);
 
             return hashAlgorithm.Hash;
         }
@@ -124,7 +128,7 @@ namespace Fragile.Verification
             }
 
             // Create chunks
-            List<(long Start, long End)> chunks = new();
+            List<(long Start, long End)> chunks = [];
             for (int i = 0; i < threadCount; i++)
             {
                 long start = i * chunkSize;
@@ -134,7 +138,7 @@ namespace Fragile.Verification
 
             // Limit concurrent tasks using semaphore
             using SemaphoreSlim semaphore = new(threadCount);
-            List<Task<byte[]>> tasks = new();
+            List<Task<byte[]>> tasks = [];
             ParallelProgress progressTracker = new(chunks.Count, progress);
 
             foreach ((long start, long end) in chunks)
@@ -153,7 +157,11 @@ namespace Fragile.Verification
                         int bytesRead;
                         long totalBytesRead = 0;
 
+#if NET48_OR_GREATER || NETSTANDARD2_0
                         while ((bytesRead = await chunkStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+#else
+                        while ((bytesRead = await chunkStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+#endif
                         {
                             // Update hash
                             hashAlgorithm.TransformBlock(buffer, 0, bytesRead, null, 0);
@@ -168,7 +176,7 @@ namespace Fragile.Verification
                         }
 
                         // Finalize hash
-                        hashAlgorithm.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                        hashAlgorithm.TransformFinalBlock([], 0, 0);
                         return hashAlgorithm.Hash;
                     }
                     finally
@@ -187,7 +195,7 @@ namespace Fragile.Verification
             {
                 combineHashAlgorithm.TransformBlock(hash, 0, hash.Length, null, 0);
             }
-            combineHashAlgorithm.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+            combineHashAlgorithm.TransformFinalBlock([], 0, 0);
 
             // Report 100% progress
             progress?.Report(1.0);
@@ -273,21 +281,14 @@ namespace Fragile.Verification
     /// <summary>
     /// Helper class for tracking progress of parallel chunk processing
     /// </summary>
-    internal class ParallelProgress
+    internal class ParallelProgress(int chunkCount, IProgress<double>? progress)
     {
-        private readonly double[] _chunkProgress;
-        private readonly IProgress<double>? _progress;
+        private readonly double[] _chunkProgress = new double[chunkCount];
         private readonly object _lock = new();
-
-        public ParallelProgress(int chunkCount, IProgress<double>? progress)
-        {
-            _chunkProgress = new double[chunkCount];
-            _progress = progress;
-        }
 
         public void ReportChunkProgress(int chunkIndex, double chunkProgress)
         {
-            if (_progress == null)
+            if (progress == null)
             {
                 return;
             }
@@ -296,7 +297,7 @@ namespace Fragile.Verification
             {
                 _chunkProgress[chunkIndex] = chunkProgress;
                 double overallProgress = _chunkProgress.Sum() / _chunkProgress.Length;
-                _progress.Report(overallProgress);
+                progress.Report(overallProgress);
             }
         }
     }
@@ -363,7 +364,13 @@ namespace Fragile.Verification
             }
 
             int bytesToRead = (int)Math.Min(count, _length - _position);
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
             int bytesRead = await _baseStream.ReadAsync(buffer, offset, bytesToRead, cancellationToken).ConfigureAwait(false);
+#else
+            int bytesRead = await _baseStream.ReadAsync(buffer.AsMemory(offset, bytesToRead), cancellationToken).ConfigureAwait(false);
+#endif
+
             _position += bytesRead;
             return bytesRead;
         }

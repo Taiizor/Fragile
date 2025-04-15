@@ -5,33 +5,27 @@ namespace Fragile.Verification
     /// <summary>
     /// Abstract base class for checksum algorithm providers
     /// </summary>
-    public abstract class VerificationProvider
+    /// <remarks>
+    /// Constructor with parallel processing options
+    /// </remarks>
+    /// <param name="useParallelProcessing">Whether to use parallel processing</param>
+    /// <param name="maxThreads">Maximum number of threads to use</param>
+    public abstract class VerificationProvider(bool useParallelProcessing = false, int maxThreads = 1)
     {
         /// <summary>
         /// Whether to use parallel processing for checksum calculation
         /// </summary>
-        public bool UseParallelProcessing { get; }
+        public bool UseParallelProcessing { get; } = useParallelProcessing;
 
         /// <summary>
         /// Maximum number of threads to use for parallel operations
         /// </summary>
-        public int MaxThreads { get; }
+        public int MaxThreads { get; } = maxThreads;
 
         /// <summary>
         /// The checksum algorithm used by this provider
         /// </summary>
         public abstract ChecksumAlgorithm Algorithm { get; }
-
-        /// <summary>
-        /// Constructor with parallel processing options
-        /// </summary>
-        /// <param name="useParallelProcessing">Whether to use parallel processing</param>
-        /// <param name="maxThreads">Maximum number of threads to use</param>
-        protected VerificationProvider(bool useParallelProcessing = false, int maxThreads = 1)
-        {
-            UseParallelProcessing = useParallelProcessing;
-            MaxThreads = maxThreads;
-        }
 
         /// <summary>
         /// Creates a verification provider for the specified algorithm
@@ -51,10 +45,14 @@ namespace Fragile.Verification
         /// <returns>A suitable verification provider</returns>
         public static VerificationProvider Create(FragileOptions options)
         {
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (options == null)
             {
                 throw new ArgumentNullException(nameof(options));
             }
+#else
+            ArgumentNullException.ThrowIfNull(options);
+#endif
 
             // If checksum verification is disabled, use the None provider
             if (!options.EnableChecksumVerification)

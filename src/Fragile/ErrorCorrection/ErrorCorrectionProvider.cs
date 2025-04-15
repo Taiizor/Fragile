@@ -57,10 +57,14 @@ namespace Fragile.ErrorCorrection
         /// <returns>Error correction provider</returns>
         public static ErrorCorrectionProvider Create(FragileOptions options)
         {
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (options == null)
             {
                 throw new ArgumentNullException(nameof(options));
             }
+#else
+            ArgumentNullException.ThrowIfNull(options);
+#endif
 
             if (options.ErrorCorrectionLevel <= 0 || !options.EnableErrorCorrection)
             {
@@ -191,9 +195,18 @@ namespace Fragile.ErrorCorrection
             long totalBytesRead = 0;
 
             int bytesRead;
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
             while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
+#else
+            while ((bytesRead = await input.ReadAsync(buffer, cancellationToken)) > 0)
+#endif
             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 await output.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+#else
+                await output.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+#endif
 
                 // Report progress if possible
                 if (canReportProgress && progress != null)
@@ -257,7 +270,12 @@ namespace Fragile.ErrorCorrection
                         try
                         {
                             input.Position = startPosition;
-                            await input.ReadAsync(buffer, 0, (int)chunkLength, cancellationToken);
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                            await input.ReadAsync(buffer, 0, (int)chunkLength, cancellationToken); 
+#else
+                            await input.ReadAsync(buffer.AsMemory(0, (int)chunkLength), cancellationToken);
+#endif
                         }
                         finally
                         {
@@ -269,7 +287,12 @@ namespace Fragile.ErrorCorrection
                         try
                         {
                             output.Position = startPosition;
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
                             await output.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
+#else
+                            await output.WriteAsync(buffer, cancellationToken);
+#endif
                         }
                         finally
                         {
@@ -382,7 +405,12 @@ namespace Fragile.ErrorCorrection
 
             while (true)
             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 int bytesRead = await input.ReadAsync(buffer, 0, dataSize, cancellationToken);
+#else
+                int bytesRead = await input.ReadAsync(buffer.AsMemory(0, dataSize), cancellationToken);
+#endif
+
                 if (bytesRead == 0)
                 {
                     break;
@@ -400,7 +428,11 @@ namespace Fragile.ErrorCorrection
                     byte[] encoded = rs.Encode(buffer);
 
                     // Write encoded data
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     await output.WriteAsync(encoded, 0, encoded.Length, cancellationToken);
+#else
+                    await output.WriteAsync(encoded, cancellationToken);
+#endif
 
                     totalBytesRead += bytesRead;
                     totalBytesWritten += encoded.Length;
@@ -484,7 +516,12 @@ namespace Fragile.ErrorCorrection
                             try
                             {
                                 input.Position = startPosition;
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
                                 await input.ReadAsync(blockBuffer, 0, (int)bytesToRead, cancellationToken);
+#else
+                                await input.ReadAsync(blockBuffer.AsMemory(0, (int)bytesToRead), cancellationToken);
+#endif
                             }
                             finally
                             {
@@ -529,7 +566,11 @@ namespace Fragile.ErrorCorrection
                 {
                     foreach (byte[] encoded in batchResults)
                     {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                         await output.WriteAsync(encoded, 0, encoded.Length, cancellationToken);
+#else
+                        await output.WriteAsync(encoded, cancellationToken);
+#endif
                         totalBytesWritten += encoded.Length;
                     }
                 }
@@ -592,7 +633,12 @@ namespace Fragile.ErrorCorrection
 
             while (true)
             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
                 int bytesRead = await input.ReadAsync(buffer, 0, blockSize, cancellationToken);
+#else
+                int bytesRead = await input.ReadAsync(buffer.AsMemory(0, blockSize), cancellationToken);
+#endif
+
                 if (bytesRead == 0)
                 {
                     break;
@@ -609,7 +655,11 @@ namespace Fragile.ErrorCorrection
                     (byte[] decoded, int errors) = rs.Decode(buffer);
 
                     // Write corrected data
+#if NET48_OR_GREATER || NETSTANDARD2_0
                     await output.WriteAsync(decoded, 0, decoded.Length, cancellationToken);
+#else
+                    await output.WriteAsync(decoded, cancellationToken);
+#endif
 
                     // Update statistics
                     totalBytesWritten += decoded.Length;
@@ -701,7 +751,12 @@ namespace Fragile.ErrorCorrection
                             try
                             {
                                 input.Position = startPosition;
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
                                 bytesRead = await input.ReadAsync(blockBuffer, 0, blockSize, cancellationToken);
+#else
+                                bytesRead = await input.ReadAsync(blockBuffer.AsMemory(0, blockSize), cancellationToken);
+#endif
 
                                 if (bytesRead < blockSize)
                                 {
@@ -749,7 +804,13 @@ namespace Fragile.ErrorCorrection
                     foreach ((byte[] decoded, int errors, int _) in batchResults)
                     {
                         long currentPosition = output.Position;
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
                         await output.WriteAsync(decoded, 0, decoded.Length, cancellationToken);
+#else
+                        await output.WriteAsync(decoded, cancellationToken);
+#endif
+
                         long bytesWritten = decoded.Length;
 
                         lock (statsLock)
@@ -856,23 +917,26 @@ namespace Fragile.ErrorCorrection
         /// </summary>
         private static async Task WriteHeaderAsync(Stream output, int dataSize, int ecSize, CancellationToken cancellationToken)
         {
-            byte[] header = new byte[8];
+            byte[] header =
+            [
+                // Magic bytes (RS)
+                (byte)'R',
+                (byte)'S',
+                // Data size (4 bytes, little-endian)
+                (byte)(dataSize & 0xFF),
+                (byte)((dataSize >> 8) & 0xFF),
+                (byte)((dataSize >> 16) & 0xFF),
+                (byte)((dataSize >> 24) & 0xFF),
+                // Error correction size (2 bytes, little-endian)
+                (byte)(ecSize & 0xFF),
+                (byte)((ecSize >> 8) & 0xFF),
+            ];
 
-            // Magic bytes (RS)
-            header[0] = (byte)'R';
-            header[1] = (byte)'S';
-
-            // Data size (4 bytes, little-endian)
-            header[2] = (byte)(dataSize & 0xFF);
-            header[3] = (byte)((dataSize >> 8) & 0xFF);
-            header[4] = (byte)((dataSize >> 16) & 0xFF);
-            header[5] = (byte)((dataSize >> 24) & 0xFF);
-
-            // Error correction size (2 bytes, little-endian)
-            header[6] = (byte)(ecSize & 0xFF);
-            header[7] = (byte)((ecSize >> 8) & 0xFF);
-
+#if NET48_OR_GREATER || NETSTANDARD2_0
             await output.WriteAsync(header, 0, header.Length, cancellationToken);
+#else
+            await output.WriteAsync(header, cancellationToken);
+#endif
         }
 
         /// <summary>
@@ -882,7 +946,11 @@ namespace Fragile.ErrorCorrection
         {
             byte[] header = new byte[8];
 
+#if NET48_OR_GREATER || NETSTANDARD2_0
             if (await input.ReadAsync(header, 0, header.Length, cancellationToken) != header.Length)
+#else
+            if (await input.ReadAsync(header, cancellationToken) != header.Length)
+#endif
             {
                 throw new EndOfStreamException("Unexpected end of file - header could not be read");
             }

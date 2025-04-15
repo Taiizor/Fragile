@@ -79,7 +79,12 @@ namespace Fragile.Verification
             byte[] buffer = new byte[81920]; // 80 KB buffer
 
             int bytesRead;
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
             while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+#else
+            while ((bytesRead = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+#endif
             {
                 // Update CRC for this chunk
                 for (int i = 0; i < bytesRead; i++)
@@ -103,13 +108,13 @@ namespace Fragile.Verification
             crc ^= 0xFFFFFFFF;
 
             // Convert to byte array (little-endian)
-            return new byte[]
-            {
+            return
+            [
                 (byte)(crc & 0xFF),
                 (byte)((crc >> 8) & 0xFF),
                 (byte)((crc >> 16) & 0xFF),
                 (byte)((crc >> 24) & 0xFF)
-            };
+            ];
         }
 
         /// <summary>
@@ -233,13 +238,13 @@ namespace Fragile.Verification
             uint finalCrc = CombineCrcs(chunkCrcs, chunkSize, streamLength);
 
             // Convert to byte array (little-endian)
-            return new byte[]
-            {
+            return
+            [
                 (byte)(finalCrc & 0xFF),
                 (byte)((finalCrc >> 8) & 0xFF),
                 (byte)((finalCrc >> 16) & 0xFF),
                 (byte)((finalCrc >> 24) & 0xFF)
-            };
+            ];
         }
 
         /// <summary>

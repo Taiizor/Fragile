@@ -12,7 +12,7 @@ namespace Fragile.Metadata
         /// Custom metadata dictionary for user-defined properties
         /// </summary>
         [JsonPropertyName("custom")]
-        public Dictionary<string, string> CustomProperties { get; set; } = new Dictionary<string, string>();
+        public Dictionary<string, string> CustomProperties { get; set; } = [];
 
         /// <summary>
         /// Creation time of the file
@@ -54,7 +54,7 @@ namespace Fragile.Metadata
         /// Tags for searching and categorization
         /// </summary>
         [JsonPropertyName("tags")]
-        public List<string> Tags { get; set; } = new List<string>();
+        public List<string> Tags { get; set; } = [];
 
         /// <summary>
         /// Comments about the file

@@ -17,7 +17,7 @@ namespace Fragile.Models
         /// <summary>
         /// Checksum of the entry content
         /// </summary>
-        public byte[] Checksum { get; set; } = Array.Empty<byte>();
+        public byte[] Checksum { get; set; } = [];
 
         /// <summary>
         /// Encryption method used for this entry
@@ -56,10 +56,14 @@ namespace Fragile.Models
         /// <returns>An extended entry</returns>
         public static FragileArchiveEntryExtended FromEntry(FragileArchiveEntry entry)
         {
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (entry == null)
             {
                 throw new ArgumentNullException(nameof(entry));
             }
+#else
+            ArgumentNullException.ThrowIfNull(entry);
+#endif
 
             if (entry is FragileArchiveEntryExtended extendedEntry)
             {

@@ -49,10 +49,14 @@ namespace Fragile.ErrorCorrection
         /// <returns>Data with error correction codes added</returns>
         public byte[] Encode(byte[] data)
         {
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (data == null)
             {
                 throw new ArgumentNullException(nameof(data));
-            }
+            } 
+#else
+            ArgumentNullException.ThrowIfNull(data);
+#endif
 
             if (data.Length != _dataSize)
             {
@@ -102,10 +106,14 @@ namespace Fragile.ErrorCorrection
         /// <returns>Data with errors corrected and number of errors fixed</returns>
         public (byte[] data, int errorsFixed) Decode(byte[] data)
         {
+#if NET48_OR_GREATER || NETSTANDARD2_0_OR_GREATER
             if (data == null)
             {
                 throw new ArgumentNullException(nameof(data));
             }
+#else
+            ArgumentNullException.ThrowIfNull(data);
+#endif
 
             if (data.Length != _dataSize + _errorCorrectionSize)
             {
@@ -188,7 +196,7 @@ namespace Fragile.ErrorCorrection
                     if (L * 2 <= r)
                     {
                         L = r + 1 - L;
-                        b = t.Select(x => _field.Multiply(x, _field.Inverse(delta))).ToArray();
+                        b = [.. t.Select(x => _field.Multiply(x, _field.Inverse(delta)))];
                         m = 1;
                     }
                     else
@@ -303,11 +311,11 @@ namespace Fragile.ErrorCorrection
         /// </summary>
         private int[] GenerateGenerator(int numRoots)
         {
-            int[] g = { 1 };
+            int[] g = [1];
 
             for (int i = 0; i < numRoots; i++)
             {
-                int[] p = { 1, _field.Exp(i) };
+                int[] p = [1, _field.Exp(i)];
                 g = MultiplyPolynomials(g, p);
             }
 

@@ -54,19 +54,19 @@ namespace Fragile.Metadata
         /// Archive categories or tags
         /// </summary>
         [JsonPropertyName("tags")]
-        public List<string> Tags { get; set; } = new List<string>();
+        public List<string> Tags { get; set; } = [];
 
         /// <summary>
         /// Custom metadata dictionary for user-defined properties
         /// </summary>
         [JsonPropertyName("custom")]
-        public Dictionary<string, string> CustomProperties { get; set; } = new Dictionary<string, string>();
+        public Dictionary<string, string> CustomProperties { get; set; } = [];
 
         /// <summary>
         /// Application-specific data
         /// </summary>
         [JsonPropertyName("app_data")]
-        public Dictionary<string, string> ApplicationData { get; set; } = new Dictionary<string, string>();
+        public Dictionary<string, string> ApplicationData { get; set; } = [];
 
         /// <summary>
         /// Fragile library version used to create the archive
