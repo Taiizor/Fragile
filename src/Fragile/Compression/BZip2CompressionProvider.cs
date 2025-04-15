@@ -86,6 +86,7 @@ namespace Fragile.Compression
 #else
             BitConverter.TryWriteBytes(new Span<byte>(header, 4, 6), (uint)inputData.Length);
 #endif
+
             await output.WriteAsync(header, 0, header.Length, cancellationToken);
 
             // Hedeflenen sıkıştırılmış boyutu hesapla
@@ -381,6 +382,7 @@ namespace Fragile.Compression
 #else
                 BitConverter.TryWriteBytes(new Span<byte>(header, 4, 6), (uint)originalData.Length);
 #endif
+
                 _baseStream.Write(header, 0, header.Length);
 
                 // Sıkıştırılmış boyutu hesapla

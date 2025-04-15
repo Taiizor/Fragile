@@ -81,7 +81,12 @@ namespace Fragile.Compression
             zstdHeader[3] = 0xFD;
 
             // Orijinal boyutu header'a ekle
+#if NET48_OR_GREATER || NETSTANDARD2_0
+            byte[] sizeBytes = BitConverter.GetBytes(inputData.Length);
+            Array.Copy(sizeBytes, 0, zstdHeader, 4, Math.Min(sizeBytes.Length, 8));
+#else
             BitConverter.TryWriteBytes(new Span<byte>(zstdHeader, 4, 8), inputData.Length);
+#endif
 
             // Header'ı yaz
             await output.WriteAsync(zstdHeader, 0, zstdHeader.Length, cancellationToken);
@@ -364,7 +369,14 @@ namespace Fragile.Compression
                 header[1] = 0xB5;
                 header[2] = 0x2F;
                 header[3] = 0xFD;
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                byte[] sizeBytes = BitConverter.GetBytes(originalData.Length);
+                Array.Copy(sizeBytes, 0, header, 4, Math.Min(sizeBytes.Length, 8));
+#else
                 BitConverter.TryWriteBytes(new Span<byte>(header, 4, 8), originalData.Length);
+#endif
+
                 _baseStream.Write(header, 0, header.Length);
 
                 // Sıkıştırılmış boyutu hesapla

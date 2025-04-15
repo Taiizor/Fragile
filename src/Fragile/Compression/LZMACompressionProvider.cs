@@ -80,7 +80,12 @@ namespace Fragile.Compression
             lzmaHeader[4] = 0x01; // 1MB dictionary
 
             // Orijinal boyutu header'a ekle
+#if NET48_OR_GREATER || NETSTANDARD2_0
+            byte[] sizeBytes = BitConverter.GetBytes(inputData.Length);
+            Array.Copy(sizeBytes, 0, lzmaHeader, 5, Math.Min(sizeBytes.Length, 8));
+#else
             BitConverter.TryWriteBytes(new Span<byte>(lzmaHeader, 5, 8), inputData.Length);
+#endif
 
             // Header'ı yaz
             await output.WriteAsync(lzmaHeader, 0, lzmaHeader.Length, cancellationToken);
@@ -361,7 +366,14 @@ namespace Fragile.Compression
                 header[2] = 0x00;
                 header[3] = 0x00;
                 header[4] = 0x01; // 1MB dictionary
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                byte[] sizeBytes = BitConverter.GetBytes(originalData.Length);
+                Array.Copy(sizeBytes, 0, header, 5, Math.Min(sizeBytes.Length, 8));
+#else
                 BitConverter.TryWriteBytes(new Span<byte>(header, 5, 8), originalData.Length);
+#endif
+
                 _baseStream.Write(header, 0, header.Length);
 
                 // Sıkıştırılmış boyutu hesapla
