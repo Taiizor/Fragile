@@ -3,15 +3,9 @@ using Fragile.Encryption;
 using Fragile.ErrorCorrection;
 using Fragile.Metadata;
 using Fragile.Models;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Fragile.Core
 {

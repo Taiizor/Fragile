@@ -1,7 +1,6 @@
 using Fragile.Compression;
 using Fragile.Encryption;
 using Fragile.Metadata;
-using System;
 
 namespace Fragile.Models
 {

@@ -1,8 +1,6 @@
 using Fragile.Compression;
 using Fragile.Encryption;
 using Fragile.Verification;
-using System;
-using System.Threading;
 
 namespace Fragile.Models
 {

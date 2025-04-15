@@ -1,5 +1,4 @@
 using Fragile.Encryption;
-using System;
 
 namespace Fragile.Models
 {
