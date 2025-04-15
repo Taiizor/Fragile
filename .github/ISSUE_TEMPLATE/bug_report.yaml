@@ -1,0 +1,67 @@
+name: Bug Report
+description: Report a bug in Fragile library
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+        Please provide as much detail as possible to help us resolve the issue quickly.
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Bug Description
+      description: A clear description of what the bug is.
+      placeholder: Describe what happened and what you expected to happen...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: |
+        Please provide detailed steps to reproduce the issue:
+        1. Implementation code...
+        2. Fragile generation method used...
+        3. Error received...
+      placeholder: List the steps to reproduce the issue...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Fragile Version
+      description: What version of Fragile are you using?
+      placeholder: "Example: 1.2.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: dotnet-version
+    attributes:
+      label: .NET Version
+      description: Which .NET version are you using?
+      options:
+        - ".NET Framework 4.8"
+        - ".NET Standard 2.0"
+        - ".NET 6.0"
+        - ".NET 7.0"
+        - ".NET 8.0"
+        - "Other (specify in additional context)"
+    validations:
+      required: true
+  - type: textarea
+    id: code-example
+    attributes:
+      label: Code Example
+      description: |
+        Please provide a minimal code example that demonstrates the issue.
+        ```csharp
+        // Your code here
+        ```
+      render: csharp
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here (environment, special configurations, etc.)
+      placeholder: Any additional information that might be helpful...

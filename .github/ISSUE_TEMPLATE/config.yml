@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Fragile Discussions
+    url: https://github.com/Taiizor/Fragile/discussions
+    about: Ask questions and share ideas about Fragile library
+  - name: Fragile Documentation
+    url: https://github.com/Taiizor/Fragile/wiki
+    about: Check our documentation for guides and API reference
+  - name: Stack Overflow
+    url: https://stackoverflow.com/questions/tagged/fragile
+    about: Ask technical questions about Fragile implementation
