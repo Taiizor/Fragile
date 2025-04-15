@@ -104,7 +104,11 @@ namespace Fragile.Compression
                             if (commonPrefixLength > 20)
                             {
                                 // Ortak prefix uzunluğu ve değişen içeriği yaz
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                                writer.WriteLine($"#{commonPrefixLength}:{line.Substring(commonPrefixLength)}");
+#else
                                 writer.WriteLine($"#{commonPrefixLength}:{line[commonPrefixLength..]}");
+#endif
                                 continue;
                             }
                         }
@@ -193,12 +197,20 @@ namespace Fragile.Compression
                     if (line.StartsWith("#") && line.Contains(':'))
                     {
                         int colonIndex = line.IndexOf(':');
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                        if (int.TryParse(line.Substring(1, colonIndex - 1), out int prefixLength))
+#else
                         if (int.TryParse(line[1..colonIndex], out int prefixLength))
+#endif
                         {
                             // Önceki satırdan prefixLength karakteri al ve geri kalan kısmı ekle
                             if (prefixLength <= previousLine.Length)
                             {
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                                string reconstructedLine = previousLine.Substring(0, prefixLength) + line.Substring(colonIndex + 1);
+#else
                                 string reconstructedLine = previousLine[..prefixLength] + line[(colonIndex + 1)..];
+#endif
                                 await writer.WriteLineAsync(reconstructedLine);
                                 previousLine = reconstructedLine;
                                 continue;
