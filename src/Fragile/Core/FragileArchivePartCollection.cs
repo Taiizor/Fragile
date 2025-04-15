@@ -1,3 +1,4 @@
+using Fragile.Encryption;
 using Fragile.Models;
 using System.Collections;
 
@@ -29,8 +30,7 @@ namespace Fragile.Core
         /// <summary>
         /// Creates a new empty part collection with default options
         /// </summary>
-        public FragileArchivePartCollection()
-            : this(new FragileOptions())
+        public FragileArchivePartCollection() : this(new FragileOptions())
         {
         }
 
@@ -162,7 +162,7 @@ namespace Fragile.Core
                 try
                 {
                     // Create encryption provider
-                    Encryption.EncryptionProvider encryptionProvider = Encryption.EncryptionProvider.Create(
+                    EncryptionProvider encryptionProvider = EncryptionProvider.Create(
                         _options.EncryptionMethod,
                         _options.Password);
 
@@ -290,7 +290,7 @@ namespace Fragile.Core
                     using FileStream encryptedOutput = new(tempEncryptedFile, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
 
                     // Create encryption provider
-                    Encryption.EncryptionProvider encryptionProvider = Encryption.EncryptionProvider.Create(
+                    EncryptionProvider encryptionProvider = EncryptionProvider.Create(
                         _options.EncryptionMethod,
                         _options.Password);
 
@@ -306,7 +306,7 @@ namespace Fragile.Core
                     outputStream.Close();
 
                     // Determine the full path of the output
-                    string fullOutputPath = (outputStream as FileStream)?.Name;
+                    string fullOutputPath = outputStream?.Name;
 
                     if (!string.IsNullOrEmpty(fullOutputPath))
                     {
@@ -322,6 +322,7 @@ namespace Fragile.Core
                     {
                         File.Delete(tempEncryptedFile);
                     }
+
                     throw;
                 }
             }
@@ -360,7 +361,7 @@ namespace Fragile.Core
             // Search for part files matching the pattern [filename].partXXX[extension]
             if (Directory.Exists(directory))
             {
-                string searchPattern = $"{fileNameWithoutExt}.part*{extension}";
+                string searchPattern = $"{fileNameWithoutExt}{options.SplitName}*{extension}";
                 string[] partFiles = Directory.GetFiles(directory, searchPattern);
 
                 foreach (string partFile in partFiles)
@@ -369,7 +370,7 @@ namespace Fragile.Core
 
                     // Extract part number from filename
                     // Pattern: [filename].partXXX[extension]
-                    string partIndexStr = partFileName.Substring(fileNameWithoutExt.Length + ".part".Length, partFileName.Length - fileNameWithoutExt.Length - ".part".Length - extension.Length
+                    string partIndexStr = partFileName.Substring(fileNameWithoutExt.Length + options.SplitName.Length, partFileName.Length - fileNameWithoutExt.Length - options.SplitName.Length - extension.Length
                     );
 
                     if (int.TryParse(partIndexStr, out int partIndex))

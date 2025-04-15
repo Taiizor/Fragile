@@ -1363,7 +1363,7 @@ namespace Fragile.Core
                 long currentPartSize = Math.Min(partSize, fileSize - ((partIndex - 1) * partSize));
 
                 // Create part file
-                string partPath = Path.Combine(outputDirectory, FragileArchivePart.GetPartFileName(ArchivePath, partIndex, totalParts));
+                string partPath = Path.Combine(outputDirectory, FragileArchivePart.GetPartFileName(ArchivePath, partIndex, totalParts, _options.SplitName));
 
                 // Create part object
                 FragileArchivePart part = new()
@@ -1438,7 +1438,7 @@ namespace Fragile.Core
                 long currentPartSize = Math.Min(partSize, fileSize - ((partIndex - 1) * partSize));
 
                 // Create part file path
-                string partPath = Path.Combine(outputDirectory, FragileArchivePart.GetPartFileName(ArchivePath, partIndex, totalParts));
+                string partPath = Path.Combine(outputDirectory, FragileArchivePart.GetPartFileName(ArchivePath, partIndex, totalParts, _options.SplitName));
 
                 // Create part object
                 FragileArchivePart part = new()

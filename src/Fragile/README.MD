@@ -205,9 +205,10 @@ FragileOptions options = new FragileOptions
 };
 
 // Archive a file or folder and directly split it into parts
-FragileArchivePartCollection parts = await FragileUtility.CreateArchiveDirectSplitAsync(
+FragileArchivePartCollection parts = await FragileUtility.CreateSplitArchiveAsync(
     "C:/Data/LargeFolder", 
     "C:/Backup/archive.frgl", 
+    true,
     options);
 
 Console.WriteLine($"Archive split into {parts.Count} parts.");

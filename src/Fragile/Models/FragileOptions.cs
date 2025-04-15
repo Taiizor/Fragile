@@ -26,6 +26,12 @@ namespace Fragile.Models
         public IProgress<double>? Progress { get; set; }
 
         /// <summary>
+        /// Represents a string property that holds a default value of '.part'.
+        /// It is used to specify a name for a split file.
+        /// </summary>
+        public string SplitName { get; set; } = ".part";
+
+        /// <summary>
         /// Whether to include metadata in the archive
         /// </summary>
         public bool IncludeMetadata { get; set; } = true;

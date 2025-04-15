@@ -6,21 +6,6 @@ namespace Fragile.Core
     public class FragileArchivePart
     {
         /// <summary>
-        /// The part index (1-based)
-        /// </summary>
-        public int PartIndex { get; set; }
-
-        /// <summary>
-        /// The total number of parts
-        /// </summary>
-        public int TotalParts { get; set; }
-
-        /// <summary>
-        /// The path to the part file
-        /// </summary>
-        public string Path { get; set; } = string.Empty;
-
-        /// <summary>
         /// The size of the part in bytes
         /// </summary>
         public long Size { get; set; }
@@ -36,13 +21,29 @@ namespace Fragile.Core
         public uint Checksum { get; set; }
 
         /// <summary>
+        /// The part index (1-based)
+        /// </summary>
+        public int PartIndex { get; set; }
+
+        /// <summary>
+        /// The total number of parts
+        /// </summary>
+        public int TotalParts { get; set; }
+
+        /// <summary>
+        /// The path to the part file
+        /// </summary>
+        public string Path { get; set; } = string.Empty;
+
+        /// <summary>
         /// Gets the standard file name for a split archive part
         /// </summary>
         /// <param name="basePath">The base archive path</param>
         /// <param name="partIndex">The part index (1-based)</param>
         /// <param name="totalParts">The total number of parts</param>
+        /// <param name="splitName">The name of the split parts</param>
         /// <returns>The formatted part file name</returns>
-        public static string GetPartFileName(string basePath, int partIndex, int totalParts)
+        public static string GetPartFileName(string basePath, int partIndex, int totalParts, string splitName)
         {
             if (string.IsNullOrEmpty(basePath))
             {
@@ -63,11 +64,11 @@ namespace Fragile.Core
             // Where XXX is the part number padded with zeros
             // The number of digits depends on the total number of parts
             int digits = totalParts.ToString().Length;
-            string partSuffix = $".part{partIndex.ToString().PadLeft(digits, '0')}";
+            string partSuffix = $"{splitName}{partIndex.ToString().PadLeft(digits, '0')}";
 
             // Handle file with extension
             string extension = System.IO.Path.GetExtension(basePath);
-            string nameWithoutExtension = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(basePath) ?? "", System.IO.Path.GetFileNameWithoutExtension(basePath));
+            string nameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(basePath) ?? "Fragile"; System.IO.Path.GetFileNameWithoutExtension(basePath);
 
             return nameWithoutExtension + partSuffix + extension;
         }
@@ -76,8 +77,9 @@ namespace Fragile.Core
         /// Creates a FragileArchivePart from a file name
         /// </summary>
         /// <param name="fileName">Path to the part file</param>
+        /// <param name="splitName">The name of the split parts</param>
         /// <returns>A new FragileArchivePart instance</returns>
-        public static FragileArchivePart FromFileName(string fileName)
+        public static FragileArchivePart FromFileName(string fileName, string splitName)
         {
             if (string.IsNullOrEmpty(fileName))
             {
@@ -95,7 +97,7 @@ namespace Fragile.Core
             // Extract the part index from the file name
             // Expected format: baseFileName.partXXX.extension
             string fileNameWithoutPath = System.IO.Path.GetFileName(fileName);
-            int partStartIndex = fileNameWithoutPath.IndexOf(".part", StringComparison.OrdinalIgnoreCase);
+            int partStartIndex = fileNameWithoutPath.IndexOf(splitName, StringComparison.OrdinalIgnoreCase);
 
             if (partStartIndex < 0)
             {
@@ -114,10 +116,10 @@ namespace Fragile.Core
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
             // Extract the part number
-            string partNumberStr = fileNameWithoutPath.Substring(partStartIndex + ".part".Length, extensionIndex - (partStartIndex + ".part".Length));
+            string partNumberStr = fileNameWithoutPath.Substring(partStartIndex + splitName.Length, extensionIndex - (partStartIndex + splitName.Length));
 #else
             // Extract the part number
-            string partNumberStr = fileNameWithoutPath[(partStartIndex + ".part".Length)..extensionIndex];
+            string partNumberStr = fileNameWithoutPath[(partStartIndex + splitName.Length)..extensionIndex];
 #endif
 
             if (!int.TryParse(partNumberStr, out int partIndex))

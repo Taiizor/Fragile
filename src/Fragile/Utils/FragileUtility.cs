@@ -42,16 +42,10 @@ namespace Fragile.Utils
                 throw new ArgumentException("Source path cannot be empty", nameof(sourcePath));
             }
 
-            // Source file/directory name + .frgl extension
-            archivePath ??= Path.ChangeExtension(sourcePath, DefaultExtension);
-
             options ??= new FragileOptions();
 
-            // If split size is greater than 0, create a split archive directly
-            if (options.SplitSize > 0)
-            {
-                return CreateArchiveAsync(sourcePath, archivePath, recursive, options).GetAwaiter().GetResult();
-            }
+            // Source file/directory name + .frgl extension
+            archivePath ??= Path.ChangeExtension(sourcePath, DefaultExtension);
 
             using FragileArchive archive = new(archivePath, FragileArchiveMode.Create, options);
             int count = 0;
@@ -89,10 +83,10 @@ namespace Fragile.Utils
                 throw new ArgumentException("Source path cannot be empty", nameof(sourcePath));
             }
 
+            options ??= new FragileOptions();
+
             // Source file/directory name + .frgl extension
             archivePath ??= Path.ChangeExtension(sourcePath, DefaultExtension);
-
-            options ??= new FragileOptions();
 
             using FragileArchive archive = await FragileArchive.CreateAsync(archivePath, options);
             int count = 0;
@@ -112,19 +106,6 @@ namespace Fragile.Utils
             }
 
             await archive.SaveAsync();
-
-            // If split size is greater than 0, split the archive after creation
-            if (options.SplitSize > 0)
-            {
-                string? outputDirectory = Path.GetDirectoryName(archivePath);
-                FragileArchivePartCollection parts = await archive.SplitAsync(outputDirectory);
-
-                // Optionally delete the original archive file if it was split
-                if (parts.Count > 0 && File.Exists(archivePath))
-                {
-                    File.Delete(archivePath);
-                }
-            }
 
             return count;
         }
@@ -319,7 +300,7 @@ namespace Fragile.Utils
 
                 // Extract base name by removing part suffix (like .part001)
                 string baseName = fileName;
-                int partIndex = fileName.IndexOf(".part", StringComparison.OrdinalIgnoreCase);
+                int partIndex = fileName.IndexOf(options.SplitName, StringComparison.OrdinalIgnoreCase);
                 if (partIndex > 0)
                 {
 #if NET48_OR_GREATER || NETSTANDARD2_0
@@ -342,9 +323,22 @@ namespace Fragile.Utils
         /// <param name="sourcePath">Path to the file or directory to archive</param>
         /// <param name="archivePath">Path to the archive file to create (if null, source name + .frgl is used)</param>
         /// <param name="recursive">If archiving a directory, include subdirectories?</param>
+        /// <param name="splitSize">Size of each part in bytes (must be greater than 0)</param>
+        /// <returns>Collection of archive parts</returns>
+        public static async Task<FragileArchivePartCollection> CreateSplitArchiveAsync(string sourcePath, string? archivePath = null, bool recursive = true, long splitSize = 0)
+        {
+            return await CreateSplitArchiveAsync(sourcePath, archivePath, recursive, new FragileOptions { SplitSize = splitSize > 0 ? splitSize : 100 * 1024 * 1024 }); // Default 100MB if not specified
+        }
+
+        /// <summary>
+        /// Creates a Fragile archive directly split into multiple parts
+        /// </summary>
+        /// <param name="sourcePath">Path to the file or directory to archive</param>
+        /// <param name="archivePath">Path to the archive file to create (if null, source name + .frgl is used)</param>
+        /// <param name="recursive">If archiving a directory, include subdirectories?</param>
         /// <param name="options">Archive options including SplitSize (must be greater than 0)</param>
         /// <returns>Collection of archive parts</returns>
-        public static async Task<FragileArchivePartCollection> CreateArchiveDirectSplitAsync(string sourcePath, string? archivePath = null, bool recursive = true, FragileOptions? options = null)
+        public static async Task<FragileArchivePartCollection> CreateSplitArchiveAsync(string sourcePath, string? archivePath = null, bool recursive = true, FragileOptions? options = null)
         {
             if (string.IsNullOrEmpty(sourcePath))
             {
@@ -382,7 +376,7 @@ namespace Fragile.Utils
                 {
                     // The archive was already split during creation
                     // We need to find the generated parts and move them to the output directory
-                    string tempSearchPattern = Path.GetFileNameWithoutExtension(tempArchivePath) + "*.part*";
+                    string tempSearchPattern = Path.GetFileNameWithoutExtension(tempArchivePath) + $"*{options.SplitName}*";
                     string[] partFiles = Directory.GetFiles(tempDirectory, tempSearchPattern);
 
                     if (partFiles.Length == 0)
@@ -407,7 +401,7 @@ namespace Fragile.Utils
 
                         // Create and add the part to the collection
                         // We need to parse the part details from the filename
-                        FragileArchivePart part = FragileArchivePart.FromFileName(destPartFile);
+                        FragileArchivePart part = FragileArchivePart.FromFileName(destPartFile, options.SplitName);
                         partCollection.Add(part);
                     }
 
