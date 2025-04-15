@@ -16,7 +16,7 @@
 [![Discord-Server](https://img.shields.io/discord/932386235538878534?label=Discord)](https://discord.gg/nxG977byXb)
 
 # Welcome to Fragile
-Fragile is a modern and efficient unique identifier generator for .NET ecosystem. This high-performance library is designed for modern distributed systems, providing thread-safe operations and time-ordered identifiers with enhanced security features.
+Fragile is a comprehensive archiving library developed for .NET, featuring file compression, encryption, error correction, and integrity verification capabilities. It offers advanced features such as multiple compression algorithms, strong encryption options, Reed-Solomon based error correction and parallel processing support.
 
 ## Contributors
 
@@ -153,4 +153,4 @@ Would you like to help make Fragile even better? We keep a list of issues that a
 
 When contributing please keep in mind our [Code of Conduct](CODE_OF_CONDUCT.md).
 
-_Fragile is copyright &copy; 2024-2025 Fragile Contributors - Provided under the [MIT License](LICENSE)._
+_Fragile is copyright &copy; 2025 Fragile Contributors - Provided under the [MIT License](LICENSE)._

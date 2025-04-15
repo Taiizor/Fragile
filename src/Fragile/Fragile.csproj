@@ -19,14 +19,14 @@
         <PackageId>Fragile</PackageId>
         <Authors>Taiizor</Authors>
         <Copyright>Copyright © $([System.DateTime]::Today.ToString(yyyy)) $(Authors)</Copyright>
-        <Summary>...</Summary>
-        <Description>...</Description>
+        <Summary>Versatile, secure and advanced file archiving library.</Summary>
+        <Description>Fragile is a comprehensive archiving library developed for .NET, featuring file compression, encryption, error correction, and integrity verification capabilities. It offers advanced features such as multiple compression algorithms, strong encryption options, Reed-Solomon based error correction and parallel processing support.</Description>
         <PackageReadmeFile>README.MD</PackageReadmeFile>
         <PackageLicenseFile>LICENSE</PackageLicenseFile>
         <PackageLicenseExpression></PackageLicenseExpression>
         <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
         <PackageReleaseNotes>All changes are detailed at https://github.com/Taiizor/Fragile/wiki/Changelog.</PackageReleaseNotes>
-        <PackageTags>...</PackageTags>
+        <PackageTags>archive;compression;extension;encryption;error-correction;file;storage;Reed-Solomon;AES;ChaCha20;Twofish;LZ4;LZMA;ZStd;BZip2;Deflate;CRC32;integrity;verification</PackageTags>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <!--<DocumentationFile>..\$(Title)\bin$(OutputPath)\$(Configuration)\$(TargetFramework)\$(Title).xml</DocumentationFile>-->
         <PackageProjectUrl>https://fragile.soferity.com</PackageProjectUrl>
