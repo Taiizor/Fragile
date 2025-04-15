@@ -310,7 +310,11 @@ namespace Fragile.Utils
                 int partIndex = fileName.IndexOf(".part", StringComparison.OrdinalIgnoreCase);
                 if (partIndex > 0)
                 {
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                    baseName = fileName.Substring(0, partIndex);
+#else
                     baseName = fileName[..partIndex];
+#endif
                 }
 
                 outputPath = Path.Combine(directory, baseName);
