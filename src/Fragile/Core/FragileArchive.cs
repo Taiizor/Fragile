@@ -1292,6 +1292,7 @@ namespace Fragile.Core
 
             // Make sure we have a valid output directory
             outputDirectory ??= Path.GetDirectoryName(ArchivePath) ?? ".";
+
             Directory.CreateDirectory(outputDirectory);
 
             // Create part collection

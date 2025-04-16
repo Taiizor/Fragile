@@ -357,11 +357,27 @@ namespace Fragile.Core
             string directory = Path.GetDirectoryName(basePath) ?? "";
             string extension = Path.GetExtension(basePath);
             string fileName = Path.GetFileName(basePath);
+            string baseFileName = fileNameWithoutExt;
+
+            // Check if the filename contains the split marker and extract the base filename
+            if (fileNameWithoutExt.Contains(options.SplitName))
+            {
+                int partIndex = fileNameWithoutExt.LastIndexOf(options.SplitName);
+
+                if (partIndex > 0)
+                {
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                    baseFileName = fileNameWithoutExt.Substring(0, partIndex);
+#else
+                    baseFileName = fileNameWithoutExt[..partIndex];
+#endif
+                }
+            }
 
             // Search for part files matching the pattern [filename].partXXX[extension]
             if (Directory.Exists(directory))
             {
-                string searchPattern = $"{fileNameWithoutExt}{options.SplitName}*{extension}";
+                string searchPattern = $"{baseFileName}{options.SplitName}*{extension}";
                 string[] partFiles = Directory.GetFiles(directory, searchPattern);
 
                 foreach (string partFile in partFiles)
@@ -370,8 +386,7 @@ namespace Fragile.Core
 
                     // Extract part number from filename
                     // Pattern: [filename].partXXX[extension]
-                    string partIndexStr = partFileName.Substring(fileNameWithoutExt.Length + options.SplitName.Length, partFileName.Length - fileNameWithoutExt.Length - options.SplitName.Length - extension.Length
-                    );
+                    string partIndexStr = partFileName.Substring(baseFileName.Length + options.SplitName.Length, partFileName.Length - baseFileName.Length - options.SplitName.Length - extension.Length);
 
                     if (int.TryParse(partIndexStr, out int partIndex))
                     {
@@ -393,6 +408,7 @@ namespace Fragile.Core
                 if (result.Count > 0)
                 {
                     int totalParts = result.Count;
+
                     foreach (FragileArchivePart part in result._parts)
                     {
                         part.TotalParts = totalParts;
