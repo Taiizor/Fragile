@@ -4,14 +4,14 @@ Fragile is a comprehensive archiving library for .NET, featuring file compressio
 
 ## Features
 
-- **Multiple Compression Algorithms**: Store, Brotli, Deflate, LZMA, LZ4, ZStd, and BZip2
-- **Strong Encryption**: AES-256, ChaCha20, and Twofish encryption
-- **Error Correction**: Reed-Solomon based error correction for file recovery
-- **Integrity Verification**: CRC32 and other hashing algorithms for data integrity
-- **Parallel Processing**: Optimized performance through parallel operations
 - **Split Archives**: Split large archives into manageable parts
+- **Strong Encryption**: AES-256, ChaCha20, and Twofish encryption
+- **Parallel Processing**: Optimized performance through parallel operations
+- **Error Correction**: Reed-Solomon based error correction for file recovery
 - **Metadata Support**: Store and retrieve custom metadata for archives and files
-- **Multi-Platform Support**: Works on .NET Framework 4.8, .NET 6-10, and .NET Standard 2.0/2.1
+- **Integrity Verification**: CRC32 and other hashing algorithms for data integrity
+- **Multiple Compression Algorithms**: Store, Brotli, Deflate, LZMA, LZ4, ZStd, and BZip2
+- **Multi-Platform Support**: Works on .NET Framework 4.8/4.8.1, .NET 6-10 and .NET Standard 2.0/2.1
 
 ## Installation
 
@@ -66,8 +66,8 @@ using (FragileArchive archive = new FragileArchive("example.frgl", FragileArchiv
 ```csharp
 var options = new FragileOptions
 {
-    CompressionAlgorithm = CompressionAlgorithm.LZMA,
-    CompressionLevel = CompressionLevel.Maximum
+    CompressionLevel = CompressionLevel.Ultra,
+    CompressionAlgorithm = CompressionAlgorithm.Deflate
 };
 
 using (FragileArchive archive = new FragileArchive("compressed.frgl", FragileArchiveMode.Create, options))
@@ -84,8 +84,8 @@ using (FragileArchive archive = new FragileArchive("compressed.frgl", FragileArc
 var options = new FragileOptions
 {
     EnableEncryption = true,
-    EncryptionMethod = EncryptionMethod.AES256,
-    Password = "your-secure-password"
+    Password = "your-secure-password",
+    EncryptionMethod = EncryptionMethod.AES256
 };
 
 using (FragileArchive archive = new FragileArchive("secure.frgl", FragileArchiveMode.Create, options))
@@ -199,9 +199,9 @@ foreach (var part in parts)
 // Split the archive directly during creation (each part will be 50 MB)
 FragileOptions options = new FragileOptions
 {
+    CompressionLevel = CompressionLevel.Fastest,
     SplitSize = 50 * 1024 * 1024, // 50 MB parts
-    CompressionAlgorithm = CompressionAlgorithm.Deflate,
-    CompressionLevel = CompressionLevel.Fastest
+    CompressionAlgorithm = CompressionAlgorithm.Deflate
 };
 
 // Archive a file or folder and directly split it into parts

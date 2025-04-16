@@ -110,4 +110,4 @@ Fragile is a custom file archiving library for .NET that provides advanced featu
 - Modern C# language features
 - Minimal external dependencies
 - System.Text.Json integration for metadata serialization
-- Compatible with .NET Framework 4.8, .NET Standard 2.0 and .NET 6.0 or greater
+- Compatible with .NET Framework 4.8/4.8.1, .NET 6-10 and .NET Standard 2.0/2.1
