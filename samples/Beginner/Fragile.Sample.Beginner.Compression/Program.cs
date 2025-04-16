@@ -25,10 +25,10 @@ namespace Fragile.Sample.Beginner.Compression
 
             // Get file size before compression
             long originalSize = new FileInfo(largeFilePath).Length;
-            Console.WriteLine($"Orijinal dosya boyutu: {originalSize:N0} bayt");
+            Console.WriteLine($"Original file size: {originalSize:N0} bytes");
 
-            // Test farklı algoritmaları Normal sıkıştırma seviyesi ile
-            Console.WriteLine("\nFarklı algoritmaları Normal sıkıştırma seviyesi ile test ediliyor...");
+            // Test different algorithms with Normal compression level
+            Console.WriteLine("\nTesting different algorithms with Normal compression level...");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Brotli, "brotli");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Deflate, "deflate");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.LZMA, "lzma");
@@ -36,42 +36,42 @@ namespace Fragile.Sample.Beginner.Compression
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.ZStd, "zstd");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.LZ4, "lz4");
 
-            // Ayrıca Brotli ile farklı sıkıştırma seviyelerini test edelim
-            Console.WriteLine("\nBrotli algoritmasında farklı sıkıştırma seviyelerini test ediliyor...");
+            // Also test different compression levels with Brotli
+            Console.WriteLine("\nTesting different compression levels with Brotli algorithm...");
             await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Brotli, CompressionLevel.Fastest, "brotli_fastest");
             await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Brotli, CompressionLevel.Normal, "brotli_normal");
             await TestCompressionLevel(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Brotli, CompressionLevel.Ultra, "brotli_ultra");
 
-            // Karşılaştırma tablosu
+            // Comparison tables
             await CompareAlgorithms(sampleDir, originalSize);
             await CompareLevels(sampleDir, originalSize);
 
-            Console.WriteLine("\nSıkıştırma testi başarıyla tamamlandı!");
-            Console.WriteLine("Oluşturulan dosyaları 'Sample' dizininde kontrol edebilirsiniz.");
+            Console.WriteLine("\nCompression test completed successfully!");
+            Console.WriteLine("You can check the generated files in the 'Sample' directory.");
 
-            Console.WriteLine("Çıkmak için bir tuşa basın...");
+            Console.WriteLine("Press any key to exit...");
             Console.ReadKey();
         }
 
         static void CreateLargeTextFile(string filePath, int lineCount)
         {
-            Console.WriteLine($"{lineCount:N0} satırlık örnek metin dosyası oluşturuluyor...");
+            Console.WriteLine($"Creating a sample text file with {lineCount:N0} lines...");
 
             using StreamWriter writer = new(filePath);
             for (int i = 0; i < lineCount; i++)
             {
                 // Generate a line with repeating patterns (highly compressible)
-                writer.WriteLine($"Satır {i}: Bu tekrarlayan içeriğe sahip örnek bir metindir. " +
-                    $"Hızlı kahverengi tilki tembel köpeğin üzerinden atlar. " +
+                writer.WriteLine($"Line {i}: This is a sample text with repeating content. " +
+                    $"The quick brown fox jumps over the lazy dog. " +
                     $"Lorem ipsum dolor sit amet, consectetur adipiscing elit. " +
-                    $"Bu metin, verimli bir şekilde sıkıştırılabilecek büyük bir dosya oluşturmak için tekrarlanmaktadır.");
+                    $"This text is repeated to create a large file that can be efficiently compressed.");
             }
         }
 
         static async Task TestCompressionAlgorithm(string outputDir, string filePath, long originalSize,
             CompressionAlgorithm algorithm, string filePrefix)
         {
-            Console.WriteLine($"\n{algorithm} algoritması test ediliyor...");
+            Console.WriteLine($"\nTesting {algorithm} algorithm...");
             string archivePath = Path.Combine(outputDir, $"{filePrefix}.frgl");
 
             // Configure compression options
@@ -91,14 +91,14 @@ namespace Fragile.Sample.Beginner.Compression
             double compressionRatio = (double)originalSize / compressedSize;
             double savingsPercentage = 1 - ((double)compressedSize / originalSize);
 
-            Console.WriteLine($"Arşiv '{filePrefix}.frgl' boyutu: {compressedSize:N0} bayt");
-            Console.WriteLine($"Sıkıştırma oranı: {compressionRatio:F2}x (kazanç: {savingsPercentage:P2})");
+            Console.WriteLine($"Archive '{filePrefix}.frgl' size: {compressedSize:N0} bytes");
+            Console.WriteLine($"Compression ratio: {compressionRatio:F2}x (savings: {savingsPercentage:P2})");
         }
 
         static async Task TestCompressionLevel(string outputDir, string filePath, long originalSize,
             CompressionAlgorithm algorithm, CompressionLevel level, string archiveName)
         {
-            Console.WriteLine($"\n{algorithm} algoritması {level} seviyesi ile test ediliyor...");
+            Console.WriteLine($"\nTesting {algorithm} algorithm with {level} level...");
             string archivePath = Path.Combine(outputDir, $"{archiveName}.frgl");
 
             // Configure compression options
@@ -118,18 +118,18 @@ namespace Fragile.Sample.Beginner.Compression
             double compressionRatio = (double)originalSize / compressedSize;
             double savingsPercentage = 1 - ((double)compressedSize / originalSize);
 
-            Console.WriteLine($"Arşiv '{archiveName}.frgl' boyutu: {compressedSize:N0} bayt");
-            Console.WriteLine($"Sıkıştırma oranı: {compressionRatio:F2}x (kazanç: {savingsPercentage:P2})");
+            Console.WriteLine($"Archive '{archiveName}.frgl' size: {compressedSize:N0} bytes");
+            Console.WriteLine($"Compression ratio: {compressionRatio:F2}x (savings: {savingsPercentage:P2})");
         }
 
         static async Task CompareAlgorithms(string sampleDir, long originalSize)
         {
-            Console.WriteLine("\nAlgoritma karşılaştırması:");
+            Console.WriteLine("\nAlgorithm comparison:");
             Console.WriteLine("=========================");
 
             string[] algorithms = { "brotli", "deflate", "lzma", "bzip2", "zstd", "lz4" };
 
-            Console.WriteLine("|  Algoritma   |   Dosya Boyutu   |   Oran   |   Kazanç   |");
+            Console.WriteLine("|  Algorithm   |   File Size      |   Ratio   |   Savings   |");
             Console.WriteLine("|--------------|------------------|----------|------------|");
 
             foreach (string alg in algorithms)
@@ -148,12 +148,12 @@ namespace Fragile.Sample.Beginner.Compression
 
         static async Task CompareLevels(string sampleDir, long originalSize)
         {
-            Console.WriteLine("\nBrotli sıkıştırma seviyeleri karşılaştırması:");
+            Console.WriteLine("\nBrotli compression levels comparison:");
             Console.WriteLine("=======================================");
 
             string[] levels = { "brotli_fastest", "brotli_normal", "brotli_ultra" };
 
-            Console.WriteLine("|  Seviye      |   Dosya Boyutu   |   Oran   |   Kazanç   |");
+            Console.WriteLine("|  Level       |   File Size      |   Ratio   |   Savings   |");
             Console.WriteLine("|--------------|------------------|----------|------------|");
 
             foreach (string level in levels)
