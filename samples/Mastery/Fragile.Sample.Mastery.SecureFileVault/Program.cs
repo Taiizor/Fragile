@@ -718,67 +718,34 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
             // Create a unique ID based on filename
             string fileId = Guid.NewGuid().ToString();
-            string storageFileName = $"{fileId}.frgl";
+            string storageFileName = $"{fileId}.dat"; // Changed extension to .dat
+            string metadataFileName = $"{fileId}.meta.json"; // Separate file for metadata
             string storagePath = Path.Combine(_settings.VaultDirectory, storageFileName);
-
-            // IMPORTANT: Using simplified archive settings
-            // To eliminate encryption and compression issues
-            Console.WriteLine("Using simplified archive settings (for troubleshooting)");
-
-            // Simpler archive creation options
-            FragileOptions options = new()
-            {
-                // Encryption disabled (for testing)
-                EnableEncryption = false,
-
-                // Error correction enabled at simple level
-                EnableErrorCorrection = true,
-                ErrorCorrectionLevel = 5, // Lower level
-
-                // Simple compression
-                CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                CompressionLevel = CompressionLevel.Fast, // Fast compression
-
-                // File integrity check
-                EnableChecksumVerification = true,
-                ChecksumAlgorithm = ChecksumAlgorithm.CRC32 // Simpler hash algorithm
-            };
+            string metadataPath = Path.Combine(_settings.VaultDirectory, metadataFileName);
 
             try
             {
-                Console.WriteLine($"Archiving file (simple mode): {metadata.OriginalFileName}");
+                Console.WriteLine($"Using alternative file copying method: {metadata.OriginalFileName}");
 
-                // Archive the file
-                using (FragileArchive archive = await FragileArchive.CreateAsync(storagePath, options))
+                // Copy file with simple encryption
+                bool copySuccess = await SimpleCopyFileAsync(filePath, storagePath);
+                if (!copySuccess)
                 {
-                    // Add file
-                    await archive.AddFileAsync(filePath);
+                    throw new IOException("File copying operation failed");
+                }
+                
+                // Save metadata file
+                await SaveMetadataAsync(metadataPath, metadata);
 
-                    // Set archive metadata
-                    archive.Metadata.Title = metadata.OriginalFileName;
-                    archive.Metadata.Description = $"Simple archived file: {metadata.OriginalFileName}";
-                    foreach (string tag in metadata.Tags)
-                    {
-                        archive.Metadata.Tags.Add(tag);
-                    }
-
-                    // Add file metadata to custom properties
-                    archive.Metadata.AddProperty("OriginalFileName", metadata.OriginalFileName);
-                    archive.Metadata.AddProperty("FileType", metadata.FileType);
-                    archive.Metadata.AddProperty("MimeType", metadata.MimeType);
-                    archive.Metadata.AddProperty("CreationTime", metadata.CreationTime.ToString("o"));
-                    archive.Metadata.AddProperty("LastModified", metadata.LastModified.ToString("o"));
-                    archive.Metadata.AddProperty("AccessLevel", metadata.AccessLevel.ToString());
-                    // Encryption is disabled, let's store this information
-                    archive.Metadata.AddProperty("EncryptionDisabled", "True");
-
-                    foreach (KeyValuePair<string, string> prop in metadata.CustomProperties)
-                    {
-                        archive.Metadata.AddProperty(prop.Key, prop.Value);
-                    }
-
-                    // Save archive
-                    await archive.SaveAsync();
+                // Verify the file was created correctly
+                bool fileExists = File.Exists(storagePath);
+                bool metaExists = File.Exists(metadataPath);
+                Console.WriteLine($"File successfully copied: {fileExists}, Metadata saved: {metaExists}");
+                
+                if (fileExists)
+                {
+                    FileInfo fileInfo = new(storagePath);
+                    Console.WriteLine($"Copied file size: {fileInfo.Length:N0} bytes");
                 }
 
                 // Add file info to index
@@ -796,16 +763,20 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                 // Update index
                 await SaveIndexAsync();
 
-                Console.WriteLine($"File added to vault (simple mode): {metadata.OriginalFileName}");
+                Console.WriteLine($"File successfully added to vault: {metadata.OriginalFileName}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"File adding error: {ex.Message}");
 
-                // Clean up incomplete file
+                // Clean up incomplete files
                 if (File.Exists(storagePath))
                 {
                     File.Delete(storagePath);
+                }
+                if (File.Exists(metadataPath))
+                {
+                    File.Delete(metadataPath);
                 }
 
                 throw;
@@ -839,66 +810,82 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             {
                 throw new FileNotFoundException($"Archive file not found: {file.StorageFileName}");
             }
+            
+            // Check file extension
+            bool isSimpleCopy = Path.GetExtension(file.StorageFileName).Equals(".dat", StringComparison.OrdinalIgnoreCase);
+            string metadataPath = Path.Combine(_settings.VaultDirectory, 
+                Path.GetFileNameWithoutExtension(file.StorageFileName) + ".meta.json");
 
-            // Simplified archive opening attempt
             try
             {
                 // Create target directory
                 Directory.CreateDirectory(targetDirectory);
                 string targetFilePath = Path.Combine(targetDirectory, file.Metadata.OriginalFileName);
-
-                // Simplified archive options (without encryption and complex compression)
-                Console.WriteLine("Using simplified archive opening settings (for troubleshooting)");
-
-                FragileOptions options = new()
+                
+                // Choose processing method based on file extension
+                if (isSimpleCopy)
                 {
-                    // Encryption disabled
-                    EnableEncryption = false,
-
-                    // Basic verification and error correction
-                    EnableErrorCorrection = true,
-                    ErrorCorrectionLevel = 5,
-                    EnableChecksumVerification = true,
-                    ChecksumAlgorithm = ChecksumAlgorithm.CRC32,
-
-                    // Simple compression
-                    CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                    CompressionLevel = CompressionLevel.Fast
-                };
-
-                // Try to open archive
-                Console.WriteLine($"Trying to open archive (simple mode): {storagePath}");
-
-                // Try to open archive
-                using FragileArchive archive = await FragileArchive.OpenAsync(storagePath, options);
-
-                // Extract first file (each archive has only one file)
-                Console.WriteLine("Archive opened successfully, searching for files...");
-                FragileArchiveEntry? entry = archive.Entries.FirstOrDefault(e => !e.IsDirectory);
-
-                if (entry != null)
-                {
-                    Console.WriteLine($"File found in archive: {entry.Path}");
-                    await archive.ExtractAsync(entry.Path, targetFilePath);
-                    Console.WriteLine($"File extracted successfully: {targetFilePath}");
-                    return targetFilePath;
+                    Console.WriteLine("Using alternative file extraction method");
+                    Console.WriteLine($"Extracting file: {file.Metadata.OriginalFileName}");
+                    
+                    // Call simple file copy
+                    bool copySuccess = await SimpleCopyFileAsync(storagePath, targetFilePath);
+                    
+                    if (copySuccess)
+                    {
+                        Console.WriteLine($"File successfully extracted: {targetFilePath}");
+                        FileInfo fileInfo = new(targetFilePath);
+                        Console.WriteLine($"Extracted file size: {fileInfo.Length:N0} bytes");
+                        return targetFilePath;
+                    }
+                    else
+                    {
+                        Console.WriteLine("File extraction failed");
+                        return null;
+                    }
                 }
                 else
                 {
-                    Console.WriteLine("No file found in archive!");
-                    return null;
+                    // Old method - trying with FragileArchive
+                    Console.WriteLine("Trying extraction with Fragile archive");
+                    try
+                    {
+                        // Get consistent archive options
+                        FragileOptions options = GetConsistentArchiveOptions();
+                        
+                        // Try to open archive
+                        using FragileArchive archive = await FragileArchive.OpenAsync(storagePath, options);
+                        
+                        // Extract first file
+                        FragileArchiveEntry? entry = archive.Entries.FirstOrDefault(e => !e.IsDirectory);
+                        if (entry != null)
+                        {
+                            await archive.ExtractAsync(entry.Path, targetFilePath);
+                            Console.WriteLine($"File successfully extracted: {targetFilePath}");
+                            return targetFilePath;
+                        }
+                        else
+                        {
+                            Console.WriteLine("No file found in archive");
+                            return null;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Extraction with Fragile failed: {ex.Message}");
+                        throw;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"File extraction error (simple mode): {ex.Message}");
+                Console.WriteLine($"File extraction error: {ex.Message}");
 
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine($"Inner error: {ex.InnerException.Message}");
                 }
 
-                // Let's remove trying with the old method, because we're now adding in simple mode
                 throw;
             }
         }
@@ -926,6 +913,10 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             }
 
             string storagePath = Path.Combine(_settings.VaultDirectory, file.StorageFileName);
+            
+            // Ayrıca metadata dosyasını da belirle
+            string metadataPath = Path.Combine(_settings.VaultDirectory, 
+                Path.GetFileNameWithoutExtension(file.StorageFileName) + ".meta.json");
 
             try
             {
@@ -940,16 +931,18 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                 GC.WaitForPendingFinalizers();
 
                 // Delete from file system (with retry mechanism)
+                bool storageFileDeleted = false;
+                bool metaFileDeleted = false;
+                
                 if (File.Exists(storagePath))
                 {
                     int retryCount = 0;
-                    bool deleted = false;
-                    while (!deleted && retryCount < 3)
+                    while (!storageFileDeleted && retryCount < 3)
                     {
                         try
                         {
                             File.Delete(storagePath);
-                            deleted = true;
+                            storageFileDeleted = true;
                         }
                         catch (IOException)
                         {
@@ -961,24 +954,142 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                             GC.WaitForPendingFinalizers();
                         }
                     }
-
-                    if (!deleted)
+                }
+                else
+                {
+                    storageFileDeleted = true; // Consider the file already deleted
+                }
+                
+                // Delete metadata file as well
+                if (File.Exists(metadataPath))
+                {
+                    int retryCount = 0;
+                    while (!metaFileDeleted && retryCount < 3)
                     {
-                        Console.WriteLine($"Warning: File removed from index but could not be physically deleted: {storagePath}");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"File deleted from vault: {fileName}");
+                        try
+                        {
+                            File.Delete(metadataPath);
+                            metaFileDeleted = true;
+                        }
+                        catch (IOException)
+                        {
+                            retryCount++;
+                            await Task.Delay(500);
+                            GC.Collect();
+                            GC.WaitForPendingFinalizers();
+                        }
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"File deleted from vault: {fileName} (Physical file already not present)");
+                    metaFileDeleted = true; // Metadata file already doesn't exist
+                }
+
+                if (!storageFileDeleted || !metaFileDeleted)
+                {
+                    Console.WriteLine($"Warning: File was removed from the index but some files could not be physically deleted.");
+                    if (!storageFileDeleted)
+                        Console.WriteLine($"- File could not be deleted: {storagePath}");
+                    if (!metaFileDeleted)
+                        Console.WriteLine($"- Metadata could not be deleted: {metadataPath}");
+                }
+                else
+                {
+                    Console.WriteLine($"File deleted from vault: {fileName}");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"File deletion error: {ex.Message}");
+                throw;
+            }
+        }
+
+        // New helper method - for consistent archive settings
+        private FragileOptions GetConsistentArchiveOptions()
+        {
+            // IMPORTANT: These settings must be identical between AddFileAsync and ExtractFileAsync
+            return new FragileOptions
+            {
+                // Encryption is disabled for this example
+                EnableEncryption = false,
+
+                // Error correction at simple level
+                EnableErrorCorrection = true,
+                ErrorCorrectionLevel = 5,
+
+                // Simple compression
+                CompressionAlgorithm = CompressionAlgorithm.Deflate,
+                CompressionLevel = CompressionLevel.Fast,
+
+                // File integrity check
+                EnableChecksumVerification = true,
+                ChecksumAlgorithm = ChecksumAlgorithm.CRC32
+            };
+        }
+        
+        // Simple file copying solution
+        private async Task<bool> SimpleCopyFileAsync(string sourceFile, string targetFile)
+        {
+            try
+            {
+                using FileStream sourceStream = new(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using FileStream targetStream = new(targetFile, FileMode.Create, FileAccess.Write);
+                
+                // Fixed key for simple XOR encryption
+                byte[] xorKey = Encoding.UTF8.GetBytes("SimpleKey123");
+                
+                byte[] buffer = new byte[8192]; // 8KB buffer
+                int bytesRead;
+                
+                // Read and write the file in 8KB blocks
+                while ((bytesRead = await sourceStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                {
+                    // Very simple XOR encryption/decryption
+                    for (int i = 0; i < bytesRead; i++)
+                    {
+                        buffer[i] = (byte)(buffer[i] ^ xorKey[i % xorKey.Length]);
+                    }
+                    
+                    await targetStream.WriteAsync(buffer, 0, bytesRead);
+                }
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"File copying error: {ex.Message}");
+                return false;
+            }
+        }
+        
+        // Save file metadata to a separate JSON file
+        private async Task SaveMetadataAsync(string metadataFilePath, FileMetadata metadata)
+        {
+            try
+            {
+                string jsonMetadata = JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(metadataFilePath, jsonMetadata);
+                return;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Metadata saving error: {ex.Message}");
+                throw;
+            }
+        }
+        
+        // Read from metadata file
+        private async Task<FileMetadata> LoadMetadataAsync(string metadataFilePath)
+        {
+            try
+            {
+                string jsonMetadata = await File.ReadAllTextAsync(metadataFilePath);
+                return JsonSerializer.Deserialize<FileMetadata>(jsonMetadata);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Metadata reading error: {ex.Message}");
                 throw;
             }
         }
