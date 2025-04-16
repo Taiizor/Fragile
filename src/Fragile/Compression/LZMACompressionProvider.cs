@@ -269,7 +269,7 @@ namespace Fragile.Compression
                     // Read control byte
                     byte control = reader.ReadByte();
 
-                    if (control == 0xFF) // Referans
+                    if (control == 0xFF) // Reference
                     {
                         // Read offset and length
                         ushort offset = reader.ReadUInt16();
@@ -300,7 +300,7 @@ namespace Fragile.Compression
                         // Add decompressed data to sliding window
                         currentWindow[windowPos++ % window] = b;
                     }
-                    else if (control == 0xFE) // Veri sonu
+                    else if (control == 0xFE) // End of data
                     {
                         break;
                     }

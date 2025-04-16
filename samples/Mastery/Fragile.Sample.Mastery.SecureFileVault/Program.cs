@@ -11,7 +11,7 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 {
     class Program
     {
-        // Kasa ayarları
+        // Vault settings
         private static readonly VaultSettings _settings = new()
         {
             VaultDirectory = "Sample/Vault",
@@ -20,7 +20,7 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             EncryptionMethod = EncryptionMethod.AES256,
             CompressionLevel = CompressionLevel.Ultra,
             EnableErrorCorrection = true,
-            ErrorCorrectionLevel = 10, // Arşiv boyutunun %10'u kadar hata düzeltme
+            ErrorCorrectionLevel = 10, // 10% of archive size for error correction
             ChecksumAlgorithm = ChecksumAlgorithm.SHA256,
             DefaultMetadata = new Dictionary<string, string>
             {
@@ -36,106 +36,106 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             Console.InputEncoding = Encoding.UTF8;
             Console.OutputEncoding = Encoding.UTF8;
 
-            Console.WriteLine("Fragile Güvenli Dosya Kasası - Ustalık Örneği");
+            Console.WriteLine("Fragile Secure File Vault - Mastery Example");
             Console.WriteLine("=============================================");
 
-            // Gerekli dizinleri oluştur
+            // Create required directories
             Directory.CreateDirectory("Sample");
             Directory.CreateDirectory(_settings.VaultDirectory);
             Directory.CreateDirectory(_settings.TempDirectory);
 
             try
             {
-                // Örnek kasa işlemleri
-                // İlk kullanıcı ayarlarını tanımla
+                // Example vault operations
+                // Define initial user settings
                 VaultUser adminUser = new()
                 {
                     Username = "admin",
-                    Password = "SuperGizli123!",
+                    Password = "SuperSecret123!",
                     AccessLevel = AccessLevel.Administrator
                 };
 
                 VaultUser normalUser = new()
                 {
-                    Username = "kullanici1",
-                    Password = "Gizli456!",
+                    Username = "user1",
+                    Password = "Secret456!",
                     AccessLevel = AccessLevel.StandardUser
                 };
 
-                // Kasanın indeks dosyasını başlat (veya var olanı aç)
+                // Initialize the vault index file (or open existing one)
                 VaultManager vaultManager = await VaultManager.InitializeAsync(_settings, adminUser);
 
-                // Kullanıcı hesabı oluştur
+                // Create user account
                 await vaultManager.AddUserAsync(normalUser, adminUser);
 
-                // Örnek dosyaları oluştur
+                // Create sample files
                 string sampleDir = Path.Combine("Sample", "TestFiles");
                 Directory.CreateDirectory(sampleDir);
                 await CreateSampleFiles(sampleDir);
 
-                // Admin kullanıcısı olarak oturum aç
-                Console.WriteLine($"\nAdmin kullanıcısı olarak oturum açılıyor ({adminUser.Username})...");
+                // Login as admin user
+                Console.WriteLine($"\nLogging in as admin user ({adminUser.Username})...");
                 bool loginResult = await vaultManager.LoginAsync(adminUser.Username, adminUser.Password);
 
                 if (loginResult)
                 {
-                    Console.WriteLine("Oturum açma başarılı!");
+                    Console.WriteLine("Login successful!");
 
-                    // Kasaya dosya ekle
-                    Console.WriteLine("\nDosyalar kasaya ekleniyor...");
+                    // Add files to vault
+                    Console.WriteLine("\nAdding files to vault...");
                     await AddFilesToVault(vaultManager, sampleDir);
 
-                    // Kasa içeriğini listele
-                    Console.WriteLine("\nKasa içeriği listeleniyor...");
+                    // List vault contents
+                    Console.WriteLine("\nListing vault contents...");
                     await ListVaultContents(vaultManager);
 
-                    // Bir dosyayı dışarı çıkar
-                    Console.WriteLine("\nDosya dışarı çıkarılıyor...");
+                    // Extract a file
+                    Console.WriteLine("\nExtracting file...");
                     string extractDir = Path.Combine("Sample", "Extracted");
                     Directory.CreateDirectory(extractDir);
-                    await ExtractFile(vaultManager, "gizli_belge.txt", extractDir);
+                    await ExtractFile(vaultManager, "secret_document.txt", extractDir);
 
-                    // Normal kullanıcı olarak oturum aç
-                    Console.WriteLine($"\nNormal kullanıcı olarak oturum açılıyor ({normalUser.Username})...");
+                    // Login as normal user
+                    Console.WriteLine($"\nLogging in as normal user ({normalUser.Username})...");
                     loginResult = await vaultManager.LoginAsync(normalUser.Username, normalUser.Password);
 
                     if (loginResult)
                     {
-                        Console.WriteLine("Oturum açma başarılı!");
+                        Console.WriteLine("Login successful!");
 
-                        // Normal kullanıcı olarak listeyi görüntüle
-                        Console.WriteLine("\nNormal kullanıcı olarak kasa içeriği listeleniyor...");
+                        // View list as normal user
+                        Console.WriteLine("\nListing vault contents as normal user...");
                         await ListVaultContents(vaultManager);
 
-                        // Dosya çıkarma işlemini dene
-                        Console.WriteLine("\nNormal kullanıcı olarak dosya çıkarma deneniyor...");
-                        await ExtractFile(vaultManager, "gizli_belge.txt", extractDir);
+                        // Try to extract file
+                        Console.WriteLine("\nTrying to extract file as normal user...");
+                        await ExtractFile(vaultManager, "secret_document.txt", extractDir);
                     }
 
-                    // Dosyayı kasadan sil
-                    Console.WriteLine("\nAdmin olarak tekrar oturum açılıyor...");
+                    // Delete file from vault
+                    Console.WriteLine("\nLogging in as admin again...");
                     await vaultManager.LoginAsync(adminUser.Username, adminUser.Password);
 
-                    Console.WriteLine("\nDosya siliniyor...");
-                    await vaultManager.DeleteFileAsync("gizli_belge.txt");
+                    Console.WriteLine("\nDeleting file...");
+                    await vaultManager.DeleteFileAsync("secret_document.txt");
 
-                    // Son kasa içeriğini göster
-                    Console.WriteLine("\nGüncellenmiş kasa içeriği:");
+                    // Show final vault contents
+                    Console.WriteLine("\nUpdated vault contents:");
                     await ListVaultContents(vaultManager);
                 }
                 else
                 {
-                    Console.WriteLine("Oturum açma başarısız!");
+                    Console.WriteLine("Login failed!");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Hata: {ex.Message}");
+                Console.WriteLine($"Error: {ex.Message}");
                 Console.WriteLine(ex.StackTrace);
             }
 
-            Console.WriteLine("\nGüvenli Dosya Kasası örneği tamamlandı!");
-            Console.WriteLine("'Sample' dizininde oluşturulan dosyaları ve kasa içeriğini kontrol edebilirsiniz.");
+            Console.WriteLine("\nSecure File Vault example completed!");
+            Console.WriteLine("Check the 'Sample' directory for created files and vault contents.");
 
             Console.WriteLine("Press any key to exit...");
             Console.ReadKey();
@@ -143,30 +143,30 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
         static async Task CreateSampleFiles(string directory)
         {
-            Console.WriteLine($"Örnek dosyalar oluşturuluyor: {directory}");
+            Console.WriteLine($"Creating sample files: {directory}");
 
-            // Metin dosyaları oluştur
+            // Create text files
             await File.WriteAllTextAsync(
-                Path.Combine(directory, "gizli_belge.txt"),
-                "GİZLİ BİLGİLER\n" +
+                Path.Combine(directory, "secret_document.txt"),
+                "SECRET INFORMATION\n" +
                 "==============\n\n" +
-                "Bu belge çok gizli bilgiler içermektedir.\n" +
-                "Kredi Kartı: 1234-5678-9012-3456\n" +
-                "Şifre: TehlikeliSifre123!\n" +
-                "Not: Bu dosya sadece örnek amaçlıdır, gerçek bilgiler değildir."
+                "This document contains highly confidential information.\n" +
+                "Credit Card: 1234-5678-9012-3456\n" +
+                "Password: DangerousPassword123!\n" +
+                "Note: This file is for example purposes only, not real information."
             );
 
             await File.WriteAllTextAsync(
-                Path.Combine(directory, "notlar.txt"),
-                "Önemli Notlar\n" +
+                Path.Combine(directory, "notes.txt"),
+                "Important Notes\n" +
                 "============\n\n" +
-                "- Pazartesi: Toplantı (10:00)\n" +
-                "- Salı: Proje teslimi\n" +
-                "- Çarşamba: Müşteri görüşmesi\n" +
-                "- Cuma: Spor salonu (17:00)"
+                "- Monday: Meeting (10:00)\n" +
+                "- Tuesday: Project delivery\n" +
+                "- Wednesday: Client meeting\n" +
+                "- Friday: Gym (17:00)"
             );
 
-            // JSON dosyası
+            // JSON file
             var settings = new
             {
                 ApiKey = "ak_12345abcdef",
@@ -184,12 +184,12 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             };
 
             await File.WriteAllTextAsync(
-                Path.Combine(directory, "ayarlar.json"),
+                Path.Combine(directory, "settings.json"),
                 JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true })
             );
 
-            // Küçük bir "resim" dosyası oluştur (gerçek bir resim değil)
-            using (FileStream fs = new(Path.Combine(directory, "resim.jpg"), FileMode.Create))
+            // Create a small "image" file (not a real image)
+            using (FileStream fs = new(Path.Combine(directory, "image.jpg"), FileMode.Create))
             {
                 byte[] dummyImage = new byte[50 * 1024]; // 50 KB
                 Random random = new();
@@ -197,11 +197,11 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                 await fs.WriteAsync(dummyImage, 0, dummyImage.Length);
             }
 
-            Console.WriteLine($"Oluşturulan dosyalar:");
+            Console.WriteLine($"Created files:");
             foreach (string file in Directory.GetFiles(directory))
             {
                 FileInfo fileInfo = new(file);
-                Console.WriteLine($"- {fileInfo.Name} ({fileInfo.Length:N0} bayt)");
+                Console.WriteLine($"- {fileInfo.Name} ({fileInfo.Length:N0} bytes)");
             }
         }
 
@@ -210,7 +210,7 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             foreach (string filePath in Directory.GetFiles(sourceDirectory))
             {
                 string fileName = Path.GetFileName(filePath);
-                Console.WriteLine($"Ekleniyor: {fileName}");
+                Console.WriteLine($"Adding: {fileName}");
 
                 FileMetadata metadata = new()
                 {
@@ -222,39 +222,39 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                     Tags = new List<string>()
                 };
 
-                // Dosya türüne göre etiketler ekle
+                // Add tags based on file type
                 string ext = Path.GetExtension(fileName).ToLower();
                 switch (ext)
                 {
                     case ".txt":
-                        metadata.Tags.Add("metin");
-                        metadata.Tags.Add("döküman");
+                        metadata.Tags.Add("text");
+                        metadata.Tags.Add("document");
                         metadata.MimeType = "text/plain";
                         break;
                     case ".json":
                         metadata.Tags.Add("json");
-                        metadata.Tags.Add("yapılandırma");
+                        metadata.Tags.Add("configuration");
                         metadata.MimeType = "application/json";
                         break;
                     case ".jpg":
                     case ".jpeg":
-                        metadata.Tags.Add("resim");
+                        metadata.Tags.Add("image");
                         metadata.MimeType = "image/jpeg";
                         break;
                     default:
-                        metadata.Tags.Add("diğer");
+                        metadata.Tags.Add("other");
                         metadata.MimeType = "application/octet-stream";
                         break;
                 }
 
-                // Hassas dosyaları işaretle
-                if (fileName.Contains("gizli"))
+                // Mark sensitive files
+                if (fileName.Contains("secret"))
                 {
-                    metadata.Tags.Add("gizli");
+                    metadata.Tags.Add("secret");
                     metadata.AccessLevel = AccessLevel.Administrator;
                 }
 
-                // Dosyayı kasaya ekle
+                // Add file to vault
                 await manager.AddFileAsync(filePath, metadata);
             }
         }
@@ -265,13 +265,13 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
             if (files.Count == 0)
             {
-                Console.WriteLine("Kasa boş. Henüz dosya eklenmemiş.");
+                Console.WriteLine("Vault is empty. No files have been added yet.");
                 return;
             }
 
-            Console.WriteLine("\nKasadaki Dosyalar:");
+            Console.WriteLine("\nFiles in Vault:");
             Console.WriteLine("=================");
-            Console.WriteLine($"{"Dosya Adı",-30} | {"Boyut",-10} | {"Tür",-10} | {"Erişim Seviyesi",-15} | {"Etiketler"}");
+            Console.WriteLine($"{"File Name",-30} | {"Size",-10} | {"Type",-10} | {"Access Level",-15} | {"Tags"}");
             Console.WriteLine(new string('-', 90));
 
             foreach (VaultFile file in files)
@@ -285,32 +285,32 @@ namespace Fragile.Sample.Mastery.SecureFileVault
         {
             try
             {
-                Console.WriteLine($"Dosya çıkarma işlemi başlatılıyor: {fileName}");
+                Console.WriteLine($"Starting file extraction: {fileName}");
                 string extractedPath = await manager.ExtractFileAsync(fileName, targetDirectory);
 
                 if (!string.IsNullOrEmpty(extractedPath))
                 {
                     if (File.Exists(extractedPath))
                     {
-                        Console.WriteLine($"Dosya başarıyla çıkarıldı: {extractedPath}");
-                        Console.WriteLine($"Dosya boyutu: {new FileInfo(extractedPath).Length:N0} bayt");
+                        Console.WriteLine($"File successfully extracted: {extractedPath}");
+                        Console.WriteLine($"File size: {new FileInfo(extractedPath).Length:N0} bytes");
                     }
                     else
                     {
-                        Console.WriteLine($"UYARI: Dosya yolu döndürüldü ancak dosya bulunamadı: {extractedPath}");
+                        Console.WriteLine($"WARNING: File path returned but file not found: {extractedPath}");
                     }
                 }
                 else
                 {
-                    Console.WriteLine("Dosya çıkarma başarısız oldu veya yetkisiz erişim.");
+                    Console.WriteLine("File extraction failed or unauthorized access.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Dosya çıkarma hatası: {ex.Message}");
+                Console.WriteLine($"File extraction error: {ex.Message}");
                 if (ex.InnerException != null)
                 {
-                    Console.WriteLine($"İç hata detayı: {ex.InnerException.Message}");
+                    Console.WriteLine($"Inner error details: {ex.InnerException.Message}");
                 }
             }
         }
@@ -346,16 +346,16 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
         public void ComputePasswordHash()
         {
-            // Şifre boş olmamalı
+            // Password should not be empty
             if (string.IsNullOrEmpty(Password))
             {
-                throw new ArgumentNullException(nameof(Password), "Şifre boş olamaz");
+                throw new ArgumentNullException(nameof(Password), "Password cannot be empty");
             }
 
-            // Güvenli şifre hashleme
+            // Secure password hashing
             Salt = GenerateRandomSalt();
             PasswordHash = HashPassword(Password, Salt);
-            // Artık şifreyi silmiyoruz, çünkü giriş işleminde kullanılacak
+            // We're not clearing the password anymore, as it will be used for login
             // Password = null;
         }
 
@@ -373,7 +373,7 @@ namespace Fragile.Sample.Mastery.SecureFileVault
         {
             if (string.IsNullOrEmpty(password))
             {
-                throw new ArgumentNullException(nameof(password), "Şifre boş olamaz");
+                throw new ArgumentNullException(nameof(password), "Password cannot be empty");
             }
 
             using Rfc2898DeriveBytes deriveBytes = new(password, Convert.FromBase64String(salt), 10000);
@@ -383,9 +383,9 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
         public bool VerifyPassword(string password)
         {
-            // Kullanıcının girdiği şifreyi, kaydedilmiş salt değeri kullanarak hash'le
+            // Hash the user's input password using the stored salt
             string hashedInputPassword = HashPassword(password, Salt);
-            // Hash'leri karşılaştır
+            // Compare the hashes
             return hashedInputPassword == PasswordHash;
         }
     }
@@ -439,20 +439,20 @@ namespace Fragile.Sample.Mastery.SecureFileVault
         {
             VaultManager manager = new(settings);
 
-            // İndeks dosyası mevcut mu kontrol et
+            // Check if index file exists
             string indexPath = Path.Combine(settings.VaultDirectory, settings.IndexFileName);
 
             if (File.Exists(indexPath))
             {
-                // Mevcut indeksi aç
-                Console.WriteLine("Mevcut kasa indeksi bulundu, yükleniyor...");
+                // Open existing index
+                Console.WriteLine("Found existing vault index, loading...");
                 await manager.LoadIndexAsync();
             }
             else
             {
-                // Yeni indeks oluştur
-                Console.WriteLine("Yeni kasa indeksi oluşturuluyor...");
-                // Şifre hash'leme öncesinde orijinal şifreyi yedekle
+                // Create new index
+                Console.WriteLine("Creating new vault index...");
+                // Backup original password before hashing
                 string originalPassword = adminUser.Password;
 
                 adminUser.ComputePasswordHash();
@@ -460,10 +460,10 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                 manager._index.LastModified = DateTime.Now;
                 manager._index.LastModifiedByUser = adminUser.Username;
 
-                // Şifreyi geri yükle (giriş işlemi için)
+                // Restore password (for login)
                 adminUser.Password = originalPassword;
 
-                // İndeksi kaydet
+                // Save index
                 await manager.SaveIndexAsync();
             }
 
@@ -477,34 +477,34 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
             try
             {
-                // İndeks dosyasını aç
+                // Open index file
                 FragileOptions options = new()
                 {
                     EnableErrorCorrection = _settings.EnableErrorCorrection,
                     EnableEncryption = true,
                     EncryptionMethod = _settings.EncryptionMethod,
-                    Password = "IndexSecretKey" // İndeks dosyası için sabit şifre
+                    Password = "IndexSecretKey" // Fixed password for index file
                 };
 
                 using FragileArchive archive = await FragileArchive.OpenAsync(indexPath, options);
 
-                // İndeks dosyasını çıkar
+                // Extract index file
                 string tempIndexPath = Path.Combine(_settings.TempDirectory, "temp_index.json");
                 await archive.ExtractAsync("index.json", _settings.TempDirectory);
 
-                // İndeksi oku ve deserialize et
+                // Read and deserialize index
                 string jsonContent = await File.ReadAllTextAsync(tempIndexPath);
                 _index = JsonSerializer.Deserialize<VaultIndex>(jsonContent);
 
-                // Geçici dosyayı sil
+                // Delete temporary file
                 File.Delete(tempIndexPath);
 
-                Console.WriteLine($"Kasa indeksi yüklendi: {_index.Files.Count} dosya, {_index.Users.Count} kullanıcı");
+                Console.WriteLine($"Vault index loaded: {_index.Files.Count} files, {_index.Users.Count} users");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"İndeks yükleme hatası: {ex.Message}");
-                // Bozuk indeks durumunda yeni bir indeks oluştur
+                Console.WriteLine($"Index loading error: {ex.Message}");
+                // Create new index in case of corrupted index
                 _index = new VaultIndex
                 {
                     LastModified = DateTime.Now,
@@ -515,7 +515,7 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
         private async Task SaveIndexAsync()
         {
-            // İndeksin son değişiklik bilgilerini güncelle
+            // Update last modification info
             _index.LastModified = DateTime.Now;
             if (_currentUser != null)
             {
@@ -527,38 +527,38 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
             try
             {
-                // İndeksi JSON olarak kaydet
+                // Save index as JSON
                 string jsonContent = JsonSerializer.Serialize(_index, new JsonSerializerOptions { WriteIndented = true });
                 await File.WriteAllTextAsync(tempJsonPath, jsonContent);
 
-                // İndeks dosyasını oluştur
+                // Create index file
                 FragileOptions options = new()
                 {
                     EnableErrorCorrection = _settings.EnableErrorCorrection,
                     ErrorCorrectionLevel = _settings.ErrorCorrectionLevel,
                     EnableEncryption = true,
                     EncryptionMethod = _settings.EncryptionMethod,
-                    Password = "IndexSecretKey", // İndeks dosyası için sabit şifre
+                    Password = "IndexSecretKey", // Fixed password for index file
                     CompressionAlgorithm = CompressionAlgorithm.Deflate,
                     CompressionLevel = _settings.CompressionLevel,
                     EnableChecksumVerification = true,
                     ChecksumAlgorithm = _settings.ChecksumAlgorithm
                 };
 
-                // Eğer indeks dosyası zaten varsa, sil
+                // Delete existing index file if it exists
                 if (File.Exists(indexPath))
                 {
                     File.Delete(indexPath);
                 }
 
-                // Yeni indeks dosyasını oluştur
+                // Create new index file
                 using (FragileArchive archive = await FragileArchive.CreateAsync(indexPath, options))
                 {
                     await archive.AddFileAsync(tempJsonPath, "index.json");
 
-                    // Arşive metadata ekle
-                    archive.Metadata.Title = "Kasa İndeksi";
-                    archive.Metadata.Description = "SecureFileVault kasa indeks dosyası";
+                    // Add metadata to archive
+                    archive.Metadata.Title = "Vault Index";
+                    archive.Metadata.Description = "SecureFileVault vault index file";
                     archive.Metadata.Version = _index.Version.ToString();
                     archive.Metadata.Tags.AddRange(new[] { "index", "vault", "secure" });
 
@@ -567,18 +567,18 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                         archive.Metadata.AddProperty(item.Key, item.Value);
                     }
 
-                    // Arşivi kaydet
+                    // Save archive
                     await archive.SaveAsync();
                 }
 
-                // Geçici dosyayı sil
+                // Delete temporary file
                 File.Delete(tempJsonPath);
 
-                Console.WriteLine("Kasa indeksi güncellendi");
+                Console.WriteLine("Vault index updated");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"İndeks kaydetme hatası: {ex.Message}");
+                Console.WriteLine($"Index saving error: {ex.Message}");
                 throw;
             }
         }
@@ -588,106 +588,106 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             VaultUser? user = _index.Users.FirstOrDefault(u => u.Username == username);
             if (user == null)
             {
-                Console.WriteLine("Kullanıcı bulunamadı");
+                Console.WriteLine("User not found");
                 return false;
             }
 
             if (user.VerifyPassword(password))
             {
                 _currentUser = user;
-                Console.WriteLine($"Oturum açıldı: {username}, Erişim: {user.AccessLevel}");
+                Console.WriteLine($"Logged in: {username}, Access: {user.AccessLevel}");
                 return true;
             }
 
-            Console.WriteLine("Hatalı şifre");
+            Console.WriteLine("Incorrect password");
             return false;
         }
 
         public async Task AddUserAsync(VaultUser newUser, VaultUser adminUser)
         {
-            // Sadece admin kullanıcılar yeni kullanıcı ekleyebilir
+            // Only admin users can add new users
             if (_currentUser != null && _currentUser.AccessLevel != AccessLevel.Administrator)
             {
                 if (adminUser == null || adminUser.AccessLevel != AccessLevel.Administrator)
                 {
-                    throw new UnauthorizedAccessException("Kullanıcı ekleme yetkisi yok");
+                    throw new UnauthorizedAccessException("No permission to add users");
                 }
 
-                // Geçici olarak admin kullanıcı ile devam et
+                // Temporarily continue with admin user
                 VaultUser tempCurrentUser = _currentUser;
                 _currentUser = adminUser;
 
                 try
                 {
-                    // Kullanıcı zaten var mı kontrol et
+                    // Check if user already exists
                     if (_index.Users.Any(u => u.Username == newUser.Username))
                     {
-                        throw new InvalidOperationException($"Kullanıcı zaten mevcut: {newUser.Username}");
+                        throw new InvalidOperationException($"User already exists: {newUser.Username}");
                     }
 
-                    // Şifre hash'i hesapla ve kullanıcıyı ekle
+                    // Calculate password hash and add user
                     string originalPassword = newUser.Password;
                     newUser.ComputePasswordHash();
-                    // Şifreyi tekrar ayarla, normal kullanıcı için de gerekebilir
+                    // Set password again, may be needed for normal user
                     newUser.Password = originalPassword;
                     _index.Users.Add(newUser);
 
-                    // İndeksi güncelle
+                    // Update index
                     await SaveIndexAsync();
 
-                    Console.WriteLine($"Kullanıcı eklendi: {newUser.Username}");
+                    Console.WriteLine($"User added: {newUser.Username}");
                 }
                 finally
                 {
-                    // Önceki kullanıcıya geri dön
+                    // Return to previous user
                     _currentUser = tempCurrentUser;
                 }
             }
             else if (_currentUser != null && _currentUser.AccessLevel == AccessLevel.Administrator)
             {
-                // Kullanıcı zaten var mı kontrol et
+                // Check if user already exists
                 if (_index.Users.Any(u => u.Username == newUser.Username))
                 {
-                    throw new InvalidOperationException($"Kullanıcı zaten mevcut: {newUser.Username}");
+                    throw new InvalidOperationException($"User already exists: {newUser.Username}");
                 }
 
-                // Şifre hash'i hesapla ve kullanıcıyı ekle
+                // Calculate password hash and add user
                 string originalPassword = newUser.Password;
                 newUser.ComputePasswordHash();
-                // Şifreyi tekrar ayarla
+                // Set password again
                 newUser.Password = originalPassword;
                 _index.Users.Add(newUser);
 
-                // İndeksi güncelle
+                // Update index
                 await SaveIndexAsync();
 
-                Console.WriteLine($"Kullanıcı eklendi: {newUser.Username}");
+                Console.WriteLine($"User added: {newUser.Username}");
             }
             else if (adminUser != null && adminUser.AccessLevel == AccessLevel.Administrator)
             {
-                // İlk giriş durumu için
+                // For first login scenario
                 if (_index.Users.Any(u => u.Username == newUser.Username))
                 {
-                    throw new InvalidOperationException($"Kullanıcı zaten mevcut: {newUser.Username}");
+                    throw new InvalidOperationException($"User already exists: {newUser.Username}");
                 }
 
-                // Şifre hash'i hesapla ve kullanıcıyı ekle
+                // Calculate password hash and add user
                 string originalPassword = newUser.Password;
                 newUser.ComputePasswordHash();
-                // Şifreyi tekrar ayarla
+                // Set password again
                 newUser.Password = originalPassword;
                 _index.Users.Add(newUser);
 
-                // İndeksi güncelle
-                _currentUser = adminUser; // Geçici olarak admin kullanıcıyı ayarla
+                // Update index
+                _currentUser = adminUser; // Temporarily set admin user
                 await SaveIndexAsync();
-                _currentUser = null; // Oturumu sıfırla
+                _currentUser = null; // Reset session
 
-                Console.WriteLine($"Kullanıcı eklendi: {newUser.Username}");
+                Console.WriteLine($"User added: {newUser.Username}");
             }
             else
             {
-                throw new UnauthorizedAccessException("Kullanıcı ekleme yetkisi yok");
+                throw new UnauthorizedAccessException("No permission to add users");
             }
         }
 
@@ -695,10 +695,10 @@ namespace Fragile.Sample.Mastery.SecureFileVault
         {
             if (_currentUser == null)
             {
-                throw new UnauthorizedAccessException("Oturum açılmamış");
+                throw new UnauthorizedAccessException("Not logged in");
             }
 
-            // Kullanıcı erişim seviyesine göre filtreleme yap
+            // Filter by user access level
             return _index.Files
                 .Where(f => (int)f.Metadata.AccessLevel <= (int)_currentUser.AccessLevel)
                 .ToList();
@@ -708,68 +708,68 @@ namespace Fragile.Sample.Mastery.SecureFileVault
         {
             if (_currentUser == null)
             {
-                throw new UnauthorizedAccessException("Oturum açılmamış");
+                throw new UnauthorizedAccessException("Not logged in");
             }
 
             if (!File.Exists(filePath))
             {
-                throw new FileNotFoundException("Dosya bulunamadı", filePath);
+                throw new FileNotFoundException("File not found", filePath);
             }
 
-            // Dosya adına göre benzersiz bir kimlik oluştur
+            // Create a unique ID based on filename
             string fileId = Guid.NewGuid().ToString();
             string storageFileName = $"{fileId}.frgl";
             string storagePath = Path.Combine(_settings.VaultDirectory, storageFileName);
 
-            // ÖNEMLİ: Basitleştirilmiş arşiv ayarları kullanıyoruz
-            // Şifreleme ve sıkıştırma sorunlarını ortadan kaldırmak için
-            Console.WriteLine("Basitleştirilmiş arşiv ayarları kullanılıyor (sorun giderme için)");
+            // IMPORTANT: Using simplified archive settings
+            // To eliminate encryption and compression issues
+            Console.WriteLine("Using simplified archive settings (for troubleshooting)");
 
-            // Daha basit arşiv oluşturma seçenekleri
+            // Simpler archive creation options
             FragileOptions options = new()
             {
-                // Şifreleme devre dışı bırakılıyor (test için)
+                // Encryption disabled (for testing)
                 EnableEncryption = false,
 
-                // Hata düzeltme basit seviyede etkinleştiriliyor
+                // Error correction enabled at simple level
                 EnableErrorCorrection = true,
-                ErrorCorrectionLevel = 5, // Daha düşük seviye
+                ErrorCorrectionLevel = 5, // Lower level
 
-                // Basit sıkıştırma
+                // Simple compression
                 CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                CompressionLevel = CompressionLevel.Fast, // Hızlı sıkıştırma
+                CompressionLevel = CompressionLevel.Fast, // Fast compression
 
-                // Dosya bütünlüğü kontrolü
+                // File integrity check
                 EnableChecksumVerification = true,
-                ChecksumAlgorithm = ChecksumAlgorithm.CRC32 // Daha basit hash algoritması
+                ChecksumAlgorithm = ChecksumAlgorithm.CRC32 // Simpler hash algorithm
             };
 
             try
             {
-                Console.WriteLine($"Dosya arşivleniyor (basit mod): {metadata.OriginalFileName}");
+                Console.WriteLine($"Archiving file (simple mode): {metadata.OriginalFileName}");
 
-                // Dosyayı arşivle
+                // Archive the file
                 using (FragileArchive archive = await FragileArchive.CreateAsync(storagePath, options))
                 {
-                    // Dosyayı ekle
+                    // Add file
                     await archive.AddFileAsync(filePath);
 
-                    // Arşiv metadatasını ayarla
+                    // Set archive metadata
                     archive.Metadata.Title = metadata.OriginalFileName;
-                    archive.Metadata.Description = $"Basit arşivlenmiş dosya: {metadata.OriginalFileName}";
+                    archive.Metadata.Description = $"Simple archived file: {metadata.OriginalFileName}";
                     foreach (string tag in metadata.Tags)
                     {
                         archive.Metadata.Tags.Add(tag);
                     }
 
-                    // Dosya metadatasını özel propertylere ekle
+                    // Add file metadata to custom properties
                     archive.Metadata.AddProperty("OriginalFileName", metadata.OriginalFileName);
                     archive.Metadata.AddProperty("FileType", metadata.FileType);
                     archive.Metadata.AddProperty("MimeType", metadata.MimeType);
                     archive.Metadata.AddProperty("CreationTime", metadata.CreationTime.ToString("o"));
                     archive.Metadata.AddProperty("LastModified", metadata.LastModified.ToString("o"));
                     archive.Metadata.AddProperty("AccessLevel", metadata.AccessLevel.ToString());
-                    // Şifreleme devre dışı bırakıldı, bu bilgiyi saklayalım
+                    // Encryption is disabled, let's store this information
                     archive.Metadata.AddProperty("EncryptionDisabled", "True");
 
                     foreach (KeyValuePair<string, string> prop in metadata.CustomProperties)
@@ -777,11 +777,11 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                         archive.Metadata.AddProperty(prop.Key, prop.Value);
                     }
 
-                    // Arşivi kaydet
+                    // Save archive
                     await archive.SaveAsync();
                 }
 
-                // Dosya bilgisini indekse ekle
+                // Add file info to index
                 VaultFile vaultFile = new()
                 {
                     Id = fileId,
@@ -793,16 +793,16 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
                 _index.Files.Add(vaultFile);
 
-                // İndeksi güncelle
+                // Update index
                 await SaveIndexAsync();
 
-                Console.WriteLine($"Dosya kasaya eklendi (basit mod): {metadata.OriginalFileName}");
+                Console.WriteLine($"File added to vault (simple mode): {metadata.OriginalFileName}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Dosya ekleme hatası: {ex.Message}");
+                Console.WriteLine($"File adding error: {ex.Message}");
 
-                // Yarım kalan dosyayı temizle
+                // Clean up incomplete file
                 if (File.Exists(storagePath))
                 {
                     File.Delete(storagePath);
@@ -816,89 +816,89 @@ namespace Fragile.Sample.Mastery.SecureFileVault
         {
             if (_currentUser == null)
             {
-                throw new UnauthorizedAccessException("Oturum açılmamış");
+                throw new UnauthorizedAccessException("Not logged in");
             }
 
-            // Dosya adına göre dosyayı bul
+            // Find file by name
             VaultFile? file = _index.Files.FirstOrDefault(f => f.Metadata.OriginalFileName == fileName);
 
             if (file == null)
             {
-                throw new FileNotFoundException($"Dosya kasada bulunamadı: {fileName}");
+                throw new FileNotFoundException($"File not found in vault: {fileName}");
             }
 
-            // Kullanıcının dosyaya erişim yetkisi var mı?
+            // Check if user has permission to access the file
             if ((int)file.Metadata.AccessLevel > (int)_currentUser.AccessLevel)
             {
-                Console.WriteLine("Yetkisiz erişim: Dosyanın erişim seviyesi kullanıcının seviyesinden yüksek");
+                Console.WriteLine("Unauthorized access: File access level is higher than user's level");
                 return null;
             }
 
             string storagePath = Path.Combine(_settings.VaultDirectory, file.StorageFileName);
             if (!File.Exists(storagePath))
             {
-                throw new FileNotFoundException($"Arşiv dosyası bulunamadı: {file.StorageFileName}");
+                throw new FileNotFoundException($"Archive file not found: {file.StorageFileName}");
             }
 
-            // Basitleştirilmiş arşiv açma denemesi
+            // Simplified archive opening attempt
             try
             {
-                // Hedef dizini oluştur
+                // Create target directory
                 Directory.CreateDirectory(targetDirectory);
                 string targetFilePath = Path.Combine(targetDirectory, file.Metadata.OriginalFileName);
 
-                // Basitleştirilmiş arşiv seçenekleri (şifreleme ve karmaşık sıkıştırma olmadan)
-                Console.WriteLine("Basitleştirilmiş arşiv açma ayarları kullanılıyor (sorun giderme için)");
+                // Simplified archive options (without encryption and complex compression)
+                Console.WriteLine("Using simplified archive opening settings (for troubleshooting)");
 
                 FragileOptions options = new()
                 {
-                    // Şifreleme devre dışı
+                    // Encryption disabled
                     EnableEncryption = false,
 
-                    // Temel doğrulama ve hata düzeltme
+                    // Basic verification and error correction
                     EnableErrorCorrection = true,
                     ErrorCorrectionLevel = 5,
                     EnableChecksumVerification = true,
                     ChecksumAlgorithm = ChecksumAlgorithm.CRC32,
 
-                    // Basit sıkıştırma
+                    // Simple compression
                     CompressionAlgorithm = CompressionAlgorithm.Deflate,
                     CompressionLevel = CompressionLevel.Fast
                 };
 
-                // Arşivi açmayı deneyelim
-                Console.WriteLine($"Arşiv açılmaya çalışılıyor (basit mod): {storagePath}");
+                // Try to open archive
+                Console.WriteLine($"Trying to open archive (simple mode): {storagePath}");
 
-                // Arşivi açmaya çalış
+                // Try to open archive
                 using FragileArchive archive = await FragileArchive.OpenAsync(storagePath, options);
 
-                // İlk dosyayı çıkar (her arşivde sadece bir dosya var)
-                Console.WriteLine("Arşiv başarıyla açıldı, dosyalar aranıyor...");
+                // Extract first file (each archive has only one file)
+                Console.WriteLine("Archive opened successfully, searching for files...");
                 FragileArchiveEntry? entry = archive.Entries.FirstOrDefault(e => !e.IsDirectory);
 
                 if (entry != null)
                 {
-                    Console.WriteLine($"Arşivde dosya bulundu: {entry.Path}");
+                    Console.WriteLine($"File found in archive: {entry.Path}");
                     await archive.ExtractAsync(entry.Path, targetFilePath);
-                    Console.WriteLine($"Dosya başarıyla çıkarıldı: {targetFilePath}");
+                    Console.WriteLine($"File extracted successfully: {targetFilePath}");
                     return targetFilePath;
                 }
                 else
                 {
-                    Console.WriteLine("Arşivde dosya bulunamadı!");
+                    Console.WriteLine("No file found in archive!");
                     return null;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Dosya çıkarma hatası (basit mod): {ex.Message}");
+                Console.WriteLine($"File extraction error (simple mode): {ex.Message}");
 
                 if (ex.InnerException != null)
                 {
-                    Console.WriteLine($"İç hata: {ex.InnerException.Message}");
+                    Console.WriteLine($"Inner error: {ex.InnerException.Message}");
                 }
 
-                // Eski yöntemle denemeyi kaldıralım, çünkü şimdi basit modda ekliyoruz
+                // Let's remove trying with the old method, because we're now adding in simple mode
                 throw;
             }
         }
@@ -907,39 +907,39 @@ namespace Fragile.Sample.Mastery.SecureFileVault
         {
             if (_currentUser == null)
             {
-                throw new UnauthorizedAccessException("Oturum açılmamış");
+                throw new UnauthorizedAccessException("Not logged in");
             }
 
-            // Dosya adına göre dosyayı bul
+            // Find file by filename
             VaultFile? file = _index.Files.FirstOrDefault(f => f.Metadata.OriginalFileName == fileName);
 
             if (file == null)
             {
-                throw new FileNotFoundException($"Dosya kasada bulunamadı: {fileName}");
+                throw new FileNotFoundException($"File not found in vault: {fileName}");
             }
 
-            // Kullanıcı yönetici değilse veya dosyanın sahibi değilse
+            // If user is not an administrator or not the owner of the file
             if (_currentUser.AccessLevel != AccessLevel.Administrator &&
                 file.AddedByUser != _currentUser.Username)
             {
-                throw new UnauthorizedAccessException("Dosyayı silme yetkiniz yok");
+                throw new UnauthorizedAccessException("You don't have permission to delete this file");
             }
 
             string storagePath = Path.Combine(_settings.VaultDirectory, file.StorageFileName);
 
             try
             {
-                // Dosyayı indeksten kaldır
+                // Remove file from index
                 _index.Files.Remove(file);
 
-                // İndeksi güncelle
+                // Update index
                 await SaveIndexAsync();
 
-                // Belleği temizleyerek dosyaya olan referansları serbest bırakalım
+                // Clean memory to free references to the file
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
 
-                // Dosya sisteminden sil (retry mekanizması ile)
+                // Delete from file system (with retry mechanism)
                 if (File.Exists(storagePath))
                 {
                     int retryCount = 0;
@@ -954,9 +954,9 @@ namespace Fragile.Sample.Mastery.SecureFileVault
                         catch (IOException)
                         {
                             retryCount++;
-                            // Biraz bekleyelim
+                            // Let's wait a bit
                             await Task.Delay(500);
-                            // Tekrar temizleyelim
+                            // Clean again
                             GC.Collect();
                             GC.WaitForPendingFinalizers();
                         }
@@ -964,21 +964,21 @@ namespace Fragile.Sample.Mastery.SecureFileVault
 
                     if (!deleted)
                     {
-                        Console.WriteLine($"Uyarı: Dosya indeksten kaldırıldı ancak fiziksel olarak silinemedi: {storagePath}");
+                        Console.WriteLine($"Warning: File removed from index but could not be physically deleted: {storagePath}");
                     }
                     else
                     {
-                        Console.WriteLine($"Dosya kasadan silindi: {fileName}");
+                        Console.WriteLine($"File deleted from vault: {fileName}");
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"Dosya kasadan silindi: {fileName} (Fiziksel dosya zaten mevcut değil)");
+                    Console.WriteLine($"File deleted from vault: {fileName} (Physical file already not present)");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Dosya silme hatası: {ex.Message}");
+                Console.WriteLine($"File deletion error: {ex.Message}");
                 throw;
             }
         }

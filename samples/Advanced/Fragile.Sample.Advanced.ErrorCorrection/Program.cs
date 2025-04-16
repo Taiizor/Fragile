@@ -104,26 +104,26 @@ namespace Fragile.Sample.Advanced.ErrorCorrection
         {
             Console.WriteLine("\nSimulating archive corruption...");
 
-            // Uyarı ekleyelim
-            Console.WriteLine("WARNING: Arşiv dosyasına bozulma uygulanırken, Fragile formatının karmaşık yapısı");
-            Console.WriteLine("nedeniyle dosya imzasının korunması gerekmektedir. Bu demonstrasyon amacıyla,");
-            Console.WriteLine("gerçek uygulamalarda karşılaşılabilecek bozulma senaryolarını simüle ediyoruz.");
+            // Add warning
+            Console.WriteLine("WARNING: When applying corruption to the archive file, due to the complex structure");
+            Console.WriteLine("of the Fragile format, the file signature must be preserved. For demonstration purposes,");
+            Console.WriteLine("we are simulating corruption scenarios that might be encountered in real applications.");
 
             // Read the entire file
             byte[] fileBytes = await File.ReadAllBytesAsync(archivePath);
 
-            // Çok önemli: İmza kısımlarını korumak için sadece veri bloklarını hedefleyelim
-            // Fragile formatı, dosyanın farklı bölgelerinde imza/meta veri kullanabilir
-            // Bu nedenle çok kontrollü bir bozulma yapmalıyız
+            // Very important: To protect signature parts, only target data blocks
+            // Fragile format may use signature/metadata in different areas of the file
+            // Therefore we need to apply corruption very carefully
 
-            // Eğitim amaçlı strateji: Çok sınırlı bir orta bölgeyi hedefleyelim
+            // Educational strategy: Target a very limited middle section
             int totalLength = fileBytes.Length;
 
-            // İlk ve son 2KB'ı kesinlikle koruyalım (imza ve meta veriler için)
-            int safeHeaderSize = 2048; // Başlık bölgesi - 2KB
-            int safeFooterSize = 2048; // Son bölge - 2KB
+            // Definitely preserve the first and last 2KB (for signatures and metadata)
+            int safeHeaderSize = 2048; // Header region - 2KB
+            int safeFooterSize = 2048; // End region - 2KB
 
-            // Güvenli bir orta bölge seçelim - dosyanın tam orta %25'lik kısmı
+            // Select a safe middle region - exactly the middle 25% of the file
             int middleStart = ((totalLength - safeHeaderSize - safeFooterSize) / 4) + safeHeaderSize;
             int middleSize = (int)((totalLength - safeHeaderSize - safeFooterSize) * 0.25);
             int middleEnd = middleStart + middleSize;
@@ -136,32 +136,32 @@ namespace Fragile.Sample.Advanced.ErrorCorrection
 
             if (middleSize <= 0 || middleStart >= middleEnd)
             {
-                Console.WriteLine("UYARI: Arşiv çok küçük olduğu için güvenli bozulma yapılamıyor.");
-                Console.WriteLine("Bu durumda, gerçekçi bir demo için bozulma işlemi atlanıyor.");
-                Console.WriteLine("Gerçek dünyada, küçük arşivler kritik bölümleri korumak için daha hassas bozulma stratejileri gerektirir.");
+                Console.WriteLine("WARNING: The archive is too small for safe corruption.");
+                Console.WriteLine("In this case, corruption is skipped for a realistic demo.");
+                Console.WriteLine("In the real world, small archives require more careful corruption strategies to preserve critical sections.");
                 return;
             }
 
-            Console.WriteLine($"Arşiv boyutu: {totalLength} bayt");
-            Console.WriteLine($"Güvenli başlık bölgesi: 0-{safeHeaderSize} ({safeHeaderSize} bayt)");
-            Console.WriteLine($"Hedeflenen bozulma bölgesi: {middleStart}-{middleEnd} ({middleSize} bayt, %{(double)middleSize / totalLength:P1})");
-            Console.WriteLine($"Güvenli son bölge: {totalLength - safeFooterSize}-{totalLength} ({safeFooterSize} bayt)");
+            Console.WriteLine($"Archive size: {totalLength} bytes");
+            Console.WriteLine($"Safe header region: 0-{safeHeaderSize} ({safeHeaderSize} bytes)");
+            Console.WriteLine($"Targeted corruption region: {middleStart}-{middleEnd} ({middleSize} bytes, {(double)middleSize / totalLength:P1})");
+            Console.WriteLine($"Safe footer region: {totalLength - safeFooterSize}-{totalLength} ({safeFooterSize} bytes)");
 
-            // Çok az sayıda ve sınırlı bir bozulma uygulayalım
-            int corruptionCount = Math.Min(5, middleSize / 200); // Her 200 bayt için 1 bozulma, maks 5
+            // Apply a very small and limited corruption
+            int corruptionCount = Math.Min(5, middleSize / 200); // 1 corruption per 200 bytes, max 5
             if (corruptionCount <= 0)
             {
-                corruptionCount = 1; // En az 1 bozulma yapmalıyız
+                corruptionCount = 1; // We must make at least 1 corruption
             }
 
-            // Sağlamlık için ekstra korumalar
+            // Extra protections for robustness
             if (middleSize < 100)
             {
-                Console.WriteLine("UYARI: Güvenli bozulma bölgesi çok küçük! Bozulma işlemi atlanıyor.");
+                Console.WriteLine("WARNING: Safe corruption region is too small! Skipping corruption.");
                 return;
             }
 
-            // Eğitimsel demo: Sadece veri bloklarının içinde bozulma yapın, meta veri ve yapıları bozmayın
+            // Educational demo: Only corrupt within data blocks, don't corrupt metadata and structures
             Random random = new(123); // Fixed seed for reproducibility
             for (int i = 0; i < corruptionCount; i++)
             {
@@ -175,23 +175,23 @@ namespace Fragile.Sample.Advanced.ErrorCorrection
                 } while (newValue == originalValue); // Make sure we're actually changing the value
 
                 fileBytes[position] = newValue;
-                Console.WriteLine($"Bayt değiştirildi: pozisyon {position}: {originalValue} -> {newValue}");
+                Console.WriteLine($"Byte changed: position {position}: {originalValue} -> {newValue}");
             }
 
             // Write the corrupted data back to the file
             await File.WriteAllBytesAsync(archivePath, fileBytes);
-            Console.WriteLine($"Toplam {corruptionCount} bayt arşiv dosyasında bozuldu");
+            Console.WriteLine($"Total {corruptionCount} bytes corrupted in the archive file");
 
-            // Not ekleyelim
-            Console.WriteLine("\nNOT: Gerçek uygulamalarda, dosyalarda doğal olarak oluşan bozulmalar daha az kritik");
-            Console.WriteLine("bölgelerde oluşma eğilimindedir. Bu eğitimsel demo, en kötü senaryoyu göstermektedir.");
+            // Add a note
+            Console.WriteLine("\nNOTE: In real applications, naturally occurring file corruptions tend to happen");
+            Console.WriteLine("in less critical areas. This educational demo shows the worst-case scenario.");
         }
 
         static async Task RepairAndExtractArchive(string archivePath, string extractDir)
         {
-            Console.WriteLine("\nBozulmuş arşivi onarma ve çıkarma girişimi...");
-            Console.WriteLine("Hata düzeltme mekanizması, veri bloklarındaki bozulmaları düzeltmeye çalışacak,");
-            Console.WriteLine("ancak kritik meta veri veya imza bozulmaları onarılamayabilir.");
+            Console.WriteLine("\nAttempting to repair and extract the corrupted archive...");
+            Console.WriteLine("The error correction mechanism will try to fix corruptions in data blocks,");
+            Console.WriteLine("but critical metadata or signature corruptions may not be repairable.");
 
             try
             {
@@ -208,52 +208,52 @@ namespace Fragile.Sample.Advanced.ErrorCorrection
                 // Try to extract the archive despite corruption
                 using FragileArchive archive = await FragileArchive.OpenAsync(archivePath, options);
 
-                Console.WriteLine($"Başarı! Arşiv bozulmaya rağmen açıldı.");
-                Console.WriteLine($"Arşivde {archive.Entries.Count} dosya bulundu.");
+                Console.WriteLine($"Success! Archive opened despite corruption.");
+                Console.WriteLine($"Found {archive.Entries.Count} files in the archive.");
 
                 // Extract all files
                 await archive.ExtractAllAsync(extractDir);
 
-                Console.WriteLine($"Dosyalar başarıyla çıkarıldı: {extractDir}");
+                Console.WriteLine($"Files successfully extracted to: {extractDir}");
 
                 // Check if the extracted file matches the original
                 if (File.Exists(Path.Combine(extractDir, "important_data.txt")))
                 {
-                    Console.WriteLine("Çıkarılan dosya mevcut - içerik bütünlüğü kontrol ediliyor...");
+                    Console.WriteLine("Extracted file exists - checking content integrity...");
 
                     // In a real application, you would compare checksums or do a binary comparison
                     // For this sample, we just verify the file exists and has reasonable size
                     long extractedFileSize = new FileInfo(Path.Combine(extractDir, "important_data.txt")).Length;
-                    Console.WriteLine($"Çıkarılan dosya boyutu: {extractedFileSize:N0} bayt");
+                    Console.WriteLine($"Extracted file size: {extractedFileSize:N0} bytes");
 
                     if (extractedFileSize > 0)
                     {
-                        Console.WriteLine("Dosya başarıyla kurtarıldı!");
+                        Console.WriteLine("File successfully recovered!");
                     }
                     else
                     {
-                        Console.WriteLine("Uyarı: Çıkarılan dosya mevcut ancak boş.");
+                        Console.WriteLine("Warning: Extracted file exists but is empty.");
                     }
                 }
                 else
                 {
-                    Console.WriteLine("Hata: Orijinal dosya çıkarılamadı.");
+                    Console.WriteLine("Error: Original file could not be extracted.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Onarım ve çıkarma sırasında hata: {ex.Message}");
-                Console.WriteLine("Hata düzeltme, bozulmanın seviyesi için yeterli olmayabilir.");
+                Console.WriteLine($"Error during repair and extraction: {ex.Message}");
+                Console.WriteLine("Error correction may not be sufficient for the level of corruption.");
 
-                // Eğitimsel açıklama ekleyelim
-                Console.WriteLine("\nÖNEMLİ NOTLAR HAKKINDA:");
-                Console.WriteLine("1. Gerçek uygulamalarda, arşiv imzasının bozulması en ciddi sorunlardan biridir.");
-                Console.WriteLine("2. İmza doğrulaması, hata düzeltme mekanizmasından önce çalışır.");
-                Console.WriteLine("3. Alternatif arşiv kurtarma stratejileri:");
-                Console.WriteLine("   - Birden fazla yedek dosya saklama");
-                Console.WriteLine("   - Daha yüksek hata düzeltme seviyesi kullanma (%25-%30)");
-                Console.WriteLine("   - Özel arşiv kurtarma araçları kullanma");
-                Console.WriteLine("4. En iyi uygulama: Önemli verilerin birden fazla kopyasını farklı lokasyonlarda saklayın.");
+                // Add educational explanation
+                Console.WriteLine("\nIMPORTANT NOTES:");
+                Console.WriteLine("1. In real applications, corruption of the archive signature is one of the most serious issues.");
+                Console.WriteLine("2. Signature verification runs before the error correction mechanism.");
+                Console.WriteLine("3. Alternative archive recovery strategies:");
+                Console.WriteLine("   - Store multiple backup copies");
+                Console.WriteLine("   - Use higher error correction levels (25%-30%)");
+                Console.WriteLine("   - Use specialized archive recovery tools");
+                Console.WriteLine("4. Best practice: Store multiple copies of important data in different locations.");
             }
         }
     }

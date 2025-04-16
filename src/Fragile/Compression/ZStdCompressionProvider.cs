@@ -487,7 +487,7 @@ namespace Fragile.Compression
             }
         }
 
-        // Sıkıştırma oranını hesapla
+        // Calculate compression ratio
         private double GetCompressionRatio()
         {
             return compressionLevel switch

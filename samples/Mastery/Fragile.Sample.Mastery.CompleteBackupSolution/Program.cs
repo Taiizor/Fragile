@@ -13,13 +13,13 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
         {
             SourceDirectory = "Sample/BackupSource",
             BackupDirectory = "Sample/Backups",
-            MaxPartSize = 100 * 1024 * 1024, // 100 MB per part (çok büyük bir değer kullanarak parçalamayı engelleyelim)
-            CompressionLevel = CompressionLevel.Fastest, // Sıkıştırma kapalı
-            EncryptionEnabled = false, // Şifreleme kapalı
+            MaxPartSize = 100 * 1024 * 1024, // 100 MB per part (using a very large value to prevent splitting)
+            CompressionLevel = CompressionLevel.Fastest, // Compression disabled
+            EncryptionEnabled = false, // Encryption disabled
             EncryptionMethod = EncryptionMethod.AES256,
             Password = "SuperSecurePassword!123",
-            EnableErrorCorrection = false, // Hata düzeltme kapalı
-            ErrorCorrectionLevel = 0, // Düzeltme seviyesi 0
+            EnableErrorCorrection = false, // Error correction disabled
+            ErrorCorrectionLevel = 0, // Correction level 0
             BackupName = $"Backup_{DateTime.Now:yyyyMMdd_HHmmss}",
             KeepBackupsCount = 3
         };
@@ -36,7 +36,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             Console.WriteLine($"Runtime: {Environment.Version}");
             Console.WriteLine($"Working Directory: {Environment.CurrentDirectory}");
             Console.WriteLine("------------------------------------------------");
-            Console.WriteLine("MİNİMAL MOD ÇALIŞIYOR - Sıkıştırma, şifreleme ve hata düzeltme devre dışı");
+            Console.WriteLine("MINIMAL MODE RUNNING - Compression, encryption and error correction disabled");
             Console.WriteLine("------------------------------------------------");
 
             try
@@ -327,7 +327,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             string backupFileName = $"{settings.BackupName}.frgl";
             string backupFilePath = Path.Combine(settings.BackupDirectory, backupFileName);
 
-            // Configure backup options - minimum özelliklerle
+            // Configure backup options - with minimal features
             FragileOptions options = new()
             {
                 CompressionAlgorithm = CompressionAlgorithm.Deflate,
@@ -337,12 +337,12 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 EncryptionMethod = settings.EncryptionMethod,
                 EnableErrorCorrection = settings.EnableErrorCorrection,
                 ErrorCorrectionLevel = settings.ErrorCorrectionLevel,
-                EnableChecksumVerification = true, // Bu önemli, doğrulama için gerekli
+                EnableChecksumVerification = true, // This is important, required for verification
                 IncludeMetadata = true,
                 UseParallelProcessing = true,
-                SplitSize = settings.MaxPartSize, // Çok büyük bir değer kullanarak parçalamayı engelleyelim
+                SplitSize = settings.MaxPartSize, // Using a very large value to prevent splitting
                 CancellationToken = cancellationToken,
-                Progress = new Progress<double>(p => Console.WriteLine($"  Yedekleme ilerlemesi: {p:P1}"))
+                Progress = new Progress<double>(p => Console.WriteLine($"  Backup progress: {p:P1}"))
             };
 
             BackupResult result = new()
@@ -356,10 +356,10 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             {
                 Console.WriteLine($"Creating backup archive: {backupFilePath}");
 
-                // Parçalama için dizin hazırlığını kaldıralım
-                // SADECE tek bir arşiv dosyası oluşturacağız
+                // Let's remove the preparation for splitting
+                // We will create ONLY one archive file
 
-                // Create the archive - using pattern doğru ancak içeriği basitleştirelim
+                // Using the create pattern correctly but simplifying the content
                 using (FragileArchive archive = await FragileArchive.CreateAsync(backupFilePath, options))
                 {
                     // Sadece temel meta verileri ekleyelim
@@ -370,9 +370,9 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                     Console.WriteLine("Adding files to backup...");
                     result.FileCount = await archive.AddDirectoryAsync(settings.SourceDirectory, recursive: true);
 
-                    // Dosya meta verilerini ekleme işlemini atlayalım - bu sorun yaratabilir
+                    // Skip adding file metadata - this could cause issues
 
-                    // Orijinal boyutu hesapla
+                    // Calculate original size
                     result.OriginalSize = archive.Entries
                         .Where(e => !e.IsDirectory)
                         .Sum(e => e.Size);
@@ -382,7 +382,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                     await archive.SaveAsync();
                 }
 
-                // Başarılı bir şekilde oluşturulmuş mu kontrol et
+                // Successfully created?
                 if (File.Exists(backupFilePath))
                 {
                     FileInfo archiveInfo = new(backupFilePath);
@@ -390,7 +390,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                     result.IsMultiPart = false; // Parçalama devre dışı
                     result.PartCount = 1;
 
-                    // Parçalama işlemini tamamen atlayalım
+                    // Skip the splitting process completely
                 }
                 else
                 {
@@ -420,25 +420,25 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                     return false;
                 }
 
-                // Çok basit doğrulama seçenekleri kullanılacak
+                // Very simple verification options will be used
                 FragileOptions options = new()
                 {
-                    Password = string.Empty, // Şifreleme kapalı olduğundan boş
+                    Password = string.Empty, // Empty because encryption is disabled
                     EnableChecksumVerification = true,
                     CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                    CompressionLevel = CompressionLevel.Fastest // Sıkıştırma yok
+                    CompressionLevel = CompressionLevel.Fastest // No compression
                 };
 
                 Console.WriteLine($"Opening archive for verification: {backupPath}");
 
-                // Arşivi aç ve doğrula
+                // Open and verify the archive
                 using FragileArchive archive = await FragileArchive.OpenAsync(backupPath, options);
 
                 Console.WriteLine($"Successfully opened archive with {archive.Entries.Count} entries");
                 Console.WriteLine("Archive verification successful");
 
-                // Dosya içeriklerini tek tek doğrulamaya gerek yok
-                // Sadece arşivin açılabilmesi yeterli
+                // No need to verify each file's content
+                // Being able to open the archive is sufficient
 
                 return true;
             }
@@ -462,17 +462,17 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                     return false;
                 }
 
-                // Çok basit çıkartma seçenekleri kullanılacak
+                // Very simple extraction options will be used
                 FragileOptions options = new()
                 {
-                    Password = string.Empty, // Şifreleme kapalı olduğundan boş
-                    EnableErrorCorrection = false, // Hata düzeltme kapalı
+                    Password = string.Empty, // Empty because encryption is disabled
+                    EnableErrorCorrection = false, // Error correction disabled
                     CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                    CompressionLevel = CompressionLevel.Fastest, // Sıkıştırma yok
-                    Progress = new Progress<double>(p => Console.WriteLine($"  Geri yükleme ilerlemesi: {p:P1}"))
+                    CompressionLevel = CompressionLevel.Fastest, // No compression
+                    Progress = new Progress<double>(p => Console.WriteLine($"  Restore progress: {p:P1}"))
                 };
 
-                // Arşivi aç ve çıkart
+                // Open and extract the archive
                 Console.WriteLine($"Opening archive for restore: {backupPath}");
                 using FragileArchive archive = await FragileArchive.OpenAsync(backupPath, options);
 
@@ -481,7 +481,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
 
                 await archive.ExtractAllAsync(targetDirectory);
 
-                // Çıkartılan dosyaları kontrol et
+                // Check extracted files
                 int extractedFiles = Directory.GetFiles(targetDirectory, "*", SearchOption.AllDirectories).Length;
                 int expectedFiles = archive.Entries.Count(e => !e.IsDirectory);
 
@@ -493,7 +493,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 else
                 {
                     Console.WriteLine($"Warning: Extracted {extractedFiles} files out of {expectedFiles} expected");
-                    // Daha esnek başarı kriteri
+                    // More flexible success criteria
                     return extractedFiles > 0;
                 }
             }

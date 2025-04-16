@@ -13,38 +13,38 @@ namespace Fragile.Sample.Basic.Combine
 
             Console.WriteLine("Fragile Combine Sample");
             Console.WriteLine("======================");
-            Console.WriteLine("Bu örnek, parçalanmış arşiv dosyalarının nasıl birleştirileceğini gösterir");
+            Console.WriteLine("This example shows how to combine split archive files");
 
-            // Örnek dizin oluştur
+            // Create sample directory
             string sampleDir = "Sample";
             Directory.CreateDirectory(sampleDir);
 
-            // Örnek dosyalar oluştur
-            string textFilePath = Path.Combine(sampleDir, "ornek.txt");
-            File.WriteAllText(textFilePath, "Bu, Fragile için örnek bir metin dosyasıdır.");
+            // Create sample files
+            string textFilePath = Path.Combine(sampleDir, "sample.txt");
+            File.WriteAllText(textFilePath, "This is a sample text file for Fragile.");
 
-            string largeFilePath = Path.Combine(sampleDir, "buyuk_dosya.txt");
-            await CreateLargeFileAsync(largeFilePath, 1 * 1024 * 1024); // 1MB boyutunda
+            string largeFilePath = Path.Combine(sampleDir, "large_file.txt");
+            await CreateLargeFileAsync(largeFilePath, 1 * 1024 * 1024); // 1MB size
 
-            // Alt klasör oluştur ve içine dosya ekle
-            string subfolderPath = Path.Combine(sampleDir, "alt_klasor");
+            // Create subfolder and add file to it
+            string subfolderPath = Path.Combine(sampleDir, "subfolder");
             Directory.CreateDirectory(subfolderPath);
-            File.WriteAllText(Path.Combine(subfolderPath, "benioku.txt"), "Bu alt klasördeki bir dosyadır.");
+            File.WriteAllText(Path.Combine(subfolderPath, "readme.txt"), "This is a file in the subfolder.");
 
-            // Parçalanmış arşiv dizinini oluştur
+            // Create directory for split archives
             string splitDir = "Split";
             Directory.CreateDirectory(splitDir);
 
-            // Birleştirilmiş arşiv dizinini oluştur
+            // Create directory for combined archives
             string combinedDir = "Combined";
             Directory.CreateDirectory(combinedDir);
 
-            string archivePath = Path.Combine(splitDir, "bolunmus_arsiv.frgl");
+            string archivePath = Path.Combine(splitDir, "split_archive.frgl");
 
             try
             {
-                // Parçalanmış arşiv oluştur - 200KB boyutunda parçalar olsun
-                Console.WriteLine("\nParçalanmış arşiv oluşturuluyor...");
+                // Create split archive - with 200KB parts
+                Console.WriteLine("\nCreating split archive...");
 
                 long splitSize = 200 * 1024; // 200KB
                 FragileArchivePartCollection parts = await FragileUtility.CreateSplitArchiveAsync(
@@ -53,26 +53,26 @@ namespace Fragile.Sample.Basic.Combine
                     recursive: true,
                     splitSize: splitSize);
 
-                Console.WriteLine($"Arşiv {parts.Count} parçaya bölündü:");
+                Console.WriteLine($"Archive split into {parts.Count} parts:");
                 foreach (FragileArchivePart part in parts)
                 {
                     Console.WriteLine($" - {Path.GetFileName(part.Path)} ({FormatFileSize(part.Size)})");
                 }
 
-                // Dosya parçalarının birleştirilmesi
-                Console.WriteLine("\nArşiv parçaları birleştiriliyor...");
+                // Combining file parts
+                Console.WriteLine("\nCombining archive parts...");
 
                 string firstPartPath = Path.Combine(splitDir, Path.GetFileName(parts[0].Path));
-                string combinedArchivePath = Path.Combine(combinedDir, "birlestirilmis_arsiv.frgl");
+                string combinedArchivePath = Path.Combine(combinedDir, "combined_archive.frgl");
 
                 await FragileUtility.CombinePartsAsync(firstPartPath, combinedArchivePath);
 
-                Console.WriteLine($"Parçalar başarıyla birleştirildi: {combinedArchivePath}");
-                Console.WriteLine($"Birleştirilmiş arşiv boyutu: {FormatFileSize(new FileInfo(combinedArchivePath).Length)}");
+                Console.WriteLine($"Parts successfully combined: {combinedArchivePath}");
+                Console.WriteLine($"Combined archive size: {FormatFileSize(new FileInfo(combinedArchivePath).Length)}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Hata: {ex.Message}");
+                Console.WriteLine($"Error: {ex.Message}");
             }
 
             Console.WriteLine("Press any key to exit...");
@@ -80,13 +80,13 @@ namespace Fragile.Sample.Basic.Combine
         }
 
         /// <summary>
-        /// Belirtilen boyutta test amaçlı büyük bir dosya oluşturur
+        /// Creates a large test file with the specified size
         /// </summary>
         private static async Task CreateLargeFileAsync(string filePath, int sizeInBytes)
         {
             using (FileStream stream = File.Create(filePath))
             {
-                // Her iterasyonda 4KB yazarak istenen boyuta ulaşana kadar devam et
+                // Write 4KB in each iteration until reaching the desired size
                 byte[] buffer = new byte[4096];
                 Random rnd = new();
 
@@ -100,11 +100,11 @@ namespace Fragile.Sample.Basic.Combine
                 }
             }
 
-            Console.WriteLine($"Oluşturulan test dosyası: {filePath} ({FormatFileSize(sizeInBytes)})");
+            Console.WriteLine($"Created test file: {filePath} ({FormatFileSize(sizeInBytes)})");
         }
 
         /// <summary>
-        /// Bayt cinsinden boyutu okunabilir bir formata dönüştürür (KB, MB, GB)
+        /// Converts size in bytes to a readable format (KB, MB, GB)
         /// </summary>
         private static string FormatFileSize(long bytes)
         {
