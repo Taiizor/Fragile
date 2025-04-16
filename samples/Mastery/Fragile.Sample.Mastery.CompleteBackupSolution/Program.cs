@@ -14,6 +14,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             SourceDirectory = "Sample/BackupSource",
             BackupDirectory = "Sample/Backups",
             MaxPartSize = 100 * 1024 * 1024, // 100 MB per part (using a very large value to prevent splitting)
+            CompressionAlgorithm = CompressionAlgorithm.Store, // No compression
             CompressionLevel = CompressionLevel.Fastest, // Compression disabled
             EncryptionEnabled = false, // Encryption disabled
             EncryptionMethod = EncryptionMethod.AES256,
@@ -84,7 +85,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                     return;
                 }
 
-                bool verificationResult = await VerifyBackup(backupPathToVerify, _settings.Password);
+                bool verificationResult = await VerifyBackup(backupPathToVerify, _settings);
 
                 if (verificationResult)
                 {
@@ -103,7 +104,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 string backupPathToRestore = backupResult.BackupArchivePath;
                 Console.WriteLine($"Using archive for restore: {backupPathToRestore}");
 
-                bool restoreResult = await RestoreBackup(backupPathToRestore, restoreDir, _settings.Password);
+                bool restoreResult = await RestoreBackup(backupPathToRestore, restoreDir, _settings);
 
                 if (restoreResult)
                 {
@@ -204,8 +205,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
 
             // Count total files
             int totalFiles = Directory.GetFiles(_settings.SourceDirectory, "*", SearchOption.AllDirectories).Length;
-            long totalSize = Directory.GetFiles(_settings.SourceDirectory, "*", SearchOption.AllDirectories)
-                .Sum(f => new FileInfo(f).Length);
+            long totalSize = Directory.GetFiles(_settings.SourceDirectory, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
 
             Console.WriteLine($"Created {totalFiles} sample files with total size: {totalSize:N0} bytes ({totalSize / (1024 * 1024):F2} MB)");
         }
@@ -221,7 +221,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
 
             // Start with a fake header to look like an image
             byte[] header = Encoding.ASCII.GetBytes("IMGDATA");
-            await stream.WriteAsync(header, 0, header.Length);
+            await stream.WriteAsync(header);
 
             // Fill the rest with random data
             Random random = new();
@@ -330,7 +330,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             // Configure backup options - with minimal features
             FragileOptions options = new()
             {
-                CompressionAlgorithm = CompressionAlgorithm.Deflate,
+                CompressionAlgorithm = settings.CompressionAlgorithm,
                 CompressionLevel = settings.CompressionLevel,
                 EnableEncryption = settings.EncryptionEnabled,
                 Password = settings.Password,
@@ -399,6 +399,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
 
                 result.EndTime = DateTime.Now;
                 result.Success = true;
+
                 return result;
             }
             catch (Exception ex)
@@ -406,11 +407,12 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 result.EndTime = DateTime.Now;
                 result.Success = false;
                 result.ErrorMessage = ex.Message;
+
                 return result;
             }
         }
 
-        static async Task<bool> VerifyBackup(string backupPath, string password)
+        static async Task<bool> VerifyBackup(string backupPath, BackupSettings settings)
         {
             try
             {
@@ -424,9 +426,11 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 FragileOptions options = new()
                 {
                     Password = string.Empty, // Empty because encryption is disabled
+                    EnableEncryption = settings.EncryptionEnabled,
+                    EncryptionMethod = settings.EncryptionMethod,
                     EnableChecksumVerification = true,
-                    CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                    CompressionLevel = CompressionLevel.Fastest // No compression
+                    CompressionAlgorithm = settings.CompressionAlgorithm,
+                    CompressionLevel = settings.CompressionLevel // No compression
                 };
 
                 Console.WriteLine($"Opening archive for verification: {backupPath}");
@@ -449,7 +453,7 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
             }
         }
 
-        static async Task<bool> RestoreBackup(string backupPath, string targetDirectory, string password)
+        static async Task<bool> RestoreBackup(string backupPath, string targetDirectory, BackupSettings settings)
         {
             try
             {
@@ -465,10 +469,12 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
                 // Very simple extraction options will be used
                 FragileOptions options = new()
                 {
-                    Password = string.Empty, // Empty because encryption is disabled
+                    Password = settings.Password, // Empty because encryption is disabled
+                    EnableEncryption = settings.EncryptionEnabled,
+                    EncryptionMethod = settings.EncryptionMethod,
                     EnableErrorCorrection = false, // Error correction disabled
-                    CompressionAlgorithm = CompressionAlgorithm.Deflate,
-                    CompressionLevel = CompressionLevel.Fastest, // No compression
+                    CompressionAlgorithm = settings.CompressionAlgorithm,
+                    CompressionLevel = settings.CompressionLevel, // No compression
                     Progress = new Progress<double>(p => Console.WriteLine($"  Restore progress: {p:P1}"))
                 };
 
@@ -613,6 +619,8 @@ namespace Fragile.Sample.Mastery.CompleteBackupSolution
         public string SourceDirectory { get; set; }
         public string BackupDirectory { get; set; }
         public long MaxPartSize { get; set; }
+
+        public CompressionAlgorithm CompressionAlgorithm { get; set; }
         public CompressionLevel CompressionLevel { get; set; }
         public bool EncryptionEnabled { get; set; }
         public EncryptionMethod EncryptionMethod { get; set; }
