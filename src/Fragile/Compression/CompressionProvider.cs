@@ -11,6 +11,11 @@ namespace Fragile.Compression
     public abstract class CompressionProvider(bool useParallelProcessing = true, int maxThreads = 1)
     {
         /// <summary>
+        /// Maximum number of threads to use for parallel operations
+        /// </summary>
+        public int MaxThreads { get; } = maxThreads;
+
+        /// <summary>
         /// The compression algorithm used by this provider
         /// </summary>
         public abstract CompressionAlgorithm Algorithm { get; }
@@ -19,11 +24,6 @@ namespace Fragile.Compression
         /// Whether to use parallel processing for compression/decompression
         /// </summary>
         public bool UseParallelProcessing { get; } = useParallelProcessing;
-
-        /// <summary>
-        /// Maximum number of threads to use for parallel operations
-        /// </summary>
-        public int MaxThreads { get; } = maxThreads;
 
         /// <summary>
         /// Creates a compression provider for the specified algorithm and level

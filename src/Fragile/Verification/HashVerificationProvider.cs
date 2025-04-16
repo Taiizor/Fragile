@@ -18,13 +18,9 @@ namespace Fragile.Verification
         /// Creates a new hash verification provider with the specified algorithm
         /// </summary>
         /// <param name="algorithm">The hash algorithm to use</param>
-        public HashVerificationProvider(ChecksumAlgorithm algorithm)
-            : base(false, 1)
+        public HashVerificationProvider(ChecksumAlgorithm algorithm) : base(false, 1)
         {
-            if (algorithm is not ChecksumAlgorithm.MD5 and
-                not ChecksumAlgorithm.SHA1 and
-                not ChecksumAlgorithm.SHA256 and
-                not ChecksumAlgorithm.SHA512)
+            if (algorithm is not ChecksumAlgorithm.MD5 and not ChecksumAlgorithm.SHA1 and not ChecksumAlgorithm.SHA256 and not ChecksumAlgorithm.SHA384 and not ChecksumAlgorithm.SHA512)
             {
                 throw new ArgumentException($"Unsupported hash algorithm: {algorithm}", nameof(algorithm));
             }
@@ -38,13 +34,9 @@ namespace Fragile.Verification
         /// <param name="algorithm">The hash algorithm to use</param>
         /// <param name="useParallelProcessing">Whether to use parallel processing</param>
         /// <param name="maxThreads">Maximum number of threads to use</param>
-        public HashVerificationProvider(ChecksumAlgorithm algorithm, bool useParallelProcessing, int maxThreads)
-            : base(useParallelProcessing, maxThreads)
+        public HashVerificationProvider(ChecksumAlgorithm algorithm, bool useParallelProcessing, int maxThreads) : base(useParallelProcessing, maxThreads)
         {
-            if (algorithm is not ChecksumAlgorithm.MD5 and
-                not ChecksumAlgorithm.SHA1 and
-                not ChecksumAlgorithm.SHA256 and
-                not ChecksumAlgorithm.SHA512)
+            if (algorithm is not ChecksumAlgorithm.MD5 and not ChecksumAlgorithm.SHA1 and not ChecksumAlgorithm.SHA256 and not ChecksumAlgorithm.SHA384 and not ChecksumAlgorithm.SHA512)
             {
                 throw new ArgumentException($"Unsupported hash algorithm: {algorithm}", nameof(algorithm));
             }
@@ -137,9 +129,9 @@ namespace Fragile.Verification
             }
 
             // Limit concurrent tasks using semaphore
+            ParallelProgress progressTracker = new(chunks.Count, progress);
             using SemaphoreSlim semaphore = new(threadCount);
             List<Task<byte[]>> tasks = [];
-            ParallelProgress progressTracker = new(chunks.Count, progress);
 
             foreach ((long start, long end) in chunks)
             {
@@ -257,6 +249,7 @@ namespace Fragile.Verification
                 ChecksumAlgorithm.MD5 => 16,    // 128 bits = 16 bytes
                 ChecksumAlgorithm.SHA1 => 20,   // 160 bits = 20 bytes
                 ChecksumAlgorithm.SHA256 => 32, // 256 bits = 32 bytes
+                ChecksumAlgorithm.SHA384 => 48, // 384 bits = 48 bytes
                 ChecksumAlgorithm.SHA512 => 64, // 512 bits = 64 bytes
                 _ => throw new NotSupportedException($"Unsupported hash algorithm: {_algorithm}")
             };
@@ -272,6 +265,7 @@ namespace Fragile.Verification
                 ChecksumAlgorithm.MD5 => MD5.Create(),
                 ChecksumAlgorithm.SHA1 => SHA1.Create(),
                 ChecksumAlgorithm.SHA256 => SHA256.Create(),
+                ChecksumAlgorithm.SHA384 => SHA384.Create(),
                 ChecksumAlgorithm.SHA512 => SHA512.Create(),
                 _ => throw new NotSupportedException($"Unsupported hash algorithm: {_algorithm}")
             };
@@ -392,6 +386,7 @@ namespace Fragile.Verification
 
             _position = newPosition;
             _baseStream.Position = _start + _position;
+
             return _position;
         }
 

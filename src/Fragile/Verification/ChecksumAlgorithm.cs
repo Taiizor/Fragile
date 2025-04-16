@@ -31,8 +31,13 @@ namespace Fragile.Verification
         SHA256 = 4,
 
         /// <summary>
+        /// SHA-384 hash
+        /// </summary>
+        SHA384 = 5,
+
+        /// <summary>
         /// SHA-512 hash
         /// </summary>
-        SHA512 = 5
+        SHA512 = 6
     }
 }

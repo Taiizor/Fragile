@@ -9,28 +9,10 @@ namespace Fragile.Metadata
     public class EntryMetadata
     {
         /// <summary>
-        /// Custom metadata dictionary for user-defined properties
+        /// File group (on Unix-like systems)
         /// </summary>
-        [JsonPropertyName("custom")]
-        public Dictionary<string, string> CustomProperties { get; set; } = [];
-
-        /// <summary>
-        /// Creation time of the file
-        /// </summary>
-        [JsonPropertyName("created")]
-        public DateTime? CreationTime { get; set; }
-
-        /// <summary>
-        /// Last access time of the file
-        /// </summary>
-        [JsonPropertyName("accessed")]
-        public DateTime? LastAccessTime { get; set; }
-
-        /// <summary>
-        /// File attributes
-        /// </summary>
-        [JsonPropertyName("attributes")]
-        public string? Attributes { get; set; }
+        [JsonPropertyName("group")]
+        public string? Group { get; set; }
 
         /// <summary>
         /// Original file owner
@@ -39,10 +21,10 @@ namespace Fragile.Metadata
         public string? Owner { get; set; }
 
         /// <summary>
-        /// File group (on Unix-like systems)
+        /// Comments about the file
         /// </summary>
-        [JsonPropertyName("group")]
-        public string? Group { get; set; }
+        [JsonPropertyName("comment")]
+        public string? Comment { get; set; }
 
         /// <summary>
         /// MIME type of the file
@@ -51,16 +33,34 @@ namespace Fragile.Metadata
         public string? MimeType { get; set; }
 
         /// <summary>
+        /// File attributes
+        /// </summary>
+        [JsonPropertyName("attributes")]
+        public string? Attributes { get; set; }
+
+        /// <summary>
+        /// Creation time of the file
+        /// </summary>
+        [JsonPropertyName("created")]
+        public DateTime? CreationTime { get; set; }
+
+        /// <summary>
         /// Tags for searching and categorization
         /// </summary>
         [JsonPropertyName("tags")]
         public List<string> Tags { get; set; } = [];
 
         /// <summary>
-        /// Comments about the file
+        /// Last access time of the file
         /// </summary>
-        [JsonPropertyName("comment")]
-        public string? Comment { get; set; }
+        [JsonPropertyName("accessed")]
+        public DateTime? LastAccessTime { get; set; }
+
+        /// <summary>
+        /// Custom metadata dictionary for user-defined properties
+        /// </summary>
+        [JsonPropertyName("custom")]
+        public Dictionary<string, string> CustomProperties { get; set; } = [];
 
         /// <summary>
         /// Serializes metadata to JSON
@@ -73,51 +73,6 @@ namespace Fragile.Metadata
                 WriteIndented = false,
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             });
-        }
-
-        /// <summary>
-        /// Deserializes metadata from JSON
-        /// </summary>
-        /// <param name="json">JSON string to deserialize</param>
-        /// <returns>EntryMetadata object</returns>
-        public static EntryMetadata FromJson(string json)
-        {
-            if (string.IsNullOrEmpty(json))
-            {
-                return new EntryMetadata();
-            }
-
-            return JsonSerializer.Deserialize<EntryMetadata>(json) ?? new EntryMetadata();
-        }
-
-        /// <summary>
-        /// Adds a custom property
-        /// </summary>
-        /// <param name="key">Property name</param>
-        /// <param name="value">Property value</param>
-        public void AddProperty(string key, string value)
-        {
-            if (string.IsNullOrEmpty(key))
-            {
-                throw new ArgumentException("Property key cannot be null or empty", nameof(key));
-            }
-
-            CustomProperties[key] = value;
-        }
-
-        /// <summary>
-        /// Gets a custom property value
-        /// </summary>
-        /// <param name="key">Property name</param>
-        /// <returns>Property value or null if not found</returns>
-        public string? GetProperty(string key)
-        {
-            if (string.IsNullOrEmpty(key))
-            {
-                return null;
-            }
-
-            return CustomProperties.TryGetValue(key, out string? value) ? value : null;
         }
 
         /// <summary>
@@ -145,6 +100,51 @@ namespace Fragile.Metadata
         public bool RemoveTag(string tag)
         {
             return Tags.Remove(tag);
+        }
+
+        /// <summary>
+        /// Gets a custom property value
+        /// </summary>
+        /// <param name="key">Property name</param>
+        /// <returns>Property value or null if not found</returns>
+        public string? GetProperty(string key)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                return null;
+            }
+
+            return CustomProperties.TryGetValue(key, out string? value) ? value : null;
+        }
+
+        /// <summary>
+        /// Adds a custom property
+        /// </summary>
+        /// <param name="key">Property name</param>
+        /// <param name="value">Property value</param>
+        public void AddProperty(string key, string value)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                throw new ArgumentException("Property key cannot be null or empty", nameof(key));
+            }
+
+            CustomProperties[key] = value;
+        }
+
+        /// <summary>
+        /// Deserializes metadata from JSON
+        /// </summary>
+        /// <param name="json">JSON string to deserialize</param>
+        /// <returns>EntryMetadata object</returns>
+        public static EntryMetadata FromJson(string json)
+        {
+            if (string.IsNullOrEmpty(json))
+            {
+                return new EntryMetadata();
+            }
+
+            return JsonSerializer.Deserialize<EntryMetadata>(json) ?? new EntryMetadata();
         }
     }
 }

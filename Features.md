@@ -52,6 +52,7 @@ Fragile is a custom file archiving library for .NET that provides advanced featu
   - MD5 hash
   - SHA-1 hash
   - SHA-256 hash
+  - SHA-384 hash
   - SHA-512 hash
 
 - **Error Correction**:

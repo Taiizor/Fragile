@@ -13,9 +13,9 @@ namespace Fragile.Core
     /// <param name="options">Archive options</param>
     public class FragileArchivePartCollection(FragileOptions options) : IReadOnlyCollection<FragileArchivePart>
     {
-        private FragileOptions _options = options ?? throw new ArgumentNullException(nameof(options));
-
         private readonly List<FragileArchivePart> _parts = [];
+
+        private FragileOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 
         /// <summary>
         /// Gets the number of parts in the collection
@@ -124,10 +124,8 @@ namespace Fragile.Core
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
                     while ((bytesRead = await partStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
-
 #else
                     while ((bytesRead = await partStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
-
 #endif
                     {
 #if NET48_OR_GREATER || NETSTANDARD2_0
@@ -162,16 +160,10 @@ namespace Fragile.Core
                 try
                 {
                     // Create encryption provider
-                    EncryptionProvider encryptionProvider = EncryptionProvider.Create(
-                        _options.EncryptionMethod,
-                        _options.Password);
+                    EncryptionProvider encryptionProvider = EncryptionProvider.Create(_options.EncryptionMethod, _options.Password);
 
                     // Encrypt the combined file
-                    await encryptionProvider.EncryptAsync(
-                        outputStream,
-                        encryptedOutput,
-                        progress,
-                        cancellationToken);
+                    await encryptionProvider.EncryptAsync(outputStream, encryptedOutput, progress, cancellationToken);
 
                     // Close streams
                     outputStream.Close();
@@ -188,6 +180,7 @@ namespace Fragile.Core
                     {
                         File.Delete(tempEncryptedFile);
                     }
+
                     throw;
                 }
             }
@@ -235,10 +228,8 @@ namespace Fragile.Core
                         // Read part data
 #if NET48_OR_GREATER || NETSTANDARD2_0
                         while (totalRead < partData.Length && (bytesRead = await partStream.ReadAsync(buffer, 0, Math.Min(buffer.Length, partData.Length - totalRead), cancellationToken)) > 0)
-
 #else
                         while (totalRead < partData.Length && (bytesRead = await partStream.ReadAsync(buffer.AsMemory(0, Math.Min(buffer.Length, partData.Length - totalRead)), cancellationToken)) > 0)
-
 #endif
                         {
                             Buffer.BlockCopy(buffer, 0, partData, totalRead, bytesRead);
@@ -290,16 +281,11 @@ namespace Fragile.Core
                     using FileStream encryptedOutput = new(tempEncryptedFile, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
 
                     // Create encryption provider
-                    EncryptionProvider encryptionProvider = EncryptionProvider.Create(
-                        _options.EncryptionMethod,
-                        _options.Password);
+                    EncryptionProvider encryptionProvider = EncryptionProvider.Create(_options.EncryptionMethod, _options.Password);
 
                     // Encrypt the combined file
-                    await encryptionProvider.EncryptAsync(
-                        outputStream,
-                        encryptedOutput,
-                        new Progress<double>(p => progress?.Report(0.5 + (p * 0.5))), // Scale progress from 50% to 100%
-                        cancellationToken);
+                    // Scale progress from 50% to 100%
+                    await encryptionProvider.EncryptAsync(outputStream, encryptedOutput, new Progress<double>(p => progress?.Report(0.5 + (p * 0.5))), cancellationToken);
 
                     // Close streams
                     encryptedOutput.Close();

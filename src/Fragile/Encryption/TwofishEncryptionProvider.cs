@@ -156,12 +156,8 @@ namespace Fragile.Encryption
                 // Return the number of bytes written
                 return output.Position - initialPosition;
             }
-            catch (Exception ex)
+            catch
             {
-                // Log the error details for debugging
-                Console.WriteLine($"Twofish Encryption Error: {ex.GetType().Name}: {ex.Message}");
-                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
-
                 // Re-throw the exception
                 throw;
             }
@@ -235,12 +231,8 @@ namespace Fragile.Encryption
                 // Return the number of bytes written
                 return output.Position - initialPosition;
             }
-            catch (Exception ex)
+            catch
             {
-                // Log the error details for debugging
-                Console.WriteLine($"Twofish Decryption Error: {ex.GetType().Name}: {ex.Message}");
-                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
-
                 // Re-throw the exception
                 throw;
             }
@@ -284,10 +276,10 @@ namespace Fragile.Encryption
     /// </summary>
     internal class SymmetrizedTransform : ICryptoTransform
     {
-        private readonly byte[] _key;
         private readonly byte[] _iv;
-        private readonly bool _encrypting;
+        private readonly byte[] _key;
         private bool _disposed = false;
+        private readonly bool _encrypting;
 
         public SymmetrizedTransform(byte[] key, byte[] iv, bool encrypting)
         {
@@ -423,10 +415,12 @@ namespace Fragile.Encryption
             // Implementation would handle padding and final block processing
             // This placeholder simply returns a copy of the input
             byte[] output = new byte[inputCount];
+
             if (inputCount > 0)
             {
                 Buffer.BlockCopy(inputBuffer, inputOffset, output, 0, inputCount);
             }
+
             return output;
         }
     }

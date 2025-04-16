@@ -68,6 +68,7 @@ namespace Fragile.Verification
                 ChecksumAlgorithm.MD5 => new HashVerificationProvider(ChecksumAlgorithm.MD5, options.UseParallelProcessing, options.MaxThreads),
                 ChecksumAlgorithm.SHA1 => new HashVerificationProvider(ChecksumAlgorithm.SHA1, options.UseParallelProcessing, options.MaxThreads),
                 ChecksumAlgorithm.SHA256 => new HashVerificationProvider(ChecksumAlgorithm.SHA256, options.UseParallelProcessing, options.MaxThreads),
+                ChecksumAlgorithm.SHA384 => new HashVerificationProvider(ChecksumAlgorithm.SHA384, options.UseParallelProcessing, options.MaxThreads),
                 ChecksumAlgorithm.SHA512 => new HashVerificationProvider(ChecksumAlgorithm.SHA512, options.UseParallelProcessing, options.MaxThreads),
                 _ => throw new NotSupportedException($"Checksum algorithm {options.ChecksumAlgorithm} is not supported")
             };

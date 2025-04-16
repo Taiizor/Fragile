@@ -36,44 +36,6 @@ namespace Fragile.Core
         public string Path { get; set; } = string.Empty;
 
         /// <summary>
-        /// Gets the standard file name for a split archive part
-        /// </summary>
-        /// <param name="basePath">The base archive path</param>
-        /// <param name="partIndex">The part index (1-based)</param>
-        /// <param name="totalParts">The total number of parts</param>
-        /// <param name="splitName">The name of the split parts</param>
-        /// <returns>The formatted part file name</returns>
-        public static string GetPartFileName(string basePath, int partIndex, int totalParts, string splitName)
-        {
-            if (string.IsNullOrEmpty(basePath))
-            {
-                throw new ArgumentException("Base path cannot be null or empty", nameof(basePath));
-            }
-
-            if (partIndex < 1 || partIndex > totalParts)
-            {
-                throw new ArgumentOutOfRangeException(nameof(partIndex), "Part index must be between 1 and the total number of parts");
-            }
-
-            if (totalParts < 1)
-            {
-                throw new ArgumentOutOfRangeException(nameof(totalParts), "Total parts must be at least 1");
-            }
-
-            // Format: baseFileName.partXXX.frgl
-            // Where XXX is the part number padded with zeros
-            // The number of digits depends on the total number of parts
-            int digits = totalParts.ToString().Length;
-            string partSuffix = $"{splitName}{partIndex.ToString().PadLeft(digits, '0')}";
-
-            // Handle file with extension
-            string extension = System.IO.Path.GetExtension(basePath);
-            string nameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(basePath) ?? "Fragile"; System.IO.Path.GetFileNameWithoutExtension(basePath);
-
-            return nameWithoutExtension + partSuffix + extension;
-        }
-
-        /// <summary>
         /// Creates a FragileArchivePart from a file name
         /// </summary>
         /// <param name="fileName">Path to the part file</param>
@@ -138,6 +100,44 @@ namespace Fragile.Core
             };
 
             return part;
+        }
+
+        /// <summary>
+        /// Gets the standard file name for a split archive part
+        /// </summary>
+        /// <param name="basePath">The base archive path</param>
+        /// <param name="partIndex">The part index (1-based)</param>
+        /// <param name="totalParts">The total number of parts</param>
+        /// <param name="splitName">The name of the split parts</param>
+        /// <returns>The formatted part file name</returns>
+        public static string GetPartFileName(string basePath, int partIndex, int totalParts, string splitName)
+        {
+            if (string.IsNullOrEmpty(basePath))
+            {
+                throw new ArgumentException("Base path cannot be null or empty", nameof(basePath));
+            }
+
+            if (partIndex < 1 || partIndex > totalParts)
+            {
+                throw new ArgumentOutOfRangeException(nameof(partIndex), "Part index must be between 1 and the total number of parts");
+            }
+
+            if (totalParts < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(totalParts), "Total parts must be at least 1");
+            }
+
+            // Format: baseFileName.partXXX.frgl
+            // Where XXX is the part number padded with zeros
+            // The number of digits depends on the total number of parts
+            int digits = totalParts.ToString().Length;
+            string partSuffix = $"{splitName}{partIndex.ToString().PadLeft(digits, '0')}";
+
+            // Handle file with extension
+            string extension = System.IO.Path.GetExtension(basePath);
+            string nameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(basePath) ?? "Fragile"; System.IO.Path.GetFileNameWithoutExtension(basePath);
+
+            return nameWithoutExtension + partSuffix + extension;
         }
     }
 }

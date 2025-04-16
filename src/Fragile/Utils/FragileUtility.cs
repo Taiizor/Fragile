@@ -1,6 +1,5 @@
 using Fragile.Core;
 using Fragile.Models;
-using System.Diagnostics;
 using System.Text;
 
 namespace Fragile.Utils
@@ -10,11 +9,6 @@ namespace Fragile.Utils
     /// </summary>
     public static class FragileUtility
     {
-        /// <summary>
-        /// Default file extension specific to the Fragile archiving format
-        /// </summary>
-        public const string DefaultExtension = ".frgl";
-
         /// <summary>
         /// Adds a file or directory to a Fragile archive
         /// </summary>
@@ -45,9 +39,16 @@ namespace Fragile.Utils
             options ??= new FragileOptions();
 
             // Source file/directory name + .frgl extension
-            archivePath ??= Path.ChangeExtension(sourcePath, DefaultExtension);
+            archivePath ??= Path.ChangeExtension(sourcePath, options.Extension);
+
+            // Ensure the archive path has the correct extension
+            if (!archivePath.EndsWith(options.Extension))
+            {
+                archivePath = Path.ChangeExtension(archivePath, options.Extension);
+            }
 
             using FragileArchive archive = new(archivePath, FragileArchiveMode.Create, options);
+
             int count = 0;
 
             if (File.Exists(sourcePath))
@@ -65,6 +66,7 @@ namespace Fragile.Utils
             }
 
             archive.Save();
+
             return count;
         }
 
@@ -86,9 +88,16 @@ namespace Fragile.Utils
             options ??= new FragileOptions();
 
             // Source file/directory name + .frgl extension
-            archivePath ??= Path.ChangeExtension(sourcePath, DefaultExtension);
+            archivePath ??= Path.ChangeExtension(sourcePath, options.Extension);
+
+            // Ensure the archive path has the correct extension
+            if (!archivePath.EndsWith(options.Extension))
+            {
+                archivePath = Path.ChangeExtension(archivePath, options.Extension);
+            }
 
             using FragileArchive archive = await FragileArchive.CreateAsync(archivePath, options);
+
             int count = 0;
 
             if (File.Exists(sourcePath))
@@ -147,7 +156,14 @@ namespace Fragile.Utils
 
             options ??= new FragileOptions();
 
+            // Ensure the archive path has the correct extension
+            if (!archivePath.EndsWith(options.Extension))
+            {
+                archivePath = Path.ChangeExtension(archivePath, options.Extension);
+            }
+
             using FragileArchive archive = new(archivePath, FragileArchiveMode.Read, options);
+
             archive.ExtractAll(destinationPath);
         }
 
@@ -179,7 +195,14 @@ namespace Fragile.Utils
 
             options ??= new FragileOptions();
 
+            // Ensure the archive path has the correct extension
+            if (!archivePath.EndsWith(options.Extension))
+            {
+                archivePath = Path.ChangeExtension(archivePath, options.Extension);
+            }
+
             using FragileArchive archive = await FragileArchive.OpenAsync(archivePath, options);
+
             await archive.ExtractAllAsync(destinationPath);
         }
 
@@ -187,16 +210,27 @@ namespace Fragile.Utils
         /// Checks if the given file is a Fragile archive by checking the file extension
         /// </summary>
         /// <param name="filePath">Path to the file to check</param>
+        /// <param name="options">Archive options for checking</param>
         /// <returns>True if it's a Fragile archive</returns>
-        public static bool IsFragileArchive(string filePath)
+        public static bool IsFragileArchive(string filePath, FragileOptions? options = null)
         {
             if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
             {
                 return false;
             }
 
+            options ??= new FragileOptions();
+
+            filePath ??= Path.ChangeExtension(filePath, options.Extension);
+
+            // Ensure the file archive path has the correct extension
+            if (!filePath.EndsWith(options.Extension))
+            {
+                filePath = Path.ChangeExtension(filePath, options.Extension);
+            }
+
             // Check extension first
-            if (!filePath.EndsWith(DefaultExtension, StringComparison.OrdinalIgnoreCase))
+            if (!filePath.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -205,14 +239,72 @@ namespace Fragile.Utils
             {
                 // Check file header
                 using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
                 if (stream.Length < 4)
                 {
                     return false;
                 }
 
-                byte[] signature = new byte[4];
-                stream.Read(signature, 0, 4);
-                return Encoding.ASCII.GetString(signature) == "FRGL";
+                byte[] signature = new byte[options.Signature.Length];
+
+                stream.Read(signature, 0, options.Signature.Length);
+
+                return Encoding.ASCII.GetString(signature) == options.Signature;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Asynchronously checks if the given file is a Fragile archive by checking the file extension
+        /// </summary>
+        /// <param name="filePath">Path to the file to check</param>
+        /// <param name="options">Archive options for checking</param>
+        /// <returns>True if it's a Fragile archive</returns>
+        public static async Task<bool> IsFragileArchiveAsync(string filePath, FragileOptions? options = null)
+        {
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            {
+                return false;
+            }
+
+            options ??= new FragileOptions();
+
+            filePath ??= Path.ChangeExtension(filePath, options.Extension);
+
+            // Ensure the file archive path has the correct extension
+            if (!filePath.EndsWith(options.Extension))
+            {
+                filePath = Path.ChangeExtension(filePath, options.Extension);
+            }
+
+            // Check extension first
+            if (!filePath.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            try
+            {
+                // Check file header
+                using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+                if (stream.Length < 4)
+                {
+                    return false;
+                }
+
+                byte[] signature = new byte[options.Signature.Length];
+
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                await stream.ReadAsync(signature, 0, options.Signature.Length);
+#else
+                await stream.ReadAsync(signature.AsMemory(0, options.Signature.Length));
+#endif
+
+                return Encoding.ASCII.GetString(signature) == options.Signature;
             }
             catch
             {
@@ -253,6 +345,12 @@ namespace Fragile.Utils
 
             options ??= new FragileOptions { SplitSize = 100 * 1024 * 1024 }; // Default 100MB if not specified
 
+            // Ensure the archive path has the correct extension
+            if (!archivePath.EndsWith(options.Extension))
+            {
+                archivePath = Path.ChangeExtension(archivePath, options.Extension);
+            }
+
             // Ensure SplitSize is set
             if (options.SplitSize <= 0)
             {
@@ -260,6 +358,7 @@ namespace Fragile.Utils
             }
 
             using FragileArchive archive = await FragileArchive.OpenAsync(archivePath, options);
+
             return await archive.SplitAsync(outputDirectory);
         }
 
@@ -283,6 +382,12 @@ namespace Fragile.Utils
             }
 
             options ??= new FragileOptions();
+
+            // Ensure the first archive part path has the correct extension
+            if (!firstPartPath.EndsWith(options.Extension))
+            {
+                firstPartPath = Path.ChangeExtension(firstPartPath, options.Extension);
+            }
 
             // Find all parts based on the first part
             FragileArchivePartCollection parts = FragileArchivePartCollection.FindParts(firstPartPath, options);
@@ -308,6 +413,12 @@ namespace Fragile.Utils
 #else
                     baseName = fileName[..partIndex];
 #endif
+                }
+
+                // Ensure the combined archive path has the correct extension
+                if (!outputPath.EndsWith(options.Extension))
+                {
+                    outputPath = Path.ChangeExtension(outputPath, options.Extension);
                 }
 
                 outputPath = Path.Combine(directory, baseName);
@@ -354,7 +465,13 @@ namespace Fragile.Utils
             }
 
             // Source file/directory name + .frgl extension
-            archivePath ??= Path.ChangeExtension(sourcePath, DefaultExtension);
+            archivePath ??= Path.ChangeExtension(sourcePath, options.Extension);
+
+            // Ensure the archive path has the correct extension
+            if (!archivePath.EndsWith(options.Extension))
+            {
+                archivePath = Path.ChangeExtension(archivePath, options.Extension);
+            }
 
             // Create temp directory for the original archive
             string tempDirectory = Path.Combine(options.TempDirectory, $"Fragile_{Guid.NewGuid()}");
@@ -411,6 +528,7 @@ namespace Fragile.Utils
                 {
                     // The archive was created but not split yet
                     using FragileArchive archive = await FragileArchive.OpenAsync(tempArchivePath, options);
+
                     return await archive.SplitAsync(outputDirectory);
                 }
             }
@@ -424,11 +542,7 @@ namespace Fragile.Utils
                         Directory.Delete(tempDirectory, true);
                     }
                 }
-                catch (IOException ex)
-                {
-                    // Log but don't throw - this is cleanup code
-                    Debug.WriteLine($"Error cleaning up temporary directory: {ex.Message}");
-                }
+                catch (IOException) { }
             }
         }
     }

@@ -9,34 +9,10 @@ namespace Fragile.Metadata
     public class ArchiveMetadata
     {
         /// <summary>
-        /// Archive creation date
-        /// </summary>
-        [JsonPropertyName("created")]
-        public DateTime CreationTime { get; set; } = DateTime.UtcNow;
-
-        /// <summary>
-        /// Archive last modified date
-        /// </summary>
-        [JsonPropertyName("modified")]
-        public DateTime LastModifiedTime { get; set; } = DateTime.UtcNow;
-
-        /// <summary>
-        /// Archive creator name or application
-        /// </summary>
-        [JsonPropertyName("creator")]
-        public string? Creator { get; set; } = "Fragile Library";
-
-        /// <summary>
         /// Archive title
         /// </summary>
         [JsonPropertyName("title")]
         public string? Title { get; set; }
-
-        /// <summary>
-        /// Archive description
-        /// </summary>
-        [JsonPropertyName("description")]
-        public string? Description { get; set; }
 
         /// <summary>
         /// Archive author or owner
@@ -51,16 +27,40 @@ namespace Fragile.Metadata
         public string? Version { get; set; }
 
         /// <summary>
+        /// Archive description
+        /// </summary>
+        [JsonPropertyName("description")]
+        public string? Description { get; set; }
+
+        /// <summary>
         /// Archive categories or tags
         /// </summary>
         [JsonPropertyName("tags")]
         public List<string> Tags { get; set; } = [];
 
         /// <summary>
-        /// Custom metadata dictionary for user-defined properties
+        /// Archive creator name or application
         /// </summary>
-        [JsonPropertyName("custom")]
-        public Dictionary<string, string> CustomProperties { get; set; } = [];
+        [JsonPropertyName("creator")]
+        public string? Creator { get; set; } = "Fragile Library";
+
+        /// <summary>
+        /// Archive creation date
+        /// </summary>
+        [JsonPropertyName("created")]
+        public DateTime CreationTime { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Archive last modified date
+        /// </summary>
+        [JsonPropertyName("modified")]
+        public DateTime LastModifiedTime { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Fragile library version used to create the archive
+        /// </summary>
+        [JsonPropertyName("library_version")]
+        public string LibraryVersion { get; set; } = GetLibraryVersion();
 
         /// <summary>
         /// Application-specific data
@@ -69,10 +69,10 @@ namespace Fragile.Metadata
         public Dictionary<string, string> ApplicationData { get; set; } = [];
 
         /// <summary>
-        /// Fragile library version used to create the archive
+        /// Custom metadata dictionary for user-defined properties
         /// </summary>
-        [JsonPropertyName("library_version")]
-        public string LibraryVersion { get; set; } = GetLibraryVersion();
+        [JsonPropertyName("custom")]
+        public Dictionary<string, string> CustomProperties { get; set; } = [];
 
         /// <summary>
         /// Serializes metadata to JSON
@@ -88,18 +88,18 @@ namespace Fragile.Metadata
         }
 
         /// <summary>
-        /// Deserializes metadata from JSON
+        /// Gets a custom property value
         /// </summary>
-        /// <param name="json">JSON string to deserialize</param>
-        /// <returns>ArchiveMetadata object</returns>
-        public static ArchiveMetadata FromJson(string json)
+        /// <param name="key">Property name</param>
+        /// <returns>Property value or null if not found</returns>
+        public string? GetProperty(string key)
         {
-            if (string.IsNullOrEmpty(json))
+            if (string.IsNullOrEmpty(key))
             {
-                return new ArchiveMetadata();
+                return null;
             }
 
-            return JsonSerializer.Deserialize<ArchiveMetadata>(json) ?? new ArchiveMetadata();
+            return CustomProperties.TryGetValue(key, out string? value) ? value : null;
         }
 
         /// <summary>
@@ -118,18 +118,18 @@ namespace Fragile.Metadata
         }
 
         /// <summary>
-        /// Gets a custom property value
+        /// Deserializes metadata from JSON
         /// </summary>
-        /// <param name="key">Property name</param>
-        /// <returns>Property value or null if not found</returns>
-        public string? GetProperty(string key)
+        /// <param name="json">JSON string to deserialize</param>
+        /// <returns>ArchiveMetadata object</returns>
+        public static ArchiveMetadata FromJson(string json)
         {
-            if (string.IsNullOrEmpty(key))
+            if (string.IsNullOrEmpty(json))
             {
-                return null;
+                return new ArchiveMetadata();
             }
 
-            return CustomProperties.TryGetValue(key, out string? value) ? value : null;
+            return JsonSerializer.Deserialize<ArchiveMetadata>(json) ?? new ArchiveMetadata();
         }
 
         /// <summary>

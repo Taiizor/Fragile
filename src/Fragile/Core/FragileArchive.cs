@@ -5,7 +5,6 @@ using Fragile.Metadata;
 using Fragile.Models;
 using Fragile.Verification;
 using System.Diagnostics;
-using System.IO.Compression;
 using System.Text;
 
 namespace Fragile.Core
@@ -16,7 +15,6 @@ namespace Fragile.Core
     public class FragileArchive : IDisposable
     {
         private readonly Dictionary<string, FragileArchiveEntry> _entries = [];
-        private const string FileSignature = "FRGL";
         private readonly FragileArchiveMode _mode;
         private const ushort VersionMajor = 1;
         private const ushort VersionMinor = 0;
@@ -70,29 +68,35 @@ namespace Fragile.Core
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _mode = mode;
 
+            // Ensure the archive path has the correct extension
+            if (!ArchivePath.EndsWith(_options.Extension))
+            {
+                ArchivePath = Path.ChangeExtension(ArchivePath, _options.Extension);
+            }
+
             if (mode == FragileArchiveMode.Create)
             {
-                _fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+                _fileStream = new FileStream(ArchivePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
             }
             else if (mode == FragileArchiveMode.Read)
             {
-                if (!File.Exists(archivePath))
+                if (!File.Exists(ArchivePath))
                 {
-                    throw new FileNotFoundException($"Archive file not found: {archivePath}");
+                    throw new FileNotFoundException($"Archive file not found: {ArchivePath}");
                 }
 
-                _fileStream = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                _fileStream = new FileStream(ArchivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 LoadArchiveEntries();
             }
-            else // Update
+            else if (mode == FragileArchiveMode.Update)
             {
                 if (!File.Exists(archivePath))
                 {
-                    _fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+                    _fileStream = new FileStream(ArchivePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
                 }
                 else
                 {
-                    _fileStream = new FileStream(archivePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                    _fileStream = new FileStream(ArchivePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
                     LoadArchiveEntries();
                 }
             }
@@ -493,7 +497,7 @@ namespace Fragile.Core
                 using (BinaryWriter writer = new(outputStream, Encoding.UTF8, true))
                 {
                     // File signature
-                    writer.Write(Encoding.ASCII.GetBytes(FileSignature));
+                    writer.Write(Encoding.ASCII.GetBytes(_options.Signature));
 
                     // Version
                     writer.Write(VersionMajor);
@@ -612,19 +616,13 @@ namespace Fragile.Core
                             // Compress and write from file
                             long fileDataStartPosition = outputStream.Position;
                             using FileStream fileStream = new(entry.SourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                            CompressionProvider compressionProvider = CompressionProvider.Create(
-                                _options.CompressionAlgorithm,
-                                _options.CompressionLevel,
-                                _options.UseParallelProcessing,
-                                _options.MaxThreads);
+                            CompressionProvider compressionProvider = CompressionProvider.Create(_options.CompressionAlgorithm, _options.CompressionLevel, _options.UseParallelProcessing, _options.MaxThreads);
 
                             // --- BEGIN RE-INSERTED COMPRESSION/ENCRYPTION LOGIC ---
                             if (_options.EnableEncryption)
                             {
                                 // Create encryption provider
-                                EncryptionProvider encryptionProvider = EncryptionProvider.Create(
-                                    _options.EncryptionMethod,
-                                    _options.Password);
+                                EncryptionProvider encryptionProvider = EncryptionProvider.Create(_options.EncryptionMethod, _options.Password);
 
                                 // Set encryption properties on the entry
                                 entry.IsEncrypted = true;
@@ -634,21 +632,13 @@ namespace Fragile.Core
                                 using MemoryStream compressedStream = new();
 
                                 // Compress the file to temporary stream
-                                await compressionProvider.CompressAsync(
-                                    fileStream,
-                                    compressedStream,
-                                    _options.Progress, // Assuming Progress<double> is handled correctly
-                                    _options.CancellationToken);
+                                await compressionProvider.CompressAsync(fileStream, compressedStream, _options.Progress, _options.CancellationToken);
 
                                 // Reset position for reading
                                 compressedStream.Position = 0;
 
                                 // Encrypt the compressed data to the output
-                                await encryptionProvider.EncryptAsync(
-                                    compressedStream,
-                                    outputStream,
-                                    _options.Progress, // Assuming Progress<double> is handled correctly
-                                    _options.CancellationToken);
+                                await encryptionProvider.EncryptAsync(compressedStream, outputStream, _options.Progress, _options.CancellationToken);
                             }
                             else
                             {
@@ -656,11 +646,7 @@ namespace Fragile.Core
                                 entry.IsEncrypted = false;
                                 entry.EncryptionMethod = EncryptionMethod.None;
 
-                                await compressionProvider.CompressAsync(
-                                    fileStream,
-                                    outputStream,
-                                    _options.Progress, // Assuming Progress<double> is handled correctly
-                                    _options.CancellationToken);
+                                await compressionProvider.CompressAsync(fileStream, outputStream, _options.Progress, _options.CancellationToken);
                             }
                             // Ensure data is written before calculating size based on position
                             await outputStream.FlushAsync(_options.CancellationToken);
@@ -853,9 +839,9 @@ namespace Fragile.Core
 
             using BinaryReader reader = new(_fileStream, Encoding.UTF8, true);
             // Check file signature
-            string signature = Encoding.ASCII.GetString(reader.ReadBytes(4));
+            string signature = Encoding.ASCII.GetString(reader.ReadBytes(_options.Signature.Length));
 
-            if (signature != FileSignature)
+            if (signature != _options.Signature)
             {
                 throw new InvalidDataException("Invalid Fragile archive file signature");
             }
@@ -1037,28 +1023,7 @@ namespace Fragile.Core
 
         private void ExtractFile(FragileArchiveEntry entry, string destinationPath)
         {
-            EnsureFileStream();
-
-            // Create directory if it doesn't exist
-            string? directory = Path.GetDirectoryName(destinationPath);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            // Position stream at file data using PositionOffset
-            _fileStream!.Position = entry.PositionOffset;
-
-            // Read compressed data
-            byte[] compressedData = new byte[entry.CompressedSize];
-            _fileStream.Read(compressedData, 0, (int)entry.CompressedSize);
-
-            // Decompress and write to the destination file
-            using FileStream outputFile = new(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            using MemoryStream compressedStream = new(compressedData);
-            using DeflateStream deflateStream = new(compressedStream, CompressionMode.Decompress);
-
-            deflateStream.CopyTo(outputFile);
+            ExtractFileAsync(entry, destinationPath).GetAwaiter().GetResult();
         }
 
         private async Task ExtractFileAsync(FragileArchiveEntry entry, string destinationPath)
@@ -1099,6 +1064,7 @@ namespace Fragile.Core
 
                     // Read the stored checksum (assuming it's stored right after the compressed data)
                     byte[] storedChecksum = new byte[verificationProvider.GetChecksumSize()];
+
 #if NET48_OR_GREATER || NETSTANDARD2_0
                     await _fileStream.ReadAsync(storedChecksum, 0, storedChecksum.Length);
 #else
@@ -1106,11 +1072,7 @@ namespace Fragile.Core
 #endif
 
                     // Verify the checksum
-                    bool isValid = await verificationProvider.VerifyChecksumAsync(
-                        compressedStream,
-                        storedChecksum,
-                        _options.Progress,
-                        _options.CancellationToken);
+                    bool isValid = await verificationProvider.VerifyChecksumAsync(compressedStream, storedChecksum, _options.Progress, _options.CancellationToken);
 
                     if (!isValid)
                     {
@@ -1125,11 +1087,7 @@ namespace Fragile.Core
                 using FileStream outputFile = new(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
 
                 // Create an appropriate decompressor
-                CompressionProvider compressionProvider = CompressionProvider.Create(
-                    _options.CompressionAlgorithm,
-                    _options.CompressionLevel,
-                    _options.UseParallelProcessing,
-                    _options.MaxThreads);
+                CompressionProvider compressionProvider = CompressionProvider.Create(_options.CompressionAlgorithm, _options.CompressionLevel, _options.UseParallelProcessing, _options.MaxThreads);
 
                 // Check if the entry is encrypted
                 bool isEncrypted = entry.IsEncrypted;
@@ -1156,39 +1114,24 @@ namespace Fragile.Core
                 if (isEncrypted && _options.EnableEncryption)
                 {
                     // Create encryption provider for decryption
-                    EncryptionProvider encryptionProvider = EncryptionProvider.Create(
-                        entry.EncryptionMethod != EncryptionMethod.None ?
-                            entry.EncryptionMethod : _options.EncryptionMethod,
-                        _options.Password);
+                    EncryptionProvider encryptionProvider = EncryptionProvider.Create(entry.EncryptionMethod != EncryptionMethod.None ? entry.EncryptionMethod : _options.EncryptionMethod, _options.Password);
 
                     // First decrypt, then decompress
                     using MemoryStream decryptedStream = new();
 
                     // Decrypt the data
-                    await encryptionProvider.DecryptAsync(
-                        compressedStream,
-                        decryptedStream,
-                        _options.Progress,
-                        _options.CancellationToken);
+                    await encryptionProvider.DecryptAsync(compressedStream, decryptedStream, _options.Progress, _options.CancellationToken);
 
                     // Reset position for reading
                     decryptedStream.Position = 0;
 
                     // Decompress the decrypted data
-                    await compressionProvider.DecompressAsync(
-                        decryptedStream,
-                        outputFile,
-                        _options.Progress,
-                        _options.CancellationToken);
+                    await compressionProvider.DecompressAsync(decryptedStream, outputFile, _options.Progress, _options.CancellationToken);
                 }
                 else
                 {
                     // No encryption, just decompress the data
-                    await compressionProvider.DecompressAsync(
-                        compressedStream,
-                        outputFile,
-                        _options.Progress,
-                        _options.CancellationToken);
+                    await compressionProvider.DecompressAsync(compressedStream, outputFile, _options.Progress, _options.CancellationToken);
                 }
             }
             catch (Exception)
@@ -1304,7 +1247,7 @@ namespace Fragile.Core
 
             if (useTemporaryFile)
             {
-                tempArchivePath = Path.Combine(_options.TempDirectory, $"Fragile_{Guid.NewGuid()}.frgl");
+                tempArchivePath = Path.Combine(_options.TempDirectory, $"Fragile_{Guid.NewGuid()}{_options.Extension}");
                 await SaveAsync(); // Make sure the current state is saved
                 File.Copy(ArchivePath, tempArchivePath);
             }

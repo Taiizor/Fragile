@@ -8,8 +8,7 @@ namespace Fragile.Verification
         /// <summary>
         /// Creates a new NoneVerificationProvider with default settings
         /// </summary>
-        public NoneVerificationProvider()
-            : base(false, 1)
+        public NoneVerificationProvider() : base(false, 1)
         {
         }
 
@@ -18,8 +17,7 @@ namespace Fragile.Verification
         /// </summary>
         /// <param name="useParallelProcessing">Whether to use parallel processing</param>
         /// <param name="maxThreads">Maximum number of threads to use</param>
-        public NoneVerificationProvider(bool useParallelProcessing, int maxThreads)
-            : base(useParallelProcessing, maxThreads)
+        public NoneVerificationProvider(bool useParallelProcessing, int maxThreads) : base(useParallelProcessing, maxThreads)
         {
         }
 

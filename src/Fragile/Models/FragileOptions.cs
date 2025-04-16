@@ -21,6 +21,18 @@ namespace Fragile.Models
         public long SplitSize { get; set; } = 0;
 
         /// <summary>
+        /// Represents a string property named Signature, initialized with the value 'FRGL'.
+        /// It is used to identify the file format of the archive.
+        /// </summary>
+        public string Signature { get; set; } = "FRGL";
+
+        /// <summary>
+        /// Represents the file extension, defaulting to '.frgl'.
+        /// It is a string property that can be accessed and modified.
+        /// </summary>
+        public string Extension { get; set; } = ".frgl";
+
+        /// <summary>
         /// Progress reporting callback
         /// </summary>
         public IProgress<double>? Progress { get; set; }

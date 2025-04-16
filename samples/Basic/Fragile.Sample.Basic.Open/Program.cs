@@ -19,7 +19,7 @@ namespace Fragile.Sample.Basic.Open
             string sampleDir = "Sample";
             Directory.CreateDirectory(sampleDir);
 
-            ...
+            //...
 
             Console.WriteLine("Press any key to exit...");
             Console.ReadKey();

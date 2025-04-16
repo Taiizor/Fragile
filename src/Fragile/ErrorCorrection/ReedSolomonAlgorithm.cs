@@ -370,9 +370,9 @@ namespace Fragile.ErrorCorrection
     /// </summary>
     internal class GaloisField
     {
+        private readonly int _size;
         private readonly int[] _expTable;
         private readonly int[] _logTable;
-        private readonly int _size;
 
         /// <summary>
         /// Creates a Galois field
@@ -381,8 +381,8 @@ namespace Fragile.ErrorCorrection
         public GaloisField(int fieldSize)
         {
             _size = fieldSize;
-            _expTable = new int[fieldSize * 2];
             _logTable = new int[fieldSize];
+            _expTable = new int[fieldSize * 2];
 
             // Primitive polinomial: x^8 + x^4 + x^3 + x^2 + 1 (0x11D)
             int primitive = 0x11D;

@@ -124,9 +124,7 @@ namespace Fragile.Compression
                             byte currentByte = inputData[i];
                             int runLength = 1;
 
-                            while (i + runLength < blockStart + currentBlockSize &&
-                                  runLength < 255 &&
-                                  inputData[i + runLength] == currentByte)
+                            while (i + runLength < blockStart + currentBlockSize && runLength < 255 && inputData[i + runLength] == currentByte)
                             {
                                 runLength++;
                             }
@@ -250,10 +248,8 @@ namespace Fragile.Compression
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
             while (totalBytesRead < compressedSize && (bytesRead = await input.ReadAsync(compressedData, totalBytesRead, compressedSize - totalBytesRead, cancellationToken)) > 0)
-
 #else
             while (totalBytesRead < compressedSize && (bytesRead = await input.ReadAsync(compressedData.AsMemory(totalBytesRead, compressedSize - totalBytesRead), cancellationToken)) > 0)
-
 #endif
             {
                 totalBytesRead += bytesRead;

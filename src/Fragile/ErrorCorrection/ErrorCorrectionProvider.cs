@@ -8,6 +8,11 @@ namespace Fragile.ErrorCorrection
     public abstract class ErrorCorrectionProvider
     {
         /// <summary>
+        /// Maximum number of threads to use for parallel operations
+        /// </summary>
+        public int MaxThreads { get; }
+
+        /// <summary>
         /// Error correction level (as percentage)
         /// </summary>
         public int CorrectionLevel { get; }
@@ -16,11 +21,6 @@ namespace Fragile.ErrorCorrection
         /// Whether to use parallel processing for error correction operations
         /// </summary>
         public bool UseParallelProcessing { get; }
-
-        /// <summary>
-        /// Maximum number of threads to use for parallel operations
-        /// </summary>
-        public int MaxThreads { get; }
 
         /// <summary>
         /// Creates a new error correction provider
@@ -71,10 +71,7 @@ namespace Fragile.ErrorCorrection
                 return new NoneErrorCorrectionProvider(options.UseParallelProcessing, options.MaxThreads);
             }
 
-            return new ReedSolomonErrorCorrectionProvider(
-                options.ErrorCorrectionLevel,
-                options.UseParallelProcessing,
-                options.MaxThreads);
+            return new ReedSolomonErrorCorrectionProvider(options.ErrorCorrectionLevel, options.UseParallelProcessing, options.MaxThreads);
         }
 
         /// <summary>
@@ -85,8 +82,7 @@ namespace Fragile.ErrorCorrection
         /// <param name="progress">Progress notification</param>
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Total number of bytes written</returns>
-        public abstract Task<long> AddErrorCorrectionAsync(Stream input, Stream output,
-            IProgress<double>? progress = null, CancellationToken cancellationToken = default);
+        public abstract Task<long> AddErrorCorrectionAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Corrects data and removes error correction codes
@@ -97,8 +93,7 @@ namespace Fragile.ErrorCorrection
         /// <param name="progress">Progress notification</param>
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Value pair containing (bytes written, bytes repaired) - total number of bytes written and number of bytes corrected</returns>
-        public abstract Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output,
-            Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
+        public abstract Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output, Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Calculates the additional data size required for error correction
@@ -116,8 +111,7 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Creates a new empty error correction provider
         /// </summary>
-        public NoneErrorCorrectionProvider()
-            : base(0, false, 1)
+        public NoneErrorCorrectionProvider() : base(0, false, 1)
         { }
 
         /// <summary>
@@ -125,15 +119,13 @@ namespace Fragile.ErrorCorrection
         /// </summary>
         /// <param name="useParallelProcessing">Whether to use parallel processing</param>
         /// <param name="maxThreads">Maximum number of threads to use</param>
-        public NoneErrorCorrectionProvider(bool useParallelProcessing, int maxThreads)
-            : base(0, useParallelProcessing, maxThreads)
+        public NoneErrorCorrectionProvider(bool useParallelProcessing, int maxThreads) : base(0, useParallelProcessing, maxThreads)
         { }
 
         /// <summary>
         /// Copies data without modification (no error correction)
         /// </summary>
-        public override async Task<long> AddErrorCorrectionAsync(Stream input, Stream output,
-            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        public override async Task<long> AddErrorCorrectionAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             long initialPosition = output.Position;
 
@@ -146,8 +138,7 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Copies data without modification (no error correction)
         /// </summary>
-        public override async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output,
-            Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        public override async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output, Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             long initialPosition = output.Position;
 
@@ -168,8 +159,7 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Stream copying helper method
         /// </summary>
-        private async Task CopyStreamAsync(Stream input, Stream output,
-            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        private async Task CopyStreamAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             if (UseParallelProcessing && input.CanSeek && input.Length > 10 * 1024 * 1024) // 10MB threshold for parallel copy
             {
@@ -184,8 +174,7 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Sequential stream copying
         /// </summary>
-        private static async Task CopyStreamSequentialAsync(Stream input, Stream output,
-            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        private static async Task CopyStreamSequentialAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             byte[] buffer = new byte[81920]; // 80 KB buffer
 
@@ -224,8 +213,7 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Parallel stream copying
         /// </summary>
-        private async Task CopyStreamParallelAsync(Stream input, Stream output,
-            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        private async Task CopyStreamParallelAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             long streamLength = input.Length;
             int threadCount = Math.Min(MaxThreads, Environment.ProcessorCount);
@@ -344,8 +332,7 @@ namespace Fragile.ErrorCorrection
         /// Creates a new Reed-Solomon error correction provider
         /// </summary>
         /// <param name="correctionLevel">Error correction level (between 1-50)</param>
-        public ReedSolomonErrorCorrectionProvider(int correctionLevel)
-            : base(correctionLevel, false, 1)
+        public ReedSolomonErrorCorrectionProvider(int correctionLevel) : base(correctionLevel, false, 1)
         { }
 
         /// <summary>
@@ -354,15 +341,13 @@ namespace Fragile.ErrorCorrection
         /// <param name="correctionLevel">Error correction level (between 1-50)</param>
         /// <param name="useParallelProcessing">Whether to use parallel processing</param>
         /// <param name="maxThreads">Maximum number of threads to use</param>
-        public ReedSolomonErrorCorrectionProvider(int correctionLevel, bool useParallelProcessing, int maxThreads)
-            : base(correctionLevel, useParallelProcessing, maxThreads)
+        public ReedSolomonErrorCorrectionProvider(int correctionLevel, bool useParallelProcessing, int maxThreads) : base(correctionLevel, useParallelProcessing, maxThreads)
         { }
 
         /// <summary>
         /// Adds Reed-Solomon error correction codes to data
         /// </summary>
-        public override async Task<long> AddErrorCorrectionAsync(Stream input, Stream output,
-            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        public override async Task<long> AddErrorCorrectionAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             // If input stream is empty, return without writing anything to output stream
             if (input.Length == 0)
@@ -393,9 +378,7 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Sequentially adds error correction to data
         /// </summary>
-        private async Task<long> AddErrorCorrectionSequentialAsync(Stream input, Stream output,
-            ReedSolomonAlgorithm rs, int dataSize, int ecSize,
-            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        private async Task<long> AddErrorCorrectionSequentialAsync(Stream input, Stream output, ReedSolomonAlgorithm rs, int dataSize, int ecSize, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             // Process data in blocks
             byte[] buffer = new byte[dataSize];
@@ -461,9 +444,7 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Adds error correction to data using parallel processing
         /// </summary>
-        private async Task<long> AddErrorCorrectionParallelAsync(Stream input, Stream output,
-            ReedSolomonAlgorithm rs, int dataSize, int ecSize,
-            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        private async Task<long> AddErrorCorrectionParallelAsync(Stream input, Stream output, ReedSolomonAlgorithm rs, int dataSize, int ecSize, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             long fileLength = input.Length;
 
@@ -591,8 +572,7 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Corrects data using Reed-Solomon error correction codes
         /// </summary>
-        public override async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output,
-            Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        public override async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsAsync(Stream input, Stream output, Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             // If input stream is empty, return without writing anything to output stream
             if (input.Length == 0)
@@ -620,9 +600,7 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Sequentially corrects errors in data
         /// </summary>
-        private async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsSequentialAsync(Stream input, Stream output,
-            ReedSolomonAlgorithm rs, int dataSize, int ecSize,
-            Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        private async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsSequentialAsync(Stream input, Stream output, ReedSolomonAlgorithm rs, int dataSize, int ecSize, Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             int blockSize = dataSize + ecSize;
             byte[] buffer = new byte[blockSize];
@@ -694,9 +672,7 @@ namespace Fragile.ErrorCorrection
         /// <summary>
         /// Corrects errors in data using parallel processing
         /// </summary>
-        private async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsParallelAsync(Stream input, Stream output,
-            ReedSolomonAlgorithm rs, int dataSize, int ecSize,
-            Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        private async Task<(long bytesWritten, int bytesRepaired)> CorrectErrorsParallelAsync(Stream input, Stream output, ReedSolomonAlgorithm rs, int dataSize, int ecSize, Action<long, int>? reportRepairs = null, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             int blockSize = dataSize + ecSize;
             long fileLength = input.Length - 8; // Subtract header size

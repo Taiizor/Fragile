@@ -108,7 +108,7 @@ namespace Fragile.Compression
                 // First, try to detect if this is a parallel compressed file by reading the first few bytes
                 if (input.CanSeek && input.Length > 4)
                 {
-                    using (BinaryReader reader = new(input, System.Text.Encoding.UTF8, true))
+                    using (BinaryReader reader = new(input, Encoding.UTF8, true))
                     {
                         try
                         {
@@ -279,8 +279,7 @@ namespace Fragile.Compression
         /// <summary>
         /// Compresses the input stream to the output stream using parallel processing
         /// </summary>
-        private async Task CompressParallelAsync(Stream input, Stream output, System.IO.Compression.CompressionLevel compressionLevel,
-            IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        private async Task CompressParallelAsync(Stream input, Stream output, System.IO.Compression.CompressionLevel compressionLevel, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
 #if NET6_0_OR_GREATER || NETSTANDARD2_1
             long fileLength = input.Length;

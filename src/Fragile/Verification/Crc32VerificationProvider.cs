@@ -19,10 +19,12 @@ namespace Fragile.Verification
             for (uint i = 0; i < 256; i++)
             {
                 uint crc = i;
+
                 for (int j = 0; j < 8; j++)
                 {
                     crc = (crc & 1) == 1 ? (crc >> 1) ^ Polynomial : crc >> 1;
                 }
+
                 CrcTable[i] = crc;
             }
         }
@@ -39,8 +41,7 @@ namespace Fragile.Verification
         /// </summary>
         /// <param name="useParallelProcessing">Whether to use parallel processing</param>
         /// <param name="maxThreads">Maximum number of threads to use</param>
-        public Crc32VerificationProvider(bool useParallelProcessing, int maxThreads)
-            : base(useParallelProcessing, maxThreads)
+        public Crc32VerificationProvider(bool useParallelProcessing, int maxThreads) : base(useParallelProcessing, maxThreads)
         {
         }
 
