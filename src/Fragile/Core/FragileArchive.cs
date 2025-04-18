@@ -1,6 +1,7 @@
 using Fragile.Compression;
 using Fragile.Encryption;
 using Fragile.ErrorCorrection;
+using Fragile.Helpers;
 using Fragile.Metadata;
 using Fragile.Models;
 using Fragile.Verification;
@@ -71,7 +72,7 @@ namespace Fragile.Core
             // Ensure the archive path has the correct extension
             if (!ArchivePath.EndsWith(_options.Extension))
             {
-                ArchivePath = Path.ChangeExtension(ArchivePath, _options.Extension);
+                ArchivePath = FragilePath.EnsureArchiveExtension(ArchivePath, _options);
             }
 
             if (mode == FragileArchiveMode.Create)
@@ -80,7 +81,7 @@ namespace Fragile.Core
             }
             else if (mode == FragileArchiveMode.Read)
             {
-                if (!File.Exists(ArchivePath))
+                if (!FragilePath.IsFile(ArchivePath))
                 {
                     throw new FileNotFoundException($"Archive file not found: {ArchivePath}");
                 }
@@ -90,7 +91,7 @@ namespace Fragile.Core
             }
             else if (mode == FragileArchiveMode.Update)
             {
-                if (!File.Exists(archivePath))
+                if (!FragilePath.IsFile(archivePath))
                 {
                     _fileStream = new FileStream(ArchivePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
                 }
@@ -141,13 +142,12 @@ namespace Fragile.Core
                 throw new InvalidOperationException("Cannot add file to archive in read-only mode");
             }
 
-            if (!File.Exists(filePath))
+            if (!FragilePath.IsFile(filePath))
             {
                 throw new FileNotFoundException($"File not found: {filePath}");
             }
 
-            entryPath ??= Path.GetFileName(filePath);
-            entryPath = NormalizePath(entryPath);
+            entryPath = FragilePath.CreateEntryPath(filePath, entryPath);
 
             FileInfo fileInfo = new(filePath);
             FragileArchiveEntry entry = new()
@@ -190,13 +190,12 @@ namespace Fragile.Core
                 throw new InvalidOperationException("Cannot add directory to archive in read-only mode");
             }
 
-            if (!Directory.Exists(directoryPath))
+            if (!FragilePath.IsDirectory(directoryPath))
             {
                 throw new DirectoryNotFoundException($"Directory not found: {directoryPath}");
             }
 
-            entryPath ??= Path.GetFileName(directoryPath);
-            entryPath = NormalizePath(entryPath);
+            entryPath = FragilePath.CreateEntryPath(directoryPath, entryPath);
 
             // Add the directory itself
             DirectoryInfo dirInfo = new(directoryPath);
@@ -266,7 +265,7 @@ namespace Fragile.Core
                 throw new InvalidOperationException("Cannot extract in create mode");
             }
 
-            entryPath = NormalizePath(entryPath);
+            entryPath = FragilePath.NormalizePath(entryPath);
 
             if (!_entries.TryGetValue(entryPath, out FragileArchiveEntry? entry))
             {
@@ -317,7 +316,7 @@ namespace Fragile.Core
                 throw new InvalidOperationException("Cannot extract in create mode");
             }
 
-            entryPath = NormalizePath(entryPath);
+            entryPath = FragilePath.NormalizePath(entryPath);
 
             if (!_entries.TryGetValue(entryPath, out FragileArchiveEntry? entry))
             {
@@ -367,7 +366,7 @@ namespace Fragile.Core
             }
 
             // Create the target directory if it doesn't exist
-            Directory.CreateDirectory(destinationPath);
+            FragilePath.EnsureDirectoryExists(destinationPath);
 
             // Extract all entries
             foreach (FragileArchiveEntry entry in _entries.Values)
@@ -381,7 +380,7 @@ namespace Fragile.Core
                 else
                 {
                     // Ensure the directory exists
-                    Directory.CreateDirectory(Path.GetDirectoryName(targetPath));
+                    FragilePath.EnsureDirectoryExists(Path.GetDirectoryName(targetPath));
 
                     // Extract the file
                     ExtractFile(entry, targetPath);
@@ -408,7 +407,7 @@ namespace Fragile.Core
             }
 
             // Create the target directory if it doesn't exist
-            Directory.CreateDirectory(destinationPath);
+            FragilePath.EnsureDirectoryExists(destinationPath);
 
             // Extract all entries
             foreach (FragileArchiveEntry entry in _entries.Values)
@@ -434,7 +433,7 @@ namespace Fragile.Core
                         string? directory = Path.GetDirectoryName(targetPath);
                         if (!string.IsNullOrEmpty(directory))
                         {
-                            Directory.CreateDirectory(directory);
+                            FragilePath.EnsureDirectoryExists(directory);
                         }
 
                         // Extract the file
@@ -1042,7 +1041,7 @@ namespace Fragile.Core
                 string? directory = Path.GetDirectoryName(destinationPath);
                 if (!string.IsNullOrEmpty(directory))
                 {
-                    Directory.CreateDirectory(directory);
+                    FragilePath.EnsureDirectoryExists(directory);
                 }
 
                 // Position stream at file data using PositionOffset
@@ -1186,37 +1185,42 @@ namespace Fragile.Core
             }
         }
 
-        private static string NormalizePath(string path)
+        /// <summary>
+        /// Safely creates a DateTime from binary data.
+        /// Returns the current time in case of invalid values.
+        /// </summary>
+        private DateTime TryParseDateTime(long ticks)
         {
-            if (string.IsNullOrEmpty(path))
+            try
             {
-                return string.Empty;
+                return DateTime.FromBinary(ticks);
             }
-
-            // Remove null characters
-            path = path.Replace("\0", string.Empty);
-
-            // Remove invalid characters
-            char[] invalidChars = Path.GetInvalidPathChars();
-            foreach (char c in invalidChars)
+            catch (ArgumentException)
             {
-                path = path.Replace(c.ToString(), string.Empty);
+                // Return current time for invalid DateTime value
+                return DateTime.UtcNow;
             }
+        }
 
-            // Replace Windows path separators with forward slashes
-            path = path.Replace('\\', '/');
-
-            // Remove leading slashes
-            while (path.StartsWith("/"))
+        // Helper method for ReadExactlyAsync if not available directly on Stream (.NET Standard 2.0)
+        private static async Task ReadExactlyAsync(Stream stream, byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            int bytesRead = 0;
+            while (bytesRead < count)
             {
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                path = path.Substring(1);
+                int read = await stream.ReadAsync(buffer, offset + bytesRead, count - bytesRead, cancellationToken);
 #else
-                path = path[1..];
+                int read = await stream.ReadAsync(buffer.AsMemory(offset + bytesRead, count - bytesRead), cancellationToken);
 #endif
-            }
 
-            return path;
+                if (read == 0)
+                {
+                    throw new EndOfStreamException("Unable to read exactly specified number of bytes.");
+                }
+
+                bytesRead += read;
+            }
         }
 
         /// <summary>
@@ -1236,7 +1240,7 @@ namespace Fragile.Core
             // Make sure we have a valid output directory
             outputDirectory ??= Path.GetDirectoryName(ArchivePath) ?? ".";
 
-            Directory.CreateDirectory(outputDirectory);
+            FragilePath.EnsureDirectoryExists(outputDirectory);
 
             // Create part collection
             FragileArchivePartCollection partCollection = new(_options);
@@ -1247,7 +1251,7 @@ namespace Fragile.Core
 
             if (useTemporaryFile)
             {
-                tempArchivePath = Path.Combine(_options.TempDirectory, $"Fragile_{Guid.NewGuid()}{_options.Extension}");
+                tempArchivePath = FragilePath.CreateTempFilePath(_options);
                 await SaveAsync(); // Make sure the current state is saved
                 File.Copy(ArchivePath, tempArchivePath);
             }
@@ -1284,7 +1288,7 @@ namespace Fragile.Core
             finally
             {
                 // Clean up temporary file if created
-                if (useTemporaryFile && File.Exists(tempArchivePath))
+                if (useTemporaryFile && FragilePath.IsFile(tempArchivePath))
                 {
                     File.Delete(tempArchivePath);
                 }
@@ -1464,7 +1468,7 @@ namespace Fragile.Core
         /// <returns>Entry metadata or a new instance if none exists</returns>
         public EntryMetadata GetEntryMetadata(string entryPath)
         {
-            entryPath = NormalizePath(entryPath);
+            entryPath = FragilePath.NormalizePath(entryPath);
 
             if (_entryMetadata.TryGetValue(entryPath, out EntryMetadata? metadata))
             {
@@ -1487,7 +1491,7 @@ namespace Fragile.Core
                 return;
             }
 
-            entryPath = NormalizePath(entryPath);
+            entryPath = FragilePath.NormalizePath(entryPath);
 
             if (!_entries.ContainsKey(entryPath))
             {
@@ -1504,7 +1508,7 @@ namespace Fragile.Core
         /// <returns>Extended archive entry</returns>
         public FragileArchiveEntryExtended GetExtendedEntry(string entryPath)
         {
-            entryPath = NormalizePath(entryPath);
+            entryPath = FragilePath.NormalizePath(entryPath);
 
             if (!_entries.TryGetValue(entryPath, out FragileArchiveEntry? entry))
             {
@@ -1544,7 +1548,7 @@ namespace Fragile.Core
             ArgumentNullException.ThrowIfNull(extendedEntry);
 #endif
 
-            string entryPath = NormalizePath(extendedEntry.Path);
+            string entryPath = FragilePath.NormalizePath(extendedEntry.Path);
 
             if (!_entries.TryGetValue(entryPath, out _))
             {
@@ -1584,44 +1588,6 @@ namespace Fragile.Core
                 extendedEntry.HasErrorCorrection = _options.EnableErrorCorrection;
 
                 yield return extendedEntry;
-            }
-        }
-
-        /// <summary>
-        /// Safely creates a DateTime from binary data.
-        /// Returns the current time in case of invalid values.
-        /// </summary>
-        private DateTime TryParseDateTime(long ticks)
-        {
-            try
-            {
-                return DateTime.FromBinary(ticks);
-            }
-            catch (ArgumentException)
-            {
-                // Return current time for invalid DateTime value
-                return DateTime.UtcNow;
-            }
-        }
-
-        // Helper method for ReadExactlyAsync if not available directly on Stream (.NET Standard 2.0)
-        private static async Task ReadExactlyAsync(Stream stream, byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        {
-            int bytesRead = 0;
-            while (bytesRead < count)
-            {
-#if NET48_OR_GREATER || NETSTANDARD2_0
-                int read = await stream.ReadAsync(buffer, offset + bytesRead, count - bytesRead, cancellationToken);
-#else
-                int read = await stream.ReadAsync(buffer.AsMemory(offset + bytesRead, count - bytesRead), cancellationToken);
-#endif
-
-                if (read == 0)
-                {
-                    throw new EndOfStreamException("Unable to read exactly specified number of bytes.");
-                }
-
-                bytesRead += read;
             }
         }
     }

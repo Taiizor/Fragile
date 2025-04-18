@@ -5,16 +5,6 @@ namespace Fragile.ErrorCorrection
     /// </summary>
     internal class ReedSolomonErrorCorrectionProvider : ErrorCorrectionProvider
     {
-        // Block size limited by Reed-Solomon Galois field size
-        private const int MaxBlockSize = 255;
-
-        // Maximum error percentage that Reed-Solomon algorithm can correct
-        private const double MaxCorrectableErrorPercentage = 0.5;
-
-        // Default error correction sizes
-        private const int DefaultECSize = 32;    // Standard RS(255,223)
-        private const int DefaultDataSize = 223; // Standard RS(255,223)
-
         /// <summary>
         /// Creates a new Reed-Solomon error correction provider
         /// </summary>

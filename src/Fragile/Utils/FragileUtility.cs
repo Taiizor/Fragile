@@ -1,6 +1,6 @@
 using Fragile.Core;
+using Fragile.Helpers;
 using Fragile.Models;
-using System.Text;
 
 namespace Fragile.Utils
 {
@@ -39,24 +39,21 @@ namespace Fragile.Utils
             options ??= new FragileOptions();
 
             // Source file/directory name + .frgl extension
-            archivePath ??= Path.ChangeExtension(sourcePath, options.Extension);
+            archivePath ??= FragilePath.CreateArchivePathFromDirectory(sourcePath, options);
 
             // Ensure the archive path has the correct extension
-            if (!archivePath.EndsWith(options.Extension))
-            {
-                archivePath = Path.ChangeExtension(archivePath, options.Extension);
-            }
+            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
 
             using FragileArchive archive = new(archivePath, FragileArchiveMode.Create, options);
 
             int count = 0;
 
-            if (File.Exists(sourcePath))
+            if (FragilePath.IsFile(sourcePath))
             {
                 archive.AddFile(sourcePath);
                 count = 1;
             }
-            else if (Directory.Exists(sourcePath))
+            else if (FragilePath.IsDirectory(sourcePath))
             {
                 count = archive.AddDirectory(sourcePath, Path.GetFileName(sourcePath), recursive);
             }
@@ -68,6 +65,18 @@ namespace Fragile.Utils
             archive.Save();
 
             return count;
+        }
+
+        /// <summary>
+        /// Asynchronously adds a file or directory to a Fragile archive
+        /// </summary>
+        /// <param name="sourcePath">Path to the file or directory to archive</param>
+        /// <param name="archivePath">Path to the archive file to create (if null, source name + .frgl is used)</param>
+        /// <param name="recursive">If archiving a directory, include subdirectories?</param>
+        /// <returns>Total number of files added</returns>
+        public static async Task<int> CreateArchiveAsync(string sourcePath, string? archivePath = null, bool recursive = true)
+        {
+            return await CreateArchiveAsync(sourcePath, archivePath, recursive, new FragileOptions());
         }
 
         /// <summary>
@@ -88,24 +97,21 @@ namespace Fragile.Utils
             options ??= new FragileOptions();
 
             // Source file/directory name + .frgl extension
-            archivePath ??= Path.ChangeExtension(sourcePath, options.Extension);
+            archivePath ??= FragilePath.CreateArchivePathFromDirectory(sourcePath, options);
 
             // Ensure the archive path has the correct extension
-            if (!archivePath.EndsWith(options.Extension))
-            {
-                archivePath = Path.ChangeExtension(archivePath, options.Extension);
-            }
+            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
 
             using FragileArchive archive = await FragileArchive.CreateAsync(archivePath, options);
 
             int count = 0;
 
-            if (File.Exists(sourcePath))
+            if (FragilePath.IsFile(sourcePath))
             {
                 await archive.AddFileAsync(sourcePath);
                 count = 1;
             }
-            else if (Directory.Exists(sourcePath))
+            else if (FragilePath.IsDirectory(sourcePath))
             {
                 count = await archive.AddDirectoryAsync(sourcePath, Path.GetFileName(sourcePath), recursive);
             }
@@ -142,29 +148,33 @@ namespace Fragile.Utils
                 throw new ArgumentException("Archive file path cannot be empty", nameof(archivePath));
             }
 
-            if (!File.Exists(archivePath))
+            if (!FragilePath.IsFile(archivePath))
             {
                 throw new FileNotFoundException($"Archive file not found: {archivePath}");
             }
 
-            if (destinationPath == null)
-            {
-                // Use archive file name (without extension)
-                string dirName = Path.GetFileNameWithoutExtension(archivePath);
-                destinationPath = Path.Combine(Path.GetDirectoryName(archivePath) ?? "", dirName);
-            }
-
             options ??= new FragileOptions();
 
+            // Use the created destination directory path
+            destinationPath = FragilePath.CreateExtractionPath(archivePath, destinationPath);
+
             // Ensure the archive path has the correct extension
-            if (!archivePath.EndsWith(options.Extension))
-            {
-                archivePath = Path.ChangeExtension(archivePath, options.Extension);
-            }
+            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
 
             using FragileArchive archive = new(archivePath, FragileArchiveMode.Read, options);
 
             archive.ExtractAll(destinationPath);
+        }
+
+        /// <summary>
+        /// Asynchronously extracts a Fragile archive to the specified target directory
+        /// </summary>
+        /// <param name="archivePath">Path to the archive file</param>
+        /// <param name="destinationPath">Target directory (if null, archive name is used)</param>
+        /// <returns>Task representing the asynchronous operation</returns>
+        public static async Task ExtractArchiveAsync(string archivePath, string? destinationPath = null)
+        {
+            await ExtractArchiveAsync(archivePath, destinationPath, new FragileOptions());
         }
 
         /// <summary>
@@ -181,25 +191,18 @@ namespace Fragile.Utils
                 throw new ArgumentException("Archive file path cannot be empty", nameof(archivePath));
             }
 
-            if (!File.Exists(archivePath))
+            if (!FragilePath.IsFile(archivePath))
             {
                 throw new FileNotFoundException($"Archive file not found: {archivePath}");
             }
 
-            if (destinationPath == null)
-            {
-                // Use archive file name (without extension)
-                string dirName = Path.GetFileNameWithoutExtension(archivePath);
-                destinationPath = Path.Combine(Path.GetDirectoryName(archivePath) ?? "", dirName);
-            }
-
             options ??= new FragileOptions();
 
+            // Use the created destination directory path
+            destinationPath = FragilePath.CreateExtractionPath(archivePath, destinationPath);
+
             // Ensure the archive path has the correct extension
-            if (!archivePath.EndsWith(options.Extension))
-            {
-                archivePath = Path.ChangeExtension(archivePath, options.Extension);
-            }
+            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
 
             using FragileArchive archive = await FragileArchive.OpenAsync(archivePath, options);
 
@@ -214,47 +217,21 @@ namespace Fragile.Utils
         /// <returns>True if it's a Fragile archive</returns>
         public static bool IsFragileArchive(string filePath, FragileOptions? options = null)
         {
-            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            if (string.IsNullOrEmpty(filePath) || !FragilePath.IsFile(filePath))
             {
                 return false;
             }
 
             options ??= new FragileOptions();
 
-            filePath ??= Path.ChangeExtension(filePath, options.Extension);
-
-            // Ensure the file archive path has the correct extension
-            if (!filePath.EndsWith(options.Extension))
-            {
-                filePath = Path.ChangeExtension(filePath, options.Extension);
-            }
-
-            // Check extension first
-            if (!filePath.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase))
+            // Extension check
+            if (!FragilePath.IsValidArchivePath(filePath, options))
             {
                 return false;
             }
 
-            try
-            {
-                // Check file header
-                using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-
-                if (stream.Length < 4)
-                {
-                    return false;
-                }
-
-                byte[] signature = new byte[options.Signature.Length];
-
-                stream.Read(signature, 0, options.Signature.Length);
-
-                return Encoding.ASCII.GetString(signature) == options.Signature;
-            }
-            catch
-            {
-                return false;
-            }
+            // Signature check
+            return FragileSignature.CheckArchiveSignature(filePath, options);
         }
 
         /// <summary>
@@ -265,51 +242,21 @@ namespace Fragile.Utils
         /// <returns>True if it's a Fragile archive</returns>
         public static async Task<bool> IsFragileArchiveAsync(string filePath, FragileOptions? options = null)
         {
-            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            if (string.IsNullOrEmpty(filePath) || !FragilePath.IsFile(filePath))
             {
                 return false;
             }
 
             options ??= new FragileOptions();
 
-            filePath ??= Path.ChangeExtension(filePath, options.Extension);
-
-            // Ensure the file archive path has the correct extension
-            if (!filePath.EndsWith(options.Extension))
-            {
-                filePath = Path.ChangeExtension(filePath, options.Extension);
-            }
-
-            // Check extension first
-            if (!filePath.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase))
+            // Extension check
+            if (!FragilePath.IsValidArchivePath(filePath, options))
             {
                 return false;
             }
 
-            try
-            {
-                // Check file header
-                using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-
-                if (stream.Length < 4)
-                {
-                    return false;
-                }
-
-                byte[] signature = new byte[options.Signature.Length];
-
-#if NET48_OR_GREATER || NETSTANDARD2_0
-                await stream.ReadAsync(signature, 0, options.Signature.Length);
-#else
-                await stream.ReadAsync(signature.AsMemory(0, options.Signature.Length));
-#endif
-
-                return Encoding.ASCII.GetString(signature) == options.Signature;
-            }
-            catch
-            {
-                return false;
-            }
+            // Signature check
+            return await FragileSignature.CheckArchiveSignatureAsync(filePath, options);
         }
 
         /// <summary>
@@ -338,7 +285,7 @@ namespace Fragile.Utils
                 throw new ArgumentException("Archive file path cannot be empty", nameof(archivePath));
             }
 
-            if (!File.Exists(archivePath))
+            if (!FragilePath.IsFile(archivePath))
             {
                 throw new FileNotFoundException($"Archive file not found: {archivePath}");
             }
@@ -346,10 +293,7 @@ namespace Fragile.Utils
             options ??= new FragileOptions { SplitSize = 100 * 1024 * 1024 }; // Default 100MB if not specified
 
             // Ensure the archive path has the correct extension
-            if (!archivePath.EndsWith(options.Extension))
-            {
-                archivePath = Path.ChangeExtension(archivePath, options.Extension);
-            }
+            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
 
             // Ensure SplitSize is set
             if (options.SplitSize <= 0)
@@ -376,7 +320,7 @@ namespace Fragile.Utils
                 throw new ArgumentException("First part path cannot be empty", nameof(firstPartPath));
             }
 
-            if (!File.Exists(firstPartPath))
+            if (!FragilePath.IsFile(firstPartPath))
             {
                 throw new FileNotFoundException($"Part file not found: {firstPartPath}");
             }
@@ -384,10 +328,7 @@ namespace Fragile.Utils
             options ??= new FragileOptions();
 
             // Ensure the first archive part path has the correct extension
-            if (!firstPartPath.EndsWith(options.Extension))
-            {
-                firstPartPath = Path.ChangeExtension(firstPartPath, options.Extension);
-            }
+            firstPartPath = FragilePath.EnsureArchiveExtension(firstPartPath, options);
 
             // Find all parts based on the first part
             FragileArchivePartCollection parts = FragileArchivePartCollection.FindParts(firstPartPath, options);
@@ -415,13 +356,10 @@ namespace Fragile.Utils
 #endif
                 }
 
-                // Ensure the combined archive path has the correct extension
-                if (!outputPath.EndsWith(options.Extension))
-                {
-                    outputPath = Path.ChangeExtension(outputPath, options.Extension);
-                }
-
                 outputPath = Path.Combine(directory, baseName);
+
+                // Ensure the combined archive path has the correct extension
+                outputPath = FragilePath.EnsureArchiveExtension(outputPath, options);
             }
 
             // Combine parts
@@ -465,16 +403,13 @@ namespace Fragile.Utils
             }
 
             // Source file/directory name + .frgl extension
-            archivePath ??= Path.ChangeExtension(sourcePath, options.Extension);
+            archivePath ??= FragilePath.CreateArchivePathFromDirectory(sourcePath, options);
 
             // Ensure the archive path has the correct extension
-            if (!archivePath.EndsWith(options.Extension))
-            {
-                archivePath = Path.ChangeExtension(archivePath, options.Extension);
-            }
+            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
 
             // Create temp directory for the original archive
-            string tempDirectory = Path.Combine(options.TempDirectory, $"Fragile_{Guid.NewGuid()}");
+            string tempDirectory = FragilePath.CreateTempDirectoryPath(options);
             Directory.CreateDirectory(tempDirectory);
 
             try
@@ -489,7 +424,7 @@ namespace Fragile.Utils
                 string outputDirectory = Path.GetDirectoryName(archivePath) ?? "";
 
                 // Check if the temporary archive was already split (and deleted)
-                if (!File.Exists(tempArchivePath))
+                if (!FragilePath.IsFile(tempArchivePath))
                 {
                     // The archive was already split during creation
                     // We need to find the generated parts and move them to the output directory
@@ -502,7 +437,7 @@ namespace Fragile.Utils
                     }
 
                     // Create the output directory if it doesn't exist
-                    Directory.CreateDirectory(outputDirectory);
+                    FragilePath.EnsureDirectoryExists(outputDirectory);
 
                     // Create a part collection to return
                     FragileArchivePartCollection partCollection = new(options);

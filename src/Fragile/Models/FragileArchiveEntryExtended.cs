@@ -96,15 +96,15 @@ namespace Fragile.Models
 
             return new FragileArchiveEntryExtended
             {
+                Data = entry.Data,
                 Path = entry.Path,
                 Size = entry.Size,
-                CompressedSize = entry.CompressedSize,
-                LastModified = entry.LastModified,
-                IsDirectory = entry.IsDirectory,
                 Position = entry.Position,
                 SourcePath = entry.SourcePath,
-                Data = entry.Data,
+                IsDirectory = entry.IsDirectory,
                 HeaderOffset = entry.HeaderOffset,
+                LastModified = entry.LastModified,
+                CompressedSize = entry.CompressedSize,
                 PositionOffset = entry.PositionOffset
             };
         }
