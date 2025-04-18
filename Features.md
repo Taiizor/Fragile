@@ -105,9 +105,19 @@ Fragile is a custom file archiving library for .NET that provides advanced featu
 - Pluggable component system for different implementations
 - Provider-based architecture for compression, encryption, and verification
 
+### Native AOT Support
+
+- Enhanced cross-platform deployment capabilities
+- Optimized runtime performance with native CPU instructions
+- Full support for Ahead-of-Time compilation on .NET 7.0 and later
+- Significantly improved startup time with pre-compiled native code
+- Optimized for server-side applications and containerized deployments
+- Reduced memory footprint through trimming and ahead-of-time compilation
+
 ## Integration
 
 - Modern C# language features
 - Minimal external dependencies
 - System.Text.Json integration for metadata serialization
 - Compatible with .NET Framework 4.8/4.8.1, .NET 6-10 and .NET Standard 2.0/2.1
+- **Native AOT Support**: Ahead-of-Time compilation support for improved performance, startup time and memory usage on .NET 7.0 and later
