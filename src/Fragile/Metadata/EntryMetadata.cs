@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Fragile.Metadata
 {
@@ -71,6 +72,7 @@ namespace Fragile.Metadata
             return JsonSerializer.Serialize(this, new JsonSerializerOptions
             {
                 WriteIndented = false,
+                TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             });
         }

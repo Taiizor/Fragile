@@ -29,9 +29,9 @@ namespace Fragile.Sample.Beginner.Compression
 
             // Test different algorithms with Normal compression level
             Console.WriteLine("\nTesting different algorithms with Normal compression level...");
+            await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Store, "store");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Brotli, "brotli");
             await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Deflate, "deflate");
-            await TestCompressionAlgorithm(sampleDir, largeFilePath, originalSize, CompressionAlgorithm.Store, "store");
 
             // Also test different compression levels with Brotli
             Console.WriteLine("\nTesting different compression levels with Brotli algorithm...");
@@ -124,7 +124,7 @@ namespace Fragile.Sample.Beginner.Compression
             Console.WriteLine("\nAlgorithm comparison:");
             Console.WriteLine("=========================");
 
-            string[] algorithms = { "brotli", "deflate", "lzma", "store" };
+            string[] algorithms = { "store", "brotli", "deflate" };
 
             Console.WriteLine("|  Algorithm   |   File Size      |   Ratio   |   Savings   |");
             Console.WriteLine("|--------------|------------------|----------|------------|");

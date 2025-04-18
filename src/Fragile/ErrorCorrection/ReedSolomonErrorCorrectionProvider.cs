@@ -1,5 +1,3 @@
-using Fragile.Models;
-
 namespace Fragile.ErrorCorrection
 {
     /// <summary>
