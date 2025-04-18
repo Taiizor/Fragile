@@ -10,7 +10,7 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(TargetFramework)' == 'net7.0' or '$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net9.0' or '$(TargetFramework)' == 'net10.0'">
+    <PropertyGroup Condition="$([System.Text.RegularExpressions.Regex]::IsMatch($(TargetFramework), '^net[7-9]|net1[0-9]'))">
         <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
         <OptimizationPreference>Speed</OptimizationPreference>
         <IsAotCompatible>true</IsAotCompatible>
