@@ -292,10 +292,7 @@ namespace Fragile.Sample.Mastery.SecureFileVault
             {
                 CompressionAlgorithm.Store,   // Sıkıştırma yok
                 CompressionAlgorithm.Deflate, // Standart
-                CompressionAlgorithm.LZMA,    // Yüksek oran
-                CompressionAlgorithm.ZStd,    // Hızlı
-                CompressionAlgorithm.LZ4,     // Çok hızlı
-                CompressionAlgorithm.BZip2    // İyi oran
+                CompressionAlgorithm.Brotli,  // Yüksek oran
             };
 
             Console.WriteLine("\nAlgoritma      Boyut          Oran    Süre");

@@ -35,8 +35,6 @@ namespace Fragile.Sample.Basic.Compression
             await TestCompressionAlgorithm(sampleDir, sampleFilePath, originalSize, CompressionAlgorithm.Store, "store");
             await TestCompressionAlgorithm(sampleDir, sampleFilePath, originalSize, CompressionAlgorithm.Deflate, "deflate");
             await TestCompressionAlgorithm(sampleDir, sampleFilePath, originalSize, CompressionAlgorithm.Brotli, "brotli");
-            await TestCompressionAlgorithm(sampleDir, sampleFilePath, originalSize, CompressionAlgorithm.LZMA, "lzma");
-            await TestCompressionAlgorithm(sampleDir, sampleFilePath, originalSize, CompressionAlgorithm.ZStd, "zstd");
 
             // Display comparison table
             ShowComparisonTable(sampleDir, originalSize);
@@ -93,7 +91,7 @@ namespace Fragile.Sample.Basic.Compression
             Console.WriteLine("\nAlgorithm comparison summary:");
             Console.WriteLine("=========================");
 
-            string[] algorithms = { "store", "deflate", "brotli", "lzma", "zstd" };
+            string[] algorithms = { "store", "deflate", "brotli" };
 
             Console.WriteLine("| Algorithm | File Size  | Ratio | Savings |");
             Console.WriteLine("|-----------|------------|-------|---------|");

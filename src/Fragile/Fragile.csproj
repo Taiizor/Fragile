@@ -26,7 +26,7 @@
         <PackageLicenseExpression></PackageLicenseExpression>
         <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
         <PackageReleaseNotes>All changes are detailed at https://github.com/Taiizor/Fragile/wiki/Changelog.</PackageReleaseNotes>
-        <PackageTags>archive;compression;extension;encryption;error-correction;file;storage;Reed-Solomon;AES;SHA;ChaCha20;Twofish;LZ4;LZMA;ZStd;BZip2;Brotli;Deflate;CRC32;integrity;verification</PackageTags>
+        <PackageTags>archive;compression;extension;encryption;error-correction;file;storage;Reed-Solomon;AES;SHA;ChaCha20;Twofish;Brotli;Deflate;CRC32;integrity;verification</PackageTags>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <!--<DocumentationFile>..\$(Title)\bin$(OutputPath)\$(Configuration)\$(TargetFramework)\$(Title).xml</DocumentationFile>-->
         <PackageProjectUrl>https://fragile.soferity.com</PackageProjectUrl>
