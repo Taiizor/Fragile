@@ -21,7 +21,7 @@
 
     <PropertyGroup>
         <ApplicationIcon>Resources\Fragile.ico</ApplicationIcon>
-        <Version>1.0.0.8</Version>
+        <Version>1.0.0.9</Version>
         <AssemblyVersion>$(Version)</AssemblyVersion>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Title>Fragile</Title>
@@ -29,7 +29,7 @@
         <Authors>Taiizor</Authors>
         <Copyright>Copyright © $([System.DateTime]::Today.ToString(yyyy)) $(Authors)</Copyright>
         <Summary>Versatile, secure and advanced file archiving library.</Summary>
-        <Description>Fragile is a comprehensive archiving library developed for .NET, featuring file compression, encryption, error correction, and integrity verification capabilities. It offers advanced features such as multiple compression algorithms, strong encryption options, Reed-Solomon based error correction and parallel processing support.</Description>
+        <Description>Fragile is a comprehensive archiving library developed for .NET, featuring file compression, encryption, error correction and integrity verification capabilities. It offers advanced features such as multiple compression algorithms, strong encryption options, Reed-Solomon based error correction and parallel processing support.</Description>
         <PackageReadmeFile>README.MD</PackageReadmeFile>
         <PackageLicenseFile>LICENSE</PackageLicenseFile>
         <PackageLicenseExpression></PackageLicenseExpression>

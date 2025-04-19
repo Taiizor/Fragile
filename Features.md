@@ -1,6 +1,6 @@
 # Fragile Library Features
 
-Fragile is a custom file archiving library for .NET that provides advanced features beyond standard archiving capabilities. The library is designed to create robust and secure archives with support for various compression, encryption, and data integrity mechanisms.
+Fragile is a custom file archiving library for .NET that provides advanced features beyond standard archiving capabilities. The library is designed to create robust and secure archives with support for various compression, encryption and data integrity mechanisms.
 
 ## Core Features
 
@@ -11,7 +11,7 @@ Fragile is a custom file archiving library for .NET that provides advanced featu
 - **Archive Verification**: Signature and version verification for archive integrity
 - **Synchronous & Asynchronous API**: Full support for both sync and async operations
 - **Stream-based Processing**: Efficient handling of files with stream-based architecture
-- **Basic Operations**: Create, open, extract, and update archive files with `.frgl` extension
+- **Basic Operations**: Create, open, extract and update archive files with `.frgl` extension
 - **File & Directory Support**: Add individual files or entire directory structures to archives
 
 ### Compression
@@ -103,7 +103,7 @@ Fragile is a custom file archiving library for .NET that provides advanced featu
 - Support for custom metadata extensions
 - Easy addition of new algorithms and methods
 - Pluggable component system for different implementations
-- Provider-based architecture for compression, encryption, and verification
+- Provider-based architecture for compression, encryption and verification
 
 ### Native AOT Support
 
