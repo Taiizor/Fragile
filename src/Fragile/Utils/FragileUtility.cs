@@ -5,61 +5,64 @@ using Fragile.Models;
 namespace Fragile.Utils
 {
     /// <summary>
-    /// Helper class for Fragile archiving operations
+    /// Helper class that manages Fragile archiving operations
     /// </summary>
     public static class FragileUtility
     {
         /// <summary>
-        /// Adds a file or directory to a Fragile archive
+        /// Creates an archive from a specified file or folder
         /// </summary>
-        /// <param name="sourcePath">Path to the file or directory to archive</param>
-        /// <param name="archivePath">Path to the archive file to create (if null, source name + .frgl is used)</param>
-        /// <param name="recursive">If archiving a directory, include subdirectories?</param>
-        /// <returns>Total number of files added</returns>
-        public static int CreateArchive(string sourcePath, string? archivePath = null, bool recursive = true)
+        /// <param name="sourcePath">Path of the file or folder to be archived</param>
+        /// <param name="outputDirectory">Path of the directory where the archive will be saved</param>
+        /// <param name="recursive">Whether to include subdirectories when archiving a folder</param>
+        /// <returns>Total number of files added to the archive</returns>
+        public static int CreateArchive(string sourcePath, string outputDirectory, bool recursive = true)
         {
-            return CreateArchive(sourcePath, archivePath, recursive, new FragileOptions());
+            return CreateArchive(sourcePath, outputDirectory, recursive, new FragileOptions());
         }
 
         /// <summary>
-        /// Adds a file or directory to a Fragile archive with specified options
+        /// Creates an archive from a specified file or folder using custom options
         /// </summary>
-        /// <param name="sourcePath">Path to the file or directory to archive</param>
-        /// <param name="archivePath">Path to the archive file to create (if null, source name + .frgl is used)</param>
-        /// <param name="recursive">If archiving a directory, include subdirectories?</param>
-        /// <param name="options">Archive options for compression, encryption, etc.</param>
-        /// <returns>Total number of files added</returns>
-        public static int CreateArchive(string sourcePath, string? archivePath = null, bool recursive = true, FragileOptions? options = null)
+        /// <param name="sourcePath">Path of the file or folder to be archived</param>
+        /// <param name="outputDirectory">Path of the directory where the archive will be saved</param>
+        /// <param name="recursive">Whether to include subdirectories when archiving a folder</param>
+        /// <param name="options">Archive options (compression, encryption etc.)</param>
+        /// <returns>Total number of files added to the archive</returns>
+        public static int CreateArchive(string sourcePath, string outputDirectory, bool recursive = true, FragileOptions? options = null)
         {
-            if (string.IsNullOrEmpty(sourcePath))
+            if (string.IsNullOrWhiteSpace(sourcePath))
             {
-                throw new ArgumentException("Source path cannot be empty", nameof(sourcePath));
+                throw new ArgumentException("Source path cannot be empty.", nameof(sourcePath));
+            }
+
+            // Check if source path exists
+            if (!FragilePath2.IsFile(sourcePath) && !FragilePath2.IsDirectory(sourcePath))
+            {
+                throw new FileNotFoundException($"Specified source not found: {sourcePath}");
             }
 
             options ??= new FragileOptions();
 
-            // Source file/directory name + .frgl extension
-            archivePath ??= FragilePath.CreateArchivePathFromDirectory(sourcePath, options);
+            // Set source file/folder name for FileName
+            options.FileName = Path.GetFileNameWithoutExtension(sourcePath);
 
-            // Ensure the archive path has the correct extension
-            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
+            // Validate output directory and get full archive path
+            string archivePath = FragilePath2.ValidateAndGetArchivePath(outputDirectory, options);
 
+            // Create archive
             using FragileArchive archive = new(archivePath, FragileArchiveMode.Create, options);
 
             int count = 0;
 
-            if (FragilePath.IsFile(sourcePath))
+            if (FragilePath2.IsFile(sourcePath))
             {
                 archive.AddFile(sourcePath);
                 count = 1;
             }
-            else if (FragilePath.IsDirectory(sourcePath))
+            else // Folder
             {
                 count = archive.AddDirectory(sourcePath, Path.GetFileName(sourcePath), recursive);
-            }
-            else
-            {
-                throw new FileNotFoundException($"Specified source path not found: {sourcePath}");
             }
 
             archive.Save();
@@ -68,56 +71,59 @@ namespace Fragile.Utils
         }
 
         /// <summary>
-        /// Asynchronously adds a file or directory to a Fragile archive
+        /// Creates an archive from a specified file or folder (async)
         /// </summary>
-        /// <param name="sourcePath">Path to the file or directory to archive</param>
-        /// <param name="archivePath">Path to the archive file to create (if null, source name + .frgl is used)</param>
-        /// <param name="recursive">If archiving a directory, include subdirectories?</param>
-        /// <returns>Total number of files added</returns>
-        public static async Task<int> CreateArchiveAsync(string sourcePath, string? archivePath = null, bool recursive = true)
+        /// <param name="sourcePath">Path of the file or folder to be archived</param>
+        /// <param name="outputDirectory">Path of the directory where the archive will be saved</param>
+        /// <param name="recursive">Whether to include subdirectories when archiving a folder</param>
+        /// <returns>Total number of files added to the archive</returns>
+        public static async Task<int> CreateArchiveAsync(string sourcePath, string outputDirectory, bool recursive = true)
         {
-            return await CreateArchiveAsync(sourcePath, archivePath, recursive, new FragileOptions());
+            return await CreateArchiveAsync(sourcePath, outputDirectory, recursive, new FragileOptions());
         }
 
         /// <summary>
-        /// Asynchronously adds a file or directory to a Fragile archive with specified options
+        /// Creates an archive from a specified file or folder using custom options (async)
         /// </summary>
-        /// <param name="sourcePath">Path to the file or directory to archive</param>
-        /// <param name="archivePath">Path to the archive file to create (if null, source name + .frgl is used)</param>
-        /// <param name="recursive">If archiving a directory, include subdirectories?</param>
-        /// <param name="options">Archive options for compression, encryption, etc.</param>
-        /// <returns>Task representing the asynchronous operation with total number of files added</returns>
-        public static async Task<int> CreateArchiveAsync(string sourcePath, string? archivePath = null, bool recursive = true, FragileOptions? options = null)
+        /// <param name="sourcePath">Path of the file or folder to be archived</param>
+        /// <param name="outputDirectory">Path of the directory where the archive will be saved</param>
+        /// <param name="recursive">Whether to include subdirectories when archiving a folder</param>
+        /// <param name="options">Archive options (compression, encryption etc.)</param>
+        /// <returns>Total number of files added to the archive</returns>
+        public static async Task<int> CreateArchiveAsync(string sourcePath, string outputDirectory, bool recursive = true, FragileOptions? options = null)
         {
-            if (string.IsNullOrEmpty(sourcePath))
+            if (string.IsNullOrWhiteSpace(sourcePath))
             {
-                throw new ArgumentException("Source path cannot be empty", nameof(sourcePath));
+                throw new ArgumentException("Source path cannot be empty.", nameof(sourcePath));
+            }
+
+            // Check if source path exists
+            if (!FragilePath2.IsFile(sourcePath) && !FragilePath2.IsDirectory(sourcePath))
+            {
+                throw new FileNotFoundException($"Specified source not found: {sourcePath}");
             }
 
             options ??= new FragileOptions();
 
-            // Source file/directory name + .frgl extension
-            archivePath ??= FragilePath.CreateArchivePathFromDirectory(sourcePath, options);
+            // Set source file/folder name for FileName
+            options.FileName = Path.GetFileNameWithoutExtension(sourcePath);
 
-            // Ensure the archive path has the correct extension
-            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
+            // Validate output directory and get full archive path
+            string archivePath = FragilePath2.ValidateAndGetArchivePath(outputDirectory, options);
 
+            // Create archive
             using FragileArchive archive = await FragileArchive.CreateAsync(archivePath, options);
 
             int count = 0;
 
-            if (FragilePath.IsFile(sourcePath))
+            if (FragilePath2.IsFile(sourcePath))
             {
                 await archive.AddFileAsync(sourcePath);
                 count = 1;
             }
-            else if (FragilePath.IsDirectory(sourcePath))
+            else // Folder
             {
                 count = await archive.AddDirectoryAsync(sourcePath, Path.GetFileName(sourcePath), recursive);
-            }
-            else
-            {
-                throw new FileNotFoundException($"Specified source path not found: {sourcePath}");
             }
 
             await archive.SaveAsync();
@@ -128,96 +134,74 @@ namespace Fragile.Utils
         /// <summary>
         /// Extracts a Fragile archive to the specified target directory
         /// </summary>
-        /// <param name="archivePath">Path to the archive file</param>
-        /// <param name="destinationPath">Target directory (if null, archive name is used)</param>
-        public static void ExtractArchive(string archivePath, string? destinationPath = null)
+        /// <param name="archivePath">Path of the archive file</param>
+        /// <param name="destinationPath">Path of the target directory</param>
+        public static void ExtractArchive(string archivePath, string destinationPath)
         {
             ExtractArchive(archivePath, destinationPath, new FragileOptions());
         }
 
         /// <summary>
-        /// Extracts a Fragile archive to the specified target directory with specified options
+        /// Extracts a Fragile archive to the specified target directory using custom options
         /// </summary>
-        /// <param name="archivePath">Path to the archive file</param>
-        /// <param name="destinationPath">Target directory (if null, archive name is used)</param>
-        /// <param name="options">Archive options for decompression, decryption, etc.</param>
-        public static void ExtractArchive(string archivePath, string? destinationPath = null, FragileOptions? options = null)
+        /// <param name="archivePath">Path of the archive file</param>
+        /// <param name="destinationPath">Path of the target directory</param>
+        /// <param name="options">Archive options (decryption etc.)</param>
+        public static void ExtractArchive(string archivePath, string destinationPath, FragileOptions? options = null)
         {
-            if (string.IsNullOrEmpty(archivePath))
-            {
-                throw new ArgumentException("Archive file path cannot be empty", nameof(archivePath));
-            }
-
-            if (!FragilePath.IsFile(archivePath))
-            {
-                throw new FileNotFoundException($"Archive file not found: {archivePath}");
-            }
+            // Validate archive file exists
+            FragilePath2.ValidateFileExists(archivePath);
 
             options ??= new FragileOptions();
 
-            // Use the created destination directory path
-            destinationPath = FragilePath.CreateExtractionPath(archivePath, destinationPath);
-
-            // Ensure the archive path has the correct extension
-            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
+            // Validate target directory (should be empty or created if not exists)
+            FragilePath2.ValidateExtractionDirectory(destinationPath, true);
 
             using FragileArchive archive = new(archivePath, FragileArchiveMode.Read, options);
-
             archive.ExtractAll(destinationPath);
         }
 
         /// <summary>
-        /// Asynchronously extracts a Fragile archive to the specified target directory
+        /// Extracts a Fragile archive to the specified target directory (async)
         /// </summary>
-        /// <param name="archivePath">Path to the archive file</param>
-        /// <param name="destinationPath">Target directory (if null, archive name is used)</param>
-        /// <returns>Task representing the asynchronous operation</returns>
-        public static async Task ExtractArchiveAsync(string archivePath, string? destinationPath = null)
+        /// <param name="archivePath">Path of the archive file</param>
+        /// <param name="destinationPath">Path of the target directory</param>
+        /// <returns>Task representing the async operation</returns>
+        public static async Task ExtractArchiveAsync(string archivePath, string destinationPath)
         {
             await ExtractArchiveAsync(archivePath, destinationPath, new FragileOptions());
         }
 
         /// <summary>
-        /// Asynchronously extracts a Fragile archive to the specified target directory with specified options
+        /// Extracts a Fragile archive to the specified target directory using custom options (async)
         /// </summary>
-        /// <param name="archivePath">Path to the archive file</param>
-        /// <param name="destinationPath">Target directory (if null, archive name is used)</param>
-        /// <param name="options">Archive options for decompression, decryption, etc.</param>
-        /// <returns>Task representing the asynchronous operation</returns>
-        public static async Task ExtractArchiveAsync(string archivePath, string? destinationPath = null, FragileOptions? options = null)
+        /// <param name="archivePath">Path of the archive file</param>
+        /// <param name="destinationPath">Path of the target directory</param>
+        /// <param name="options">Archive options (decryption etc.)</param>
+        /// <returns>Task representing the async operation</returns>
+        public static async Task ExtractArchiveAsync(string archivePath, string destinationPath, FragileOptions? options = null)
         {
-            if (string.IsNullOrEmpty(archivePath))
-            {
-                throw new ArgumentException("Archive file path cannot be empty", nameof(archivePath));
-            }
-
-            if (!FragilePath.IsFile(archivePath))
-            {
-                throw new FileNotFoundException($"Archive file not found: {archivePath}");
-            }
+            // Validate archive file exists
+            FragilePath2.ValidateFileExists(archivePath);
 
             options ??= new FragileOptions();
 
-            // Use the created destination directory path
-            destinationPath = FragilePath.CreateExtractionPath(archivePath, destinationPath);
-
-            // Ensure the archive path has the correct extension
-            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
+            // Validate target directory (should be empty or created if not exists)
+            FragilePath2.ValidateExtractionDirectory(destinationPath, true);
 
             using FragileArchive archive = await FragileArchive.OpenAsync(archivePath, options);
-
             await archive.ExtractAllAsync(destinationPath);
         }
 
         /// <summary>
-        /// Checks if the given file is a Fragile archive by checking the file extension
+        /// Checks if the given file is a Fragile archive
         /// </summary>
-        /// <param name="filePath">Path to the file to check</param>
-        /// <param name="options">Archive options for checking</param>
+        /// <param name="filePath">Path of the file to check</param>
+        /// <param name="options">Archive options</param>
         /// <returns>True if it's a Fragile archive</returns>
         public static bool IsFragileArchive(string filePath, FragileOptions? options = null)
         {
-            if (string.IsNullOrEmpty(filePath) || !FragilePath.IsFile(filePath))
+            if (!FragilePath2.IsFile(filePath))
             {
                 return false;
             }
@@ -225,7 +209,7 @@ namespace Fragile.Utils
             options ??= new FragileOptions();
 
             // Extension check
-            if (!FragilePath.IsValidArchivePath(filePath, options))
+            if (!filePath.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -235,14 +219,14 @@ namespace Fragile.Utils
         }
 
         /// <summary>
-        /// Asynchronously checks if the given file is a Fragile archive by checking the file extension
+        /// Checks if the given file is a Fragile archive (async)
         /// </summary>
-        /// <param name="filePath">Path to the file to check</param>
-        /// <param name="options">Archive options for checking</param>
+        /// <param name="filePath">Path of the file to check</param>
+        /// <param name="options">Archive options</param>
         /// <returns>True if it's a Fragile archive</returns>
         public static async Task<bool> IsFragileArchiveAsync(string filePath, FragileOptions? options = null)
         {
-            if (string.IsNullOrEmpty(filePath) || !FragilePath.IsFile(filePath))
+            if (!FragilePath2.IsFile(filePath))
             {
                 return false;
             }
@@ -250,7 +234,7 @@ namespace Fragile.Utils
             options ??= new FragileOptions();
 
             // Extension check
-            if (!FragilePath.IsValidArchivePath(filePath, options))
+            if (!filePath.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -262,105 +246,90 @@ namespace Fragile.Utils
         /// <summary>
         /// Splits a Fragile archive into multiple parts
         /// </summary>
-        /// <param name="archivePath">Path to the archive file</param>
-        /// <param name="outputDirectory">Directory to save the split parts (if null, the same directory as the archive is used)</param>
-        /// <param name="splitSize">Size of each part in bytes</param>
+        /// <param name="archivePath">Path of the archive file</param>
+        /// <param name="outputDirectory">Path of the directory where parts will be saved</param>
+        /// <param name="splitSize">Size of each part (in bytes)</param>
         /// <returns>Collection of archive parts</returns>
-        public static async Task<FragileArchivePartCollection> SplitArchiveAsync(string archivePath, string? outputDirectory = null, long splitSize = 0)
+        public static async Task<FragileArchivePartCollection> SplitArchiveAsync(string archivePath, string outputDirectory, long splitSize = 0)
         {
             return await SplitArchiveAsync(archivePath, outputDirectory, new FragileOptions { SplitSize = splitSize > 0 ? splitSize : 100 * 1024 * 1024 }); // Default 100MB if not specified
         }
 
         /// <summary>
-        /// Splits a Fragile archive into multiple parts with specified options
+        /// Splits a Fragile archive into multiple parts using custom options
         /// </summary>
-        /// <param name="archivePath">Path to the archive file</param>
-        /// <param name="outputDirectory">Directory to save the split parts (if null, the same directory as the archive is used)</param>
+        /// <param name="archivePath">Path of the archive file</param>
+        /// <param name="outputDirectory">Path of the directory where parts will be saved</param>
         /// <param name="options">Archive options including SplitSize</param>
         /// <returns>Collection of archive parts</returns>
-        public static async Task<FragileArchivePartCollection> SplitArchiveAsync(string archivePath, string? outputDirectory = null, FragileOptions? options = null)
+        public static async Task<FragileArchivePartCollection> SplitArchiveAsync(string archivePath, string outputDirectory, FragileOptions? options = null)
         {
-            if (string.IsNullOrEmpty(archivePath))
-            {
-                throw new ArgumentException("Archive file path cannot be empty", nameof(archivePath));
-            }
-
-            if (!FragilePath.IsFile(archivePath))
-            {
-                throw new FileNotFoundException($"Archive file not found: {archivePath}");
-            }
+            // Validate archive file exists
+            FragilePath2.ValidateFileExists(archivePath);
 
             options ??= new FragileOptions { SplitSize = 100 * 1024 * 1024 }; // Default 100MB if not specified
 
-            // Ensure the archive path has the correct extension
-            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
-
-            // Ensure SplitSize is set
+            // Validate split size
             if (options.SplitSize <= 0)
             {
-                options.SplitSize = 100 * 1024 * 1024; // 100MB default
+                throw new ArgumentException("Split size must be greater than zero.", nameof(options.SplitSize));
             }
 
-            using FragileArchive archive = await FragileArchive.OpenAsync(archivePath, options);
+            // Validate output directory exists and is empty
+            FragilePath2.ValidateDirectoryExists(outputDirectory);
+            FragilePath2.ValidateDirectoryEmpty(outputDirectory);
 
+            using FragileArchive archive = await FragileArchive.OpenAsync(archivePath, options);
             return await archive.SplitAsync(outputDirectory);
         }
 
         /// <summary>
-        /// Combines multiple archive parts into a single archive
+        /// Combines multiple archive parts into a single archive file
         /// </summary>
-        /// <param name="firstPartPath">Path to the first part file</param>
-        /// <param name="outputPath">Path to the output archive (if null, first part name without part suffix is used)</param>
+        /// <param name="firstPartPath">Path of the first part file</param>
+        /// <param name="outputDirectory">Path of the directory where the combined archive will be saved</param>
         /// <param name="options">Archive options</param>
-        /// <returns>Task representing the asynchronous operation</returns>
-        public static async Task CombinePartsAsync(string firstPartPath, string? outputPath = null, FragileOptions? options = null)
+        /// <returns>Task representing the async operation</returns>
+        public static async Task CombinePartsAsync(string firstPartPath, string outputDirectory, FragileOptions? options = null)
         {
-            if (string.IsNullOrEmpty(firstPartPath))
-            {
-                throw new ArgumentException("First part path cannot be empty", nameof(firstPartPath));
-            }
-
-            if (!FragilePath.IsFile(firstPartPath))
-            {
-                throw new FileNotFoundException($"Part file not found: {firstPartPath}");
-            }
+            // Validate first part file exists
+            FragilePath2.ValidateFileExists(firstPartPath);
 
             options ??= new FragileOptions();
 
-            // Ensure the first archive part path has the correct extension
-            firstPartPath = FragilePath.EnsureArchiveExtension(firstPartPath, options);
+            // Validate output directory exists and is empty
+            FragilePath2.ValidateDirectoryExists(outputDirectory);
 
-            // Find all parts based on the first part
+            // Find parts
             FragileArchivePartCollection parts = FragileArchivePartCollection.FindParts(firstPartPath, options);
 
             if (parts.Count == 0)
             {
-                throw new InvalidOperationException($"No valid parts found for {firstPartPath}");
+                throw new InvalidOperationException($"No valid parts found for file: {firstPartPath}");
             }
 
-            // If output path is not specified, use first part name without part suffix
-            if (outputPath == null)
+            // Extract base name (remove part suffix like .part001)
+            string baseName = Path.GetFileName(firstPartPath);
+            int partIndex = baseName.IndexOf(options.SplitName, StringComparison.OrdinalIgnoreCase);
+            if (partIndex > 0)
             {
-                string directory = Path.GetDirectoryName(firstPartPath) ?? "";
-                string fileName = Path.GetFileName(firstPartPath);
-
-                // Extract base name by removing part suffix (like .part001)
-                string baseName = fileName;
-                int partIndex = fileName.IndexOf(options.SplitName, StringComparison.OrdinalIgnoreCase);
-                if (partIndex > 0)
-                {
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                    baseName = fileName.Substring(0, partIndex);
+                baseName = baseName.Substring(0, partIndex);
 #else
-                    baseName = fileName[..partIndex];
+                baseName = baseName[..partIndex];
 #endif
-                }
-
-                outputPath = Path.Combine(directory, baseName);
-
-                // Ensure the combined archive path has the correct extension
-                outputPath = FragilePath.EnsureArchiveExtension(outputPath, options);
             }
+            else
+            {
+                // If part identifier not found, remove extension
+                baseName = Path.GetFileNameWithoutExtension(firstPartPath);
+            }
+
+            // Set file name
+            options.FileName = baseName;
+
+            // Validate output path
+            string outputPath = FragilePath2.ValidateAndGetArchivePath(outputDirectory, options);
 
             // Combine parts
             await parts.CombinePartsAsync(outputPath, options.Progress, options.CancellationToken);
@@ -369,90 +338,90 @@ namespace Fragile.Utils
         /// <summary>
         /// Creates a Fragile archive directly split into multiple parts
         /// </summary>
-        /// <param name="sourcePath">Path to the file or directory to archive</param>
-        /// <param name="archivePath">Path to the archive file to create (if null, source name + .frgl is used)</param>
-        /// <param name="recursive">If archiving a directory, include subdirectories?</param>
-        /// <param name="splitSize">Size of each part in bytes (must be greater than 0)</param>
+        /// <param name="sourcePath">Path of the file or folder to be archived</param>
+        /// <param name="outputDirectory">Path of the directory where archive parts will be saved</param>
+        /// <param name="recursive">Whether to include subdirectories when archiving a folder</param>
+        /// <param name="splitSize">Size of each part (in bytes)</param>
         /// <returns>Collection of archive parts</returns>
-        public static async Task<FragileArchivePartCollection> CreateSplitArchiveAsync(string sourcePath, string? archivePath = null, bool recursive = true, long splitSize = 0)
+        public static async Task<FragileArchivePartCollection> CreateSplitArchiveAsync(string sourcePath, string outputDirectory, bool recursive = true, long splitSize = 0)
         {
-            return await CreateSplitArchiveAsync(sourcePath, archivePath, recursive, new FragileOptions { SplitSize = splitSize > 0 ? splitSize : 100 * 1024 * 1024 }); // Default 100MB if not specified
+            return await CreateSplitArchiveAsync(sourcePath, outputDirectory, recursive, new FragileOptions { SplitSize = splitSize > 0 ? splitSize : 100 * 1024 * 1024 }); // Default 100MB if not specified
         }
 
         /// <summary>
-        /// Creates a Fragile archive directly split into multiple parts
+        /// Creates a Fragile archive directly split into multiple parts using custom options
         /// </summary>
-        /// <param name="sourcePath">Path to the file or directory to archive</param>
-        /// <param name="archivePath">Path to the archive file to create (if null, source name + .frgl is used)</param>
-        /// <param name="recursive">If archiving a directory, include subdirectories?</param>
-        /// <param name="options">Archive options including SplitSize (must be greater than 0)</param>
+        /// <param name="sourcePath">Path of the file or folder to be archived</param>
+        /// <param name="outputDirectory">Path of the directory where archive parts will be saved</param>
+        /// <param name="recursive">Whether to include subdirectories when archiving a folder</param>
+        /// <param name="options">Archive options including SplitSize</param>
         /// <returns>Collection of archive parts</returns>
-        public static async Task<FragileArchivePartCollection> CreateSplitArchiveAsync(string sourcePath, string? archivePath = null, bool recursive = true, FragileOptions? options = null)
+        public static async Task<FragileArchivePartCollection> CreateSplitArchiveAsync(string sourcePath, string outputDirectory, bool recursive = true, FragileOptions? options = null)
         {
-            if (string.IsNullOrEmpty(sourcePath))
+            // Validate source path exists
+            if (string.IsNullOrWhiteSpace(sourcePath))
             {
-                throw new ArgumentException("Source path cannot be empty", nameof(sourcePath));
+                throw new ArgumentException("Source path cannot be empty.", nameof(sourcePath));
             }
 
-            options ??= new FragileOptions { SplitSize = 100 * 1024 * 1024 }; // Default to 100MB
+            if (!FragilePath2.IsFile(sourcePath) && !FragilePath2.IsDirectory(sourcePath))
+            {
+                throw new FileNotFoundException($"Specified source not found: {sourcePath}");
+            }
+
+            options ??= new FragileOptions { SplitSize = 100 * 1024 * 1024 }; // Default 100MB
 
             // Validate split size
             if (options.SplitSize <= 0)
             {
-                throw new ArgumentException("Split size must be greater than zero", nameof(options.SplitSize));
+                throw new ArgumentException("Split size must be greater than zero.", nameof(options.SplitSize));
             }
 
-            // Source file/directory name + .frgl extension
-            archivePath ??= FragilePath.CreateArchivePathFromDirectory(sourcePath, options);
+            // Validate output directory exists and is empty
+            FragilePath2.ValidateDirectoryExists(outputDirectory);
+            FragilePath2.ValidateDirectoryEmpty(outputDirectory);
 
-            // Ensure the archive path has the correct extension
-            archivePath = FragilePath.EnsureArchiveExtension(archivePath, options);
+            // Set source file/folder name for FileName
+            options.FileName = Path.GetFileNameWithoutExtension(sourcePath);
 
-            // Create temp directory for the original archive
-            string tempDirectory = FragilePath.CreateTempDirectoryPath(options);
-            Directory.CreateDirectory(tempDirectory);
+            // Create a directory for temporary files
+            string tempDirectory = FragilePath2.CreateTempDirectoryPath(options);
 
             try
             {
-                // Create the temporary archive
-                string tempArchivePath = Path.Combine(tempDirectory, Path.GetFileName(archivePath));
+                // Create temporary archive
+                string tempArchivePath = Path.Combine(tempDirectory, options.FileName + options.Extension);
 
-                // Create the archive
-                await CreateArchiveAsync(sourcePath, tempArchivePath, recursive, options);
+                // Create archive
+                await CreateArchiveAsync(sourcePath, tempDirectory, recursive, options);
 
-                // Split it with provided options
-                string outputDirectory = Path.GetDirectoryName(archivePath) ?? "";
-
-                // Check if the temporary archive was already split (and deleted)
-                if (!FragilePath.IsFile(tempArchivePath))
+                // Check if temporary archive already exists (split and deleted)
+                if (!FragilePath2.IsFile(tempArchivePath))
                 {
-                    // The archive was already split during creation
-                    // We need to find the generated parts and move them to the output directory
+                    // Archive is already split and deleted during creation
+                    // We need to find created parts and move them to output directory
                     string tempSearchPattern = Path.GetFileNameWithoutExtension(tempArchivePath) + $"*{options.SplitName}*";
                     string[] partFiles = Directory.GetFiles(tempDirectory, tempSearchPattern);
 
                     if (partFiles.Length == 0)
                     {
-                        throw new InvalidOperationException("Failed to find split archive parts in temporary directory");
+                        throw new InvalidOperationException("No split archive parts found in temporary directory");
                     }
 
-                    // Create the output directory if it doesn't exist
-                    FragilePath.EnsureDirectoryExists(outputDirectory);
-
-                    // Create a part collection to return
+                    // Create a part collection
                     FragileArchivePartCollection partCollection = new(options);
 
-                    // Move and add the parts
+                    // Move and add parts
                     foreach (string partFile in partFiles)
                     {
                         string partFileName = Path.GetFileName(partFile);
                         string destPartFile = Path.Combine(outputDirectory, partFileName);
 
-                        // Move the part
+                        // Move part
                         File.Move(partFile, destPartFile);
 
-                        // Create and add the part to the collection
-                        // We need to parse the part details from the filename
+                        // Add part to collection
+                        // We need to extract part details from filename
                         FragileArchivePart part = FragileArchivePart.FromFileName(destPartFile, options.SplitName);
                         partCollection.Add(part);
                     }
@@ -461,15 +430,14 @@ namespace Fragile.Utils
                 }
                 else
                 {
-                    // The archive was created but not split yet
+                    // Archive is created but not split yet
                     using FragileArchive archive = await FragileArchive.OpenAsync(tempArchivePath, options);
-
                     return await archive.SplitAsync(outputDirectory);
                 }
             }
             finally
             {
-                // Clean up temp directory 
+                // Clean up temporary directory
                 try
                 {
                     if (Directory.Exists(tempDirectory))

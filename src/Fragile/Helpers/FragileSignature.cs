@@ -14,7 +14,7 @@ namespace Fragile.Helpers
         /// <param name="filePath">File path to check</param>
         /// <param name="options">Archive options</param>
         /// <returns>True if valid archive signature</returns>
-        public static bool CheckArchiveSignature(string filePath, FragileOptions? options = null)
+        public static bool CheckArchiveSignature(string filePath, FragileOptions options = null)
         {
             if (!FragilePath.IsFile(filePath))
             {
@@ -25,7 +25,6 @@ namespace Fragile.Helpers
 
             try
             {
-                // Check file header
                 using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
 
                 if (stream.Length < options.Signature.Length)
@@ -45,12 +44,12 @@ namespace Fragile.Helpers
         }
 
         /// <summary>
-        /// Checks the archive signature of a given file path
+        /// Checks the archive signature of a given file path asynchronously
         /// </summary>
         /// <param name="filePath">File path to check</param>
         /// <param name="options">Archive options</param>
-        /// <returns>True if valid archive signature</returns>
-        public static async Task<bool> CheckArchiveSignatureAsync(string filePath, FragileOptions? options = null)
+        /// <returns>Task that returns true if valid archive signature</returns>
+        public static async Task<bool> CheckArchiveSignatureAsync(string filePath, FragileOptions options = null)
         {
             if (!FragilePath.IsFile(filePath))
             {

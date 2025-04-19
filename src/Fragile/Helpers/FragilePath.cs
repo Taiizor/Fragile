@@ -1,4 +1,5 @@
 using Fragile.Models;
+using System.Text;
 
 namespace Fragile.Helpers
 {
@@ -8,32 +9,13 @@ namespace Fragile.Helpers
     internal static class FragilePath
     {
         /// <summary>
-        /// Checks if a file path is a valid Fragile archive file
-        /// </summary>
-        /// <param name="path">File path to check</param>
-        /// <param name="options">Archive options</param>
-        /// <returns>True if it's a valid archive file</returns>
-        public static bool IsValidArchivePath(string path, FragileOptions? options = null)
-        {
-            if (string.IsNullOrEmpty(path))
-            {
-                return false;
-            }
-
-            options ??= new FragileOptions();
-
-            // Extension check
-            return path.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
         /// Checks if the specified path is a file
         /// </summary>
         /// <param name="path">Path to check</param>
         /// <returns>True if it's a file, false otherwise</returns>
         public static bool IsFile(string path)
         {
-            if (string.IsNullOrEmpty(path))
+            if (string.IsNullOrWhiteSpace(path))
             {
                 return false;
             }
@@ -48,39 +30,12 @@ namespace Fragile.Helpers
         /// <returns>True if it's a directory, false otherwise</returns>
         public static bool IsDirectory(string path)
         {
-            if (string.IsNullOrEmpty(path))
+            if (string.IsNullOrWhiteSpace(path))
             {
                 return false;
             }
 
             return Directory.Exists(path);
-        }
-
-        /// <summary>
-        /// Normalizes a given path as an archive path
-        /// </summary>
-        /// <param name="path">Path to normalize</param>
-        /// <param name="options">Archive options</param>
-        /// <returns>Normalized archive path</returns>
-        public static string NormalizeArchivePath(string path, FragileOptions? options = null)
-        {
-            if (string.IsNullOrEmpty(path))
-            {
-                return string.Empty;
-            }
-
-            options ??= new FragileOptions();
-
-            // Normalize path
-            path = NormalizePath(path);
-
-            // Extension check and correction
-            if (!path.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase))
-            {
-                path = Path.ChangeExtension(path, options.Extension);
-            }
-
-            return path;
         }
 
         /// <summary>
@@ -91,7 +46,7 @@ namespace Fragile.Helpers
         /// <returns>Normalized path</returns>
         public static string NormalizePath(string path)
         {
-            if (string.IsNullOrEmpty(path))
+            if (string.IsNullOrWhiteSpace(path))
             {
                 return string.Empty;
             }
@@ -123,95 +78,13 @@ namespace Fragile.Helpers
         }
 
         /// <summary>
-        /// Creates an archive entry path for adding the specified location to the archive
-        /// </summary>
-        /// <param name="sourcePath">Source file or folder path</param>
-        /// <param name="entryPath">Target path in archive (if null, file/folder name is used)</param>
-        /// <returns>Normalized archive entry path</returns>
-        public static string CreateEntryPath(string sourcePath, string? entryPath = null)
-        {
-            if (string.IsNullOrEmpty(sourcePath))
-            {
-                return string.Empty;
-            }
-
-            entryPath ??= Path.GetFileName(sourcePath);
-
-            return NormalizePath(entryPath);
-        }
-
-        /// <summary>
-        /// Creates an archive file path from a directory path
-        /// </summary>
-        /// <param name="directoryPath">Directory path</param>
-        /// <param name="options">Archive options</param>
-        /// <returns>Archive file path</returns>
-        public static string CreateArchivePathFromDirectory(string directoryPath, FragileOptions? options = null)
-        {
-            if (string.IsNullOrEmpty(directoryPath))
-            {
-                throw new ArgumentException("Directory path cannot be empty.", nameof(directoryPath));
-            }
-
-            options ??= new FragileOptions();
-            return Path.ChangeExtension(directoryPath, options.Extension);
-        }
-
-        /// <summary>
-        /// Creates a destination directory path for extraction from an archive path
-        /// </summary>
-        /// <param name="archivePath">Archive file path</param>
-        /// <param name="destinationPath">Destination directory path (if null, archive name is used)</param>
-        /// <returns>Destination directory path for extraction</returns>
-        public static string CreateExtractionPath(string archivePath, string? destinationPath = null)
-        {
-            if (string.IsNullOrEmpty(archivePath))
-            {
-                throw new ArgumentException("Archive path cannot be empty.", nameof(archivePath));
-            }
-
-            if (destinationPath == null)
-            {
-                // Use archive filename without extension
-                string dirName = Path.GetFileNameWithoutExtension(archivePath);
-                destinationPath = Path.Combine(Path.GetDirectoryName(archivePath) ?? "", dirName);
-            }
-
-            return destinationPath;
-        }
-
-        /// <summary>
-        /// Adds or changes the archive extension for the specified path
-        /// </summary>
-        /// <param name="path">Path to process</param>
-        /// <param name="options">Archive options</param>
-        /// <returns>Path with archive extension</returns>
-        public static string EnsureArchiveExtension(string path, FragileOptions? options = null)
-        {
-            if (string.IsNullOrEmpty(path))
-            {
-                return string.Empty;
-            }
-
-            options ??= new FragileOptions();
-
-            // Extension check
-            if (!path.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase))
-            {
-                path = Path.ChangeExtension(path, options.Extension);
-            }
-
-            return path;
-        }
-
-        /// <summary>
         /// Checks if the directory exists for the specified path, creates if not
         /// </summary>
         /// <param name="path">File or directory path</param>
         /// <returns>Directory path</returns>
         public static string EnsureDirectoryExists(string path)
         {
-            if (string.IsNullOrEmpty(path))
+            if (string.IsNullOrWhiteSpace(path))
             {
                 return string.Empty;
             }
@@ -229,7 +102,7 @@ namespace Fragile.Helpers
             }
 
             // Create directory if it doesn't exist and path is not empty
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
             }
@@ -259,6 +132,192 @@ namespace Fragile.Helpers
             options ??= new FragileOptions();
 
             return Path.Combine(options.TempDirectory, $"Fragile_{Guid.NewGuid()}");
+        }
+
+        /// <summary>
+        /// Changes the extension of a given path to the specified archive extension
+        /// </summary>
+        /// <param name="path">Path to process</param>
+        /// <param name="options">Archive options</param>
+        /// <returns>Path with archive extension</returns>
+        public static string ChangeExtension(string path, FragileOptions? options = null)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                throw new ArgumentException("Path cannot be empty.", nameof(path));
+            }
+
+            options ??= new FragileOptions();
+
+
+            if (IsFile(path))
+            {
+                return Path.ChangeExtension(path, options.Extension);
+            }
+            else if (IsDirectory(path))
+            {
+                return path;
+            }
+            else
+            {
+                throw new ArgumentException("Invalid path.", nameof(path));
+            }
+        }
+
+        /// <summary>
+        /// Creates an archive entry path for adding the specified location to the archive
+        /// </summary>
+        /// <param name="sourcePath">Source file or folder path</param>
+        /// <param name="entryPath">Target path in archive (if null, file/folder name is used)</param>
+        /// <returns>Normalized archive entry path</returns>
+        public static string CreateEntryPath(string sourcePath, string? entryPath = null)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath))
+            {
+                return string.Empty;
+            }
+
+            entryPath ??= Path.GetFileName(sourcePath);
+
+            return NormalizePath(entryPath);
+        }
+
+        /// <summary>
+        /// Checks if a file path is a valid Fragile archive file
+        /// </summary>
+        /// <param name="path">File path to check</param>
+        /// <param name="options">Archive options</param>
+        /// <returns>True if it's a valid archive file</returns>
+        public static bool IsValidArchivePath(string path, FragileOptions? options = null)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            options ??= new FragileOptions();
+
+            // Extension check
+            return path.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Normalizes a given path as an archive path
+        /// </summary>
+        /// <param name="path">Path to normalize</param>
+        /// <param name="options">Archive options</param>
+        /// <returns>Normalized archive path</returns>
+        public static string NormalizeArchivePath(string path, FragileOptions? options = null)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return string.Empty;
+            }
+
+            options ??= new FragileOptions();
+
+            // Normalize path
+            path = NormalizePath(path);
+
+            // Extension check and correction
+            if (!path.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase))
+            {
+                path = ChangeExtension(path, options);
+            }
+
+            return path;
+        }
+
+        /// <summary>
+        /// Adds or changes the archive extension for the specified path
+        /// </summary>
+        /// <param name="path">Path to process</param>
+        /// <param name="options">Archive options</param>
+        /// <returns>Path with archive extension</returns>
+        public static string EnsureArchiveExtension(string path, FragileOptions? options = null)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return string.Empty;
+            }
+
+            options ??= new FragileOptions();
+
+            // Extension check
+            if (!path.EndsWith(options.Extension, StringComparison.OrdinalIgnoreCase))
+            {
+                path = ChangeExtension(path, options);
+            }
+
+            return path;
+        }
+
+        /// <summary>
+        /// Creates a destination directory path for extraction from an archive path
+        /// </summary>
+        /// <param name="archivePath">Archive file path</param>
+        /// <param name="destinationPath">Destination directory path (if null, archive name is used)</param>
+        /// <returns>Destination directory path for extraction</returns>
+        public static string CreateExtractionPath(string archivePath, string? destinationPath = null)
+        {
+            if (string.IsNullOrWhiteSpace(archivePath))
+            {
+                throw new ArgumentException("Archive path cannot be empty.", nameof(archivePath));
+            }
+
+            if (destinationPath == null)
+            {
+                // Use archive filename without extension
+                string dirName = Path.GetFileNameWithoutExtension(archivePath);
+                destinationPath = Path.Combine(Path.GetDirectoryName(archivePath) ?? "", dirName);
+            }
+
+            return destinationPath;
+        }
+
+        /// <summary>
+        /// Creates a destination directory path for extraction from an archive path
+        /// </summary>
+        /// <param name="directoryPath">Directory path</param>
+        /// <param name="options">Archive options</param>
+        /// <returns>Destination directory path for extraction</returns>
+        public static string CreateArchivePathFromDirectory(string directoryPath, FragileOptions options = null)
+        {
+            if (string.IsNullOrWhiteSpace(directoryPath))
+            {
+                throw new ArgumentException("Directory path cannot be empty.", nameof(directoryPath));
+            }
+
+            options ??= new FragileOptions();
+            
+            return Path.ChangeExtension(directoryPath, options.Extension);
+        }
+
+        /// <summary>
+        /// Creates a full archive path using directory path and archive options
+        /// </summary>
+        /// <param name="directoryPath">Directory path where the archive will be created</param>
+        /// <param name="options">Archive options</param>
+        /// <returns>Full archive file path</returns>
+        public static string GetFullArchivePath(string directoryPath, FragileOptions options = null)
+        {
+            options ??= new FragileOptions();
+
+            if (string.IsNullOrWhiteSpace(directoryPath))
+            {
+                // If no directory specified, use current directory
+                directoryPath = Directory.GetCurrentDirectory();
+            }
+            else
+            {
+                // Ensure directory exists
+                EnsureDirectoryExists(directoryPath);
+            }
+
+            // Combine directory and filename
+            string fullPath = Path.Combine(directoryPath, options.FileName + options.Extension);
+            
+            return fullPath;
         }
     }
 }
