@@ -50,9 +50,9 @@ namespace Fragile.Compression
             {
                 CompressionAlgorithm.Store => new StoreCompressionProvider(useParallelProcessing, maxThreads),
                 CompressionAlgorithm.GZip => new GZipCompressionProvider(level, useParallelProcessing, maxThreads),
+                CompressionAlgorithm.ZLib => new ZLibCompressionProvider(level, useParallelProcessing, maxThreads),
                 CompressionAlgorithm.Brotli => new BrotliCompressionProvider(level, useParallelProcessing, maxThreads),
                 CompressionAlgorithm.Deflate => new DeflateCompressionProvider(level, useParallelProcessing, maxThreads),
-                CompressionAlgorithm.ZLib => new ZLibCompressionProvider(level, useParallelProcessing, maxThreads),
                 _ => throw new NotSupportedException($"Compression algorithm {algorithm} is not supported")
             };
         }
