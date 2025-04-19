@@ -43,7 +43,7 @@ namespace Fragile.Core
         /// <returns>A new FragileArchivePart instance</returns>
         public static FragileArchivePart FromFileName(string fileName, string splitName)
         {
-            if (string.IsNullOrEmpty(fileName))
+            if (string.IsNullOrWhiteSpace(fileName))
             {
                 throw new ArgumentException("File name cannot be null or empty", nameof(fileName));
             }
@@ -112,7 +112,7 @@ namespace Fragile.Core
         /// <returns>The formatted part file name</returns>
         public static string GetPartFileName(string basePath, int partIndex, int totalParts, string splitName)
         {
-            if (string.IsNullOrEmpty(basePath))
+            if (string.IsNullOrWhiteSpace(basePath))
             {
                 throw new ArgumentException("Base path cannot be null or empty", nameof(basePath));
             }

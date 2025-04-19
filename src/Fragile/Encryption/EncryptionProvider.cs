@@ -21,7 +21,7 @@ namespace Fragile.Encryption
         /// <returns>A suitable encryption provider</returns>
         public static EncryptionProvider Create(EncryptionMethod method, string password)
         {
-            if (string.IsNullOrEmpty(password) && method != EncryptionMethod.None)
+            if (string.IsNullOrWhiteSpace(password) && method != EncryptionMethod.None)
             {
                 throw new ArgumentException("Password cannot be null or empty for encrypted archives", nameof(password));
             }
@@ -60,7 +60,7 @@ namespace Fragile.Encryption
             }
 
             // Otherwise, create a provider based on the selected method and password
-            if (string.IsNullOrEmpty(options.Password) && options.EncryptionMethod != EncryptionMethod.None)
+            if (string.IsNullOrWhiteSpace(options.Password) && options.EncryptionMethod != EncryptionMethod.None)
             {
                 throw new ArgumentException("Password cannot be null or empty when encryption is enabled", nameof(options.Password));
             }

@@ -24,7 +24,7 @@ namespace Fragile.Encryption
         /// <param name="keySize">Key size in bits (128 or 256)</param>
         public AesEncryptionProvider(string password, int keySize)
         {
-            if (string.IsNullOrEmpty(password))
+            if (string.IsNullOrWhiteSpace(password))
             {
                 throw new ArgumentException("Password cannot be null or empty", nameof(password));
             }

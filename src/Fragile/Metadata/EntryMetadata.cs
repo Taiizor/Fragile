@@ -111,7 +111,7 @@ namespace Fragile.Metadata
         /// <returns>Property value or null if not found</returns>
         public string? GetProperty(string key)
         {
-            if (string.IsNullOrEmpty(key))
+            if (string.IsNullOrWhiteSpace(key))
             {
                 return null;
             }
@@ -126,7 +126,7 @@ namespace Fragile.Metadata
         /// <param name="value">Property value</param>
         public void AddProperty(string key, string value)
         {
-            if (string.IsNullOrEmpty(key))
+            if (string.IsNullOrWhiteSpace(key))
             {
                 throw new ArgumentException("Property key cannot be null or empty", nameof(key));
             }
@@ -141,7 +141,7 @@ namespace Fragile.Metadata
         /// <returns>EntryMetadata object</returns>
         public static EntryMetadata FromJson(string json)
         {
-            if (string.IsNullOrEmpty(json))
+            if (string.IsNullOrWhiteSpace(json))
             {
                 return new EntryMetadata();
             }

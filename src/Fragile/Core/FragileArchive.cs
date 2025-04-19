@@ -215,7 +215,7 @@ namespace Fragile.Core
             foreach (string? file in Directory.GetFiles(directoryPath))
             {
                 string fileName = Path.GetFileName(file);
-                string fileEntryPath = string.IsNullOrEmpty(entryPath)
+                string fileEntryPath = string.IsNullOrWhiteSpace(entryPath)
                     ? fileName
                     : Path.Combine(entryPath, fileName).Replace('\\', '/');
 
@@ -229,7 +229,7 @@ namespace Fragile.Core
                 foreach (string? subDir in Directory.GetDirectories(directoryPath))
                 {
                     string subDirName = Path.GetFileName(subDir);
-                    string subDirEntryPath = string.IsNullOrEmpty(entryPath)
+                    string subDirEntryPath = string.IsNullOrWhiteSpace(entryPath)
                         ? subDirName
                         : Path.Combine(entryPath, subDirName).Replace('\\', '/');
 
@@ -431,7 +431,7 @@ namespace Fragile.Core
                     {
                         // Ensure the directory exists
                         string? directory = Path.GetDirectoryName(targetPath);
-                        if (!string.IsNullOrEmpty(directory))
+                        if (!string.IsNullOrWhiteSpace(directory))
                         {
                             FragilePath.EnsureDirectoryExists(directory);
                         }
@@ -610,7 +610,7 @@ namespace Fragile.Core
                             await outputStream.WriteAsync(entry.Data.AsMemory(0, entry.Data.Length));
 #endif
                         }
-                        else if (!string.IsNullOrEmpty(entry.SourcePath) && File.Exists(entry.SourcePath))
+                        else if (!string.IsNullOrWhiteSpace(entry.SourcePath) && File.Exists(entry.SourcePath))
                         {
                             // Compress and write from file
                             long fileDataStartPosition = outputStream.Position;
@@ -1039,7 +1039,7 @@ namespace Fragile.Core
 
                 // Create directory if it doesn't exist
                 string? directory = Path.GetDirectoryName(destinationPath);
-                if (!string.IsNullOrEmpty(directory))
+                if (!string.IsNullOrWhiteSpace(directory))
                 {
                     FragilePath.EnsureDirectoryExists(directory);
                 }
@@ -1092,7 +1092,7 @@ namespace Fragile.Core
                 bool isEncrypted = entry.IsEncrypted;
 
                 // If entry is encrypted but no password is provided, throw an exception
-                if (isEncrypted && string.IsNullOrEmpty(_options.Password))
+                if (isEncrypted && string.IsNullOrWhiteSpace(_options.Password))
                 {
                     throw new InvalidOperationException($"Entry {entry.Path} is encrypted but no password was provided. Set the Password property in FragileOptions.");
                 }

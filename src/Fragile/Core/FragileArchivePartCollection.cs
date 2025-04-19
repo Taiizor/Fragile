@@ -145,7 +145,7 @@ namespace Fragile.Core
             }
 
             // After combining is done, if encryption is enabled, encrypt the entire output file
-            if (_options.EnableEncryption && !string.IsNullOrEmpty(_options.Password))
+            if (_options.EnableEncryption && !string.IsNullOrWhiteSpace(_options.Password))
             {
                 // Get current file position to remember the file size
                 long fileSize = outputStream.Length;
@@ -264,7 +264,7 @@ namespace Fragile.Core
             progress?.Report(1.0);
 
             // After parallel combination is done, if encryption is enabled, encrypt the entire output file
-            if (_options.EnableEncryption && !string.IsNullOrEmpty(_options.Password))
+            if (_options.EnableEncryption && !string.IsNullOrWhiteSpace(_options.Password))
             {
                 // Need to close and reopen output stream for reading/writing
                 long fileSize = outputStream.Length;
@@ -294,7 +294,7 @@ namespace Fragile.Core
                     // Determine the full path of the output
                     string fullOutputPath = outputStream?.Name;
 
-                    if (!string.IsNullOrEmpty(fullOutputPath))
+                    if (!string.IsNullOrWhiteSpace(fullOutputPath))
                     {
                         // Replace the original file with encrypted one
                         File.Delete(fullOutputPath);
@@ -334,7 +334,7 @@ namespace Fragile.Core
         {
             FragileArchivePartCollection result = new(options);
 
-            if (string.IsNullOrEmpty(basePath))
+            if (string.IsNullOrWhiteSpace(basePath))
             {
                 return result;
             }

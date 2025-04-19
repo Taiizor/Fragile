@@ -44,6 +44,11 @@ namespace Fragile.Models
         public string SplitName { get; set; } = ".part";
 
         /// <summary>
+        /// The name of the archive file, defaulting to 'Fragile'.
+        /// </summary>
+        public string FileName { get; set; } = "Fragile";
+
+        /// <summary>
         /// Whether to include metadata in the archive
         /// </summary>
         public bool IncludeMetadata { get; set; } = true;

@@ -23,7 +23,7 @@ namespace Fragile.Encryption
         /// <param name="password">Password for encryption/decryption</param>
         public ChaCha20EncryptionProvider(string password)
         {
-            if (string.IsNullOrEmpty(password))
+            if (string.IsNullOrWhiteSpace(password))
             {
                 throw new ArgumentException("Password cannot be null or empty", nameof(password));
             }
