@@ -4,9 +4,9 @@ Fragile is a comprehensive archiving library for .NET, featuring file compressio
 
 ## Features
 
-- **Multiple Compression Algorithms**: Store, Brotli and Deflate
 - **Split Archives**: Split large archives into manageable parts
 - **Strong Encryption**: AES-256, ChaCha20 and Twofish encryption
+- **Multiple Compression Algorithms**: Store, GZip, Brotli and Deflate
 - **Parallel Processing**: Optimized performance through parallel operations
 - **Error Correction**: Reed-Solomon based error correction for file recovery
 - **Metadata Support**: Store and retrieve custom metadata for archives and files

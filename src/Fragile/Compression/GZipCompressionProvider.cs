@@ -4,31 +4,31 @@ using System.Text;
 namespace Fragile.Compression
 {
     /// <summary>
-    /// Compression provider implementation using Deflate algorithm
+    /// Compression provider implementation using GZip algorithm
     /// </summary>
     /// <remarks>
-    /// Creates a new Deflate compression provider with the specified level and parallel processing options
+    /// Creates a new GZip compression provider with the specified level and parallel processing options
     /// </remarks>
     /// <param name="level">Compression level</param>
     /// <param name="useParallelProcessing">Whether to use parallel processing</param>
     /// <param name="maxThreads">Maximum number of threads to use for parallel operations</param>
-    internal class DeflateCompressionProvider(CompressionLevel level, bool useParallelProcessing, int maxThreads) : CompressionProvider(useParallelProcessing, maxThreads)
+    internal class GZipCompressionProvider(CompressionLevel level, bool useParallelProcessing, int maxThreads) : CompressionProvider(useParallelProcessing, maxThreads)
     {
         /// <summary>
         /// Gets the compression algorithm used by this provider
         /// </summary>
-        public override CompressionAlgorithm Algorithm => CompressionAlgorithm.Deflate;
+        public override CompressionAlgorithm Algorithm => CompressionAlgorithm.GZip;
 
         /// <summary>
-        /// Creates a new Deflate compression provider with the specified level
+        /// Creates a new GZip compression provider with the specified level
         /// </summary>
         /// <param name="level">Compression level</param>
-        public DeflateCompressionProvider(CompressionLevel level) : this(level, true, Environment.ProcessorCount)
+        public GZipCompressionProvider(CompressionLevel level) : this(level, true, Environment.ProcessorCount)
         {
         }
 
         /// <summary>
-        /// Compresses the input stream to the output stream using Deflate
+        /// Compresses the input stream to the output stream using GZip
         /// </summary>
         public override async Task<long> CompressAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
@@ -60,7 +60,7 @@ namespace Fragile.Compression
             }
             else
             {
-                using DeflateStream deflateStream = new(output, compressionLevel, true);
+                using GZipStream gzipStream = new(output, compressionLevel, true);
                 // If input stream supports seeking, we can report progress
                 bool canReportProgress = input.CanSeek;
                 long totalBytes = canReportProgress ? input.Length : 0;
@@ -76,9 +76,9 @@ namespace Fragile.Compression
 #endif
                 {
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                    await deflateStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
+                    await gzipStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
 #else
-                    await deflateStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+                    await gzipStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
 #endif
 
                     // Report progress if possible
@@ -99,7 +99,7 @@ namespace Fragile.Compression
         }
 
         /// <summary>
-        /// Decompresses the input stream to the output stream using Deflate
+        /// Decompresses the input stream to the output stream using GZip
         /// </summary>
         public override async Task<long> DecompressAsync(Stream input, Stream output, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
@@ -146,7 +146,7 @@ namespace Fragile.Compression
 
                                     // Decompress chunk
                                     using (MemoryStream compressedStream = new(compressedData))
-                                    using (DeflateStream deflateStream = new(compressedStream, CompressionMode.Decompress))
+                                    using (GZipStream gzipStream = new(compressedStream, CompressionMode.Decompress))
                                     {
                                         // Position in full buffer where this chunk should go
                                         fullDecompressedData.Position = start;
@@ -157,9 +157,9 @@ namespace Fragile.Compression
                                         long totalBytesRead = 0;
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                                        while (totalBytesRead < length && (bytesRead = await deflateStream.ReadAsync(buffer, 0, (int)Math.Min(buffer.Length, length - totalBytesRead), cancellationToken)) > 0)
+                                        while (totalBytesRead < length && (bytesRead = await gzipStream.ReadAsync(buffer, 0, (int)Math.Min(buffer.Length, length - totalBytesRead), cancellationToken)) > 0)
 #else
-                                        while (totalBytesRead < length && (bytesRead = await deflateStream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, length - totalBytesRead)), cancellationToken)) > 0)
+                                        while (totalBytesRead < length && (bytesRead = await gzipStream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, length - totalBytesRead)), cancellationToken)) > 0)
 #endif
                                         {
 #if NET48_OR_GREATER || NETSTANDARD2_0
@@ -201,188 +201,155 @@ namespace Fragile.Compression
                         }
                     }
 
-                    // Reset input stream position to try standard decompression
+                    // Reset input position to try standard decompression
                     input.Position = initialInputPosition;
                 }
 
-                // If not a parallel compressed file or the detection failed, try standard decompression
-                using MemoryStream tempBuffer = new();
-                // First, decompress to a memory buffer
-                using (DeflateStream deflateStream = new(input, CompressionMode.Decompress, true))
+                // Standard decompression
+                using (GZipStream gzipStream = new(input, CompressionMode.Decompress, true))
                 {
-                    byte[] buffer = new byte[81920]; // 80 KB buffer
+                    // If we can seek the input, we might get the uncompressed size from the footer
+                    bool canReportProgress = false;
                     long totalBytes = 0;
+
+                    byte[] buffer = new byte[81920]; // 80 KB buffer
+                    long totalBytesRead = 0;
                     int bytesRead;
 
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                    while ((bytesRead = await deflateStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
-#else
-                    while ((bytesRead = await deflateStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
-#endif
+                    while ((bytesRead = await gzipStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
                     {
-#if NET48_OR_GREATER || NETSTANDARD2_0
-                        await tempBuffer.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+                        await output.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
 #else
-                        await tempBuffer.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                    while ((bytesRead = await gzipStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+                    {
+                        await output.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
 #endif
-                        totalBytes += bytesRead;
 
-                        // Report approximate progress if possible
-                        if (input.CanSeek && progress != null)
+                        totalBytesRead += bytesRead;
+
+                        // Report progress if possible
+                        if (canReportProgress && progress != null && totalBytes > 0)
                         {
-                            double progressValue = Math.Min(0.95, (double)input.Position / input.Length);
+                            double progressValue = (double)totalBytesRead / totalBytes;
                             progress.Report(progressValue);
                         }
 
                         // Check for cancellation
                         cancellationToken.ThrowIfCancellationRequested();
                     }
+
+                    // Final progress update
+                    progress?.Report(1.0);
                 }
 
-                // Then write the complete buffer to the output
-                tempBuffer.Position = 0;
-                await tempBuffer.CopyToAsync(output, 81920, cancellationToken);
-
-                // Final progress update
-                progress?.Report(1.0);
+                return output.Position - initialPosition;
             }
             catch (Exception ex)
             {
-                // Add more context to the exception
-                throw new InvalidDataException($"Failed to decompress using Deflate algorithm: {ex.Message}", ex);
+                throw new Exception($"Failed to decompress using GZip: {ex.Message}", ex);
             }
-
-            // Return the number of bytes written
-            return output.Position - initialPosition;
         }
 
         /// <summary>
-        /// Estimates the compressed size based on the Deflate algorithm's average compression ratio
+        /// Gets the estimated compressed size for the given input size
         /// </summary>
         public override long EstimateCompressedSize(long inputSize)
         {
-            // Deflate typically achieves a compression ratio of about 2:1 to 3:1 for text
-            // The ratio depends on the input data and compression level
-            double ratio = level switch
+            // GZip typically achieves a compression ratio between 2:1 and 10:1
+            // Adjust based on compression level
+            double compressionRatio = level switch
             {
-                CompressionLevel.Fastest => 0.7,  // 30% reduction
-                CompressionLevel.Fast => 0.6,     // 40% reduction
-                CompressionLevel.Normal => 0.5,   // 50% reduction
-                CompressionLevel.High => 0.4,     // 60% reduction
-                CompressionLevel.Ultra => 0.35,   // 65% reduction
-                _ => 0.5
+                CompressionLevel.Fastest => 1.2, // Minimal compression
+                CompressionLevel.Fast => 2.0,
+                CompressionLevel.Normal => 2.5,
+                CompressionLevel.High => 3.0,
+                CompressionLevel.Ultra => 3.5,
+                _ => 2.5
             };
 
-            return (long)(inputSize * ratio);
+            // Add GZip overhead (about 18 bytes for header/footer plus up to 5 bytes per 32KB block)
+            long overhead = 18 + (inputSize / 32768 * 5);
+            return (long)(inputSize / compressionRatio) + overhead;
         }
 
-        /// <summary>
-        /// Compresses the input stream to the output stream using parallel processing
-        /// </summary>
         private async Task CompressParallelAsync(Stream input, Stream output, System.IO.Compression.CompressionLevel compressionLevel, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
-            long fileLength = input.Length;
-            long originalPosition = input.Position;
+            // Get input size and calculate optimal chunk size
+            long inputLength = input.Length;
+            int processorCount = Math.Min(MaxThreads, Environment.ProcessorCount);
+            long chunkSize = Math.Max(1024 * 1024, inputLength / processorCount); // Min 1MB chunks
 
-            // Calculate chunk size based on file size and number of threads
-            int threadCount = Math.Min(MaxThreads, Environment.ProcessorCount);
-            int chunkCount = threadCount * 2; // Use more chunks than threads for better load balancing
-            long chunkSize = Math.Max(1024 * 1024, fileLength / chunkCount); // At least 1MB per chunk
+            // Calculate the number of chunks
+            int chunkCount = (int)Math.Ceiling((double)inputLength / chunkSize);
 
-            // Prepare tasks and results
+            // Collect chunk information before writing to output
             List<(long Start, long Length, byte[] CompressedData)> compressedChunks = [];
-            List<Task<(long Start, long Length, byte[] CompressedData)>> compressionTasks = [];
 
-            // Process each chunk in parallel
-            for (long position = 0; position < fileLength; position += chunkSize)
+            // Report setup progress
+            progress?.Report(0.0);
+
+            // Process each chunk
+            long totalBytesProcessed = 0;
+            for (int i = 0; i < chunkCount; i++)
             {
-                long start = position;
-                long length = Math.Min(chunkSize, fileLength - position);
+                // Calculate chunk boundaries
+                long start = i * chunkSize;
+                long length = Math.Min(chunkSize, inputLength - start);
 
-                compressionTasks.Add(Task.Run(async () =>
-                {
-                    // Create a buffer for the chunk
-                    byte[] chunkBuffer = new byte[length];
+                // Read chunk data
+                input.Position = start;
+                byte[] buffer = new byte[length];
 
-                    // Read chunk from input stream
-                    lock (input)
-                    {
-                        input.Position = start;
-                        input.Read(chunkBuffer, 0, (int)length);
-                    }
 
-                    // Compress the chunk
-                    using MemoryStream chunkOutput = new();
-                    using (DeflateStream deflateStream = new(chunkOutput, compressionLevel, true))
-                    {
 #if NET48_OR_GREATER || NETSTANDARD2_0
-                        await deflateStream.WriteAsync(chunkBuffer, 0, (int)length, cancellationToken);
+                int bytesRead = await input.ReadAsync(buffer, 0, (int)length, cancellationToken);
 #else
-                        await deflateStream.WriteAsync(chunkBuffer.AsMemory(0, (int)length), cancellationToken);
+                int bytesRead = await input.ReadAsync(buffer.AsMemory(0, (int)length), cancellationToken);
 #endif
-                    }
 
-                    return (start, length, chunkOutput.ToArray());
-                }, cancellationToken));
-
-                // Periodically wait for some tasks to complete to control memory usage
-                if (compressionTasks.Count >= threadCount * 2)
+                // Compress the chunk
+                using MemoryStream compressedStream = new();
+                using (GZipStream gzipStream = new(compressedStream, compressionLevel))
                 {
-                    Task<(long, long, byte[])> completedTask = await Task.WhenAny(compressionTasks);
-                    compressedChunks.Add(await completedTask);
-                    compressionTasks.Remove(completedTask);
-
-                    // Report progress
-                    if (progress != null)
-                    {
-                        double progressValue = (double)compressedChunks.Sum(c => c.Length) / fileLength;
-                        progress.Report(progressValue);
-                    }
+#if NET48_OR_GREATER || NETSTANDARD2_0
+                    await gzipStream.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+#else
+                    await gzipStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+#endif
                 }
+
+                // Add compressed chunk to collection
+                compressedChunks.Add((start, length, compressedStream.ToArray()));
+
+                // Update progress
+                totalBytesProcessed += length;
+                progress?.Report((double)totalBytesProcessed / inputLength * 0.9); // Use 90% for compression, 10% for writing
+
+                // Check for cancellation
+                cancellationToken.ThrowIfCancellationRequested();
             }
 
-            // Wait for remaining tasks
-            while (compressionTasks.Count > 0)
-            {
-                Task<(long, long, byte[])> completedTask = await Task.WhenAny(compressionTasks);
-                compressedChunks.Add(await completedTask);
-                compressionTasks.Remove(completedTask);
-
-                // Report progress
-                if (progress != null)
-                {
-                    double progressValue = (double)compressedChunks.Sum(c => c.Length) / fileLength;
-                    progress.Report(progressValue);
-                }
-            }
-
-            // Sort chunks by original position
-            compressedChunks.Sort((a, b) => a.Start.CompareTo(b.Start));
-
-            // Write compression header - format information about chunks
+            // Write the parallel compression header
             using (BinaryWriter writer = new(output, Encoding.UTF8, true))
             {
-                writer.Write(compressedChunks.Count);
-                foreach ((long Start, long Length, byte[] CompressedData) in compressedChunks)
+                // Write the number of chunks
+                writer.Write(chunkCount);
+
+                // Write chunk metadata - each chunk has start position, length and compressed length
+                foreach ((long start, long length, byte[] compressedData) in compressedChunks)
                 {
-                    writer.Write(Start);
-                    writer.Write(Length);
-                    writer.Write(CompressedData.Length);
+                    writer.Write(start);
+                    writer.Write(length);
+                    writer.Write(compressedData.Length);
+                }
+
+                // Write the compressed data for each chunk
+                foreach ((_, _, byte[] compressedData) in compressedChunks)
+                {
+                    writer.Write(compressedData);
                 }
             }
-
-            // Write compressed data from all chunks
-            foreach ((long Start, long Length, byte[] CompressedData) in compressedChunks)
-            {
-#if NET48_OR_GREATER || NETSTANDARD2_0
-                await output.WriteAsync(CompressedData, 0, CompressedData.Length, cancellationToken);
-#else
-                await output.WriteAsync(CompressedData, cancellationToken);
-#endif
-            }
-
-            // Restore original position
-            input.Position = originalPosition;
 
             // Final progress update
             progress?.Report(1.0);

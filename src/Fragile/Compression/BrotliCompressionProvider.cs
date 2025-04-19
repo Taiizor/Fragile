@@ -38,11 +38,19 @@ namespace Fragile.Compression
             // Map our compression level to System.IO.Compression level
             System.IO.Compression.CompressionLevel compressionLevel = level switch
             {
+#if NET6_0_OR_GREATER
+                CompressionLevel.Fastest => System.IO.Compression.CompressionLevel.Fastest,
+                CompressionLevel.Fast => System.IO.Compression.CompressionLevel.Fastest,
+                CompressionLevel.Normal => System.IO.Compression.CompressionLevel.Optimal,
+                CompressionLevel.High => System.IO.Compression.CompressionLevel.SmallestSize,
+                CompressionLevel.Ultra => System.IO.Compression.CompressionLevel.SmallestSize,
+#else
                 CompressionLevel.Fastest => System.IO.Compression.CompressionLevel.NoCompression,
                 CompressionLevel.Fast => System.IO.Compression.CompressionLevel.NoCompression,
                 CompressionLevel.Normal => System.IO.Compression.CompressionLevel.Fastest,
-                CompressionLevel.High => System.IO.Compression.CompressionLevel.Fastest,
+                CompressionLevel.High => System.IO.Compression.CompressionLevel.Optimal,
                 CompressionLevel.Ultra => System.IO.Compression.CompressionLevel.Optimal,
+#endif
                 _ => System.IO.Compression.CompressionLevel.Optimal
             };
 

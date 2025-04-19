@@ -49,6 +49,7 @@ namespace Fragile.Compression
             return algorithm switch
             {
                 CompressionAlgorithm.Store => new StoreCompressionProvider(useParallelProcessing, maxThreads),
+                CompressionAlgorithm.GZip => new GZipCompressionProvider(level, useParallelProcessing, maxThreads),
                 CompressionAlgorithm.Brotli => new BrotliCompressionProvider(level, useParallelProcessing, maxThreads),
                 CompressionAlgorithm.Deflate => new DeflateCompressionProvider(level, useParallelProcessing, maxThreads),
                 _ => throw new NotSupportedException($"Compression algorithm {algorithm} is not supported")
