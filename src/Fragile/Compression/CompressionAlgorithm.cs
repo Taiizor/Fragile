@@ -16,13 +16,18 @@ namespace Fragile.Compression
         GZip = 1,
 
         /// <summary>
+        /// ZLib compression algorithm
+        /// </summary>
+        ZLib = 2,
+
+        /// <summary>
         /// Brotli compression algorithm
         /// </summary>
-        Brotli = 2,
+        Brotli = 3,
 
         /// <summary>
         /// Standard Deflate algorithm (compatible with ZIP)
         /// </summary>
-        Deflate = 3
+        Deflate = 4
     }
 }

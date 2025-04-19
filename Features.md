@@ -19,6 +19,7 @@ Fragile is a custom file archiving library for .NET that provides advanced featu
 - **Compression Algorithms**:
   - GZip
   - Store (no compression)
+  - ZLib (only available on .NET 7.0 or greater)
   - Deflate (standard compression compatible with ZIP)
   - Brotli (only available on .NET Standard 2.1, .NET 6.0 or greater)
 
